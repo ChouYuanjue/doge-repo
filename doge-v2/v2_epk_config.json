@@ -22,5 +22,13 @@
     "priority": 0,
     "reply": "*当然是我们的上帝了～",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[.*CalculatePi start(.*) for(.*)digits.*]",
+    "match_mode": "regex",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【赋值变量1>=<【超级访问https://api.pi.delivery/v1/pi?start=【内容1】&numberOfDigits=【内容2】】】【分隔】【艾特】【换行】【取中间【变量1】>=<\">=<\">=<3】",
+    "group_separation": "true"
   }
 ]
