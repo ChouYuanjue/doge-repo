@@ -38,5 +38,13 @@
     "priority": 0,
     "reply": "*【随机数【内容1】-【内容2】】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[help]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【拦截】使用说明戳这里：http://8rr.co/wnN9",
+    "group_separation": "true"
   }
 ]
