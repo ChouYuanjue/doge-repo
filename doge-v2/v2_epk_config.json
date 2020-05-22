@@ -62,5 +62,13 @@
     "priority": 0,
     "reply": "*【判真【逻辑【内容】】>=<true>=<false】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[say]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*【度丫丫】【内容】",
+    "group_separation": "true"
   }
 ]
