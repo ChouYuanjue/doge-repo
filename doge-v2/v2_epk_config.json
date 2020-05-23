@@ -70,5 +70,13 @@
     "priority": 0,
     "reply": "*【度丫丫】【内容】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[pixivid=]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【图片https://pixiv.cat/【内容】.jpg】",
+    "group_separation": "true"
   }
 ]
