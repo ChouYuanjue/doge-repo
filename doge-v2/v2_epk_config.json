@@ -78,5 +78,13 @@
     "priority": 0,
     "reply": "【图片https://pixiv.cat/【内容】.jpg】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[epk run ]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【主人】【拦截】【分隔】【判含【内容】>=<#zzk传递#yzk>=<>=<【分隔】【子关键词=【分隔】#zzk赋值变量传递#fgf【替换【内容】>=<#zzk传递变量#yzk||#zzk传递#yzk>=<#zzk变量传递#yzk||#yzk#zzk赋值变量传递#fgf】#yzk#zzk变量传递#yzk【分隔】】】【分隔】【反转义【CQ反转义【替换【内容】>=<【换行】】】】",
+    "group_separation": "true"
   }
 ]
