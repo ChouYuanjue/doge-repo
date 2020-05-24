@@ -94,5 +94,13 @@
     "priority": 0,
     "reply": "*【发送者QQ】离开了我们",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[&#91;禁言事件&#93;]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【判真【逻辑【内容】=0】>=<【艾特】电疗结束，请付费！>=<恭喜【艾特】被电了【内容】秒！】",
+    "group_separation": "true"
   }
 ]
