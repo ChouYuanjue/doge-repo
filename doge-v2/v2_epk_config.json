@@ -102,5 +102,13 @@
     "priority": 0,
     "reply": "【判真【逻辑【内容】=0】>=<【艾特】电疗结束，请付费！>=<恭喜【艾特】被电了【内容】秒！】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[毒TA]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【内容】【换行】【取中间【访问http://www.nows.fun/】>=<font-size: 2rem;\">>=<</span>>=<1】",
+    "group_separation": "true"
   }
 ]
