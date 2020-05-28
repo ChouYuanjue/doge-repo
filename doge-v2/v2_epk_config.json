@@ -126,5 +126,13 @@
     "priority": 0,
     "reply": "【【判含【内容】>=<[>=<!null】】【替换【内容】>=<[||]>=<&#91;||&#93;】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【前提QQ以图搜番】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "少女祈祷中……[分页]【分隔】【赋值变量1>=<【替换【访问-UTFhttps://saucenao.com/search.php?db=999&api_key=${SAUCENAO_API_KEY}&url=【图链】】>=<%2F||%3F||%3D||%26>=</||?||=||&>=<>=<[并列]】】【分隔】【赋值变量PIXIV>=<【取中间【变量1】>=<class=\"resulttable\">=</table>=<1】】【分隔】【赋值变量匹配率>=<【取中间【变量PIXIV】>=<resultsimilarityinfo\">=<.>=<1】】【分隔】【赋值变量链接>=<https://is.gd/create.php?format=simple&url=https://img【取中间【变量PIXIV】>=<\"https://img>=<\">=<1】】【分隔】SauceNAO结果：【换行】【分隔】匹配率：【取整【变量匹配率】】%【换行】【分隔】标题：【取中间【变量PIXIV】>=<strong>>=<<>=<1】【换行】【分隔】画师：【取中间【变量PIXIV】>=<\"linkify\">>=<<>=<3】【换行】【分隔】链接：【访问【变量链接】】【换行】【分隔】原图：【取中间【变量PIXIV】>=<<a href=\">=<\">=<2】",
+    "group_separation": "true"
   }
 ]
