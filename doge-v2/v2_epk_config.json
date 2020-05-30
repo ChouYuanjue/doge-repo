@@ -142,5 +142,13 @@
     "priority": 0,
     "reply": "欢迎来到学术交流群",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[浮力豆]",
+    "match_mode": "fuzzy",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=A2035CE904FE7AEB241D9995C966C391.jpg]",
+    "group_separation": "true"
   }
 ]
