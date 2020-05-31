@@ -150,5 +150,13 @@
     "priority": 0,
     "reply": "*[CQ:image,file=A2035CE904FE7AEB241D9995C966C391.jpg]",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[花样清屏]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【拦截】",
+    "group_separation": "true"
   }
 ]
