@@ -166,5 +166,13 @@
     "priority": 0,
     "reply": "*[CQ:image,file=F2A500C9916928CF0E1F7A51B7691FFD.jpg]*[CQ:image,file=7571E78DD2BB22247661BE003B351626.jpg]*[CQ:image,file=B27953F6C61374DDEEE13FB89114DCE0.jpg]*[CQ:image,file=A6E5B60B98685BE415855BFEB279AD7A.jpg]",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[夸TA]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【内容】【换行】【访问-UTFhttps://chp.shadiao.app/api.php】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
   }
 ]
