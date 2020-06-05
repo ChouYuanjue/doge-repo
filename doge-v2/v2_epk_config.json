@@ -182,5 +182,13 @@
     "priority": 0,
     "reply": "*【赋值变量1>=<【取中间【访问https://api.computerfreaker.cf/v1/yuri】>=<{\"url\":\">=<\"}>=<1】】【赋值变量2>=<【替换【变量1】>=<\\】】【图片【变量2】】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[来点乱码]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【艾特】【换行】【访问-GBKhttps://chp.shadiao.app/api.php】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
   }
 ]
