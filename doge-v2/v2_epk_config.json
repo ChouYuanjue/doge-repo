@@ -206,5 +206,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【取中间【访问http://www.nows.fun/】>=<font-size: 2rem;\">>=<</span>>=<1】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[取码]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】请发送欲取内容！",
+    "group_separation": "true"
   }
 ]
