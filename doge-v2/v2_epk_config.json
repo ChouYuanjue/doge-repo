@@ -222,5 +222,13 @@
     "priority": 0,
     "reply": "",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[骂TA]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【内容】【换行】【访问-UTFhttps://nmsl.shadiao.app/api.php?level=min&from=xxx】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
   }
 ]
