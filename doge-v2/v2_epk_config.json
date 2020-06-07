@@ -230,5 +230,13 @@
     "priority": 0,
     "reply": "【内容】【换行】【访问-UTFhttps://nmsl.shadiao.app/api.php?level=min&from=xxx】【传递】【分隔】【传递变量】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[来只猫娘]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "*【赋值变量1>=<【取中间【访问https://api.computerfreaker.cf/v1/neko】>=<{\"url\":\">=<\"}>=<1】】【赋值变量2>=<【替换【变量1】>=<\\】】【图片【变量2】】",
+    "group_separation": "true"
   }
 ]
