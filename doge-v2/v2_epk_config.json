@@ -214,5 +214,13 @@
     "priority": 0,
     "reply": "【艾特】请发送欲取内容！",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[来神]",
+    "match_mode": "",
+    "trigger_method": "",
+    "priority": 0,
+    "reply": "",
+    "group_separation": "true"
   }
 ]
