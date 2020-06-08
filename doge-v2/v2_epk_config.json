@@ -238,5 +238,13 @@
     "priority": 0,
     "reply": "*【赋值变量1>=<【取中间【访问https://api.computerfreaker.cf/v1/neko】>=<{\"url\":\">=<\"}>=<1】】【赋值变量2>=<【替换【变量1】>=<\\】】【图片【变量2】】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[来只老婆~]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "*[CQ:rich,text=群聊的聊天记录 réseau:  &#91;吐舌头&#93; 查看1条转发消息]*[CQ:image,file=1226578A0786C796BB14EDC5B6AC146B.gif]*&#91;吐舌头&#93;*[CQ:image,file=B241710AB2ADEFE41D92411EC4029432.jpg]*Trebor!*[CQ:at,qq=2700074128] 浮力最近好忙qwq*say 难道笑不是桀桀桀吗",
+    "group_separation": "true"
   }
 ]
