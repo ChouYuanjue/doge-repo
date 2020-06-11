@@ -278,5 +278,13 @@
     "priority": 0,
     "reply": "*[CQ:image,file=566FDFC9481206DC20C909C94B859F35.jpg]*[CQ:image,file=6BF1E1F01C0C4A259C9024D57BA9F0B4.jpg]*[CQ:image,file=9AF3B8CAC43E48AABDFEB715339372B4.jpg]*[CQ:image,file=99719ECC3D79291E9CE50EFA48A90666.jpg]*[CQ:image,file=7E3B08A7C4FB6B28FDE42A564E9CBC61.jpg]*[CQ:image,file=87A22623C4695871AFBE6775B49B6890.jpg]*[CQ:image,file=C64D25A1151C83A8D23A086A2F3564AD.jpg]*[CQ:image,file=5872BA7200EFD06CBF4A292C5A2E6F8E.jpg]*[CQ:image,file=DACBED3A7B9260D154F3BFBB03FCFCEB.jpg]*[CQ:image,file=CA7CBA8853C87F9933A0A30B1DA5F7FD.jpg]*[CQ:image,file=65ACE9ECE3CF610B65B051AAFAEE4A27.jpg]*[CQ:image,file=2F445C02B7E255928F9F14E85A54663B.jpg]*[CQ:image,file=0322C090BB951B46A8E2629B5EF718C8.jpg]",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[来只豆力浮]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=E0504D44B5F51EAAE33CDAB3E8C24F0B.jpg]",
+    "group_separation": "true"
   }
 ]
