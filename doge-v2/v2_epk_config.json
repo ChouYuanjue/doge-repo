@@ -286,5 +286,13 @@
     "priority": 0,
     "reply": "*[CQ:image,file=E0504D44B5F51EAAE33CDAB3E8C24F0B.jpg]",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[来只浮力姬]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=E22E34BB5C7BA687428BF41F08CE3160.jpg]",
+    "group_separation": "true"
   }
 ]
