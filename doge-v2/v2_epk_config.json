@@ -294,5 +294,13 @@
     "priority": 0,
     "reply": "*[CQ:image,file=E22E34BB5C7BA687428BF41F08CE3160.jpg]",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[来只碱基]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "http://myepk.club:2020/?msg=ecyurl【判空【常量接口-Ecy】>=<【赋值常量接口-Ecy>=<【读入【应用目录】ecy接口.ini】】【常量接口-Ecy】】【传递】【分隔】【访问-GBK【传递变量】】【传递】【分隔】【判含【传递变量】>=<[Pic=>=<【图片【传递变量】】>=<【传递变量】】",
+    "group_separation": "true"
   }
 ]
