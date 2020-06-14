@@ -302,5 +302,13 @@
     "priority": 0,
     "reply": "http://myepk.club:2020/?msg=ecyurl【判空【常量接口-Ecy】>=<【赋值常量接口-Ecy>=<【读入【应用目录】ecy接口.ini】】【常量接口-Ecy】】【传递】【分隔】【访问-GBK【传递变量】】【传递】【分隔】【判含【传递变量】>=<[Pic=>=<【图片【传递变量】】>=<【传递变量】】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[来只老婆]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【随机数0-199999】【传递】【分隔】【访问https://www.thiswaifudoesnotexist.net/snippet-【传递变量1】.txt】【传递】【分隔】【判含【传递变量】>=<<!DOCTYPE html>>=<!source>=<!back【重发来只老婆】】【传递】【分隔】【图片https://www.thiswaifudoesnotexist.net/example-【传递变量1】.jpg】",
+    "group_separation": "true"
   }
 ]
