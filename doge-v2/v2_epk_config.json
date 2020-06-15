@@ -310,5 +310,13 @@
     "priority": 0,
     "reply": "【随机数0-199999】【传递】【分隔】【访问https://www.thiswaifudoesnotexist.net/snippet-【传递变量1】.txt】【传递】【分隔】【判含【传递变量】>=<<!DOCTYPE html>>=<!source>=<!back【重发来只老婆】】【传递】【分隔】【图片https://www.thiswaifudoesnotexist.net/example-【传递变量1】.jpg】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[费马]",
+    "match_mode": "fuzzy",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "[CQ:11111111]",
+    "group_separation": "true"
   }
 ]
