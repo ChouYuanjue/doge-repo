@@ -318,5 +318,13 @@
     "priority": 0,
     "reply": "[CQ:11111111]",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[强基计划]",
+    "match_mode": "fuzzy",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*强浮力基(つд??)",
+    "group_separation": "true"
   }
 ]
