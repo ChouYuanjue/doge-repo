@@ -326,5 +326,13 @@
     "priority": 0,
     "reply": "*强浮力基(つд??)",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[狠狠毒TA]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【内容】【换行】【访问-UTFhttps://du.shadiao.app/api.php】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
   }
 ]
