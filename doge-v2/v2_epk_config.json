@@ -350,5 +350,13 @@
     "priority": 0,
     "reply": "【群管】【内容】【换行】【访问-UTFhttps://nmsl.shadiao.app/api.php?&from=xxx】【传递】【分隔】【传递变量】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[狠狠骂我]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【群管】【艾特】【换行】【访问-UTFhttps://nmsl.shadiao.app/api.php?&from=xxx】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
   }
 ]
