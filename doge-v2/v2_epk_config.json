@@ -366,5 +366,13 @@
     "priority": 0,
     "reply": "【赋值变量1>=<【取中间【访问http://www.guoxuedashi.com/search/?keyword=%E5%BA%9F&ys=AND&keyword2=&sub=%E5%85%A8%E6%96%87%E6%A3%80%E7%B4%A2&ys3=AND&keyword3=&ys4=AND&keyword4=&ys5=AND&keyword5=&sid=0&cid=0&ms=0&page=【随机数1-150】】>=<<hr>>=<<hr>>=<【随机数1-15】】】【替换【变量1】>=<【取中间【变量1】>=<<>=<>>=<1】||【取中间【变量1】>=<<>=<>>=<3】||</a>||<font color='red'>||</font>||<br>||<||>>=<】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[迫害LZY]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【赋值变量1>=<【取中间【访问http://www.guoxuedashi.com/search/?keyword=%E9%99%86&ys=OR&keyword2=%E6%8C%AF&sub=%E5%85%A8%E6%96%87%E6%A3%80%E7%B4%A2&ys3=OR&keyword3=%E5%AE%87&ys4=AND&keyword4=&ys5=AND&keyword5=&sid=0&cid=0&ms=0&page=【随机数1-150】】>=<<hr>>=<<hr>>=<【随机数1-15】】】【替换【变量1】>=<【取中间【变量1】>=<<>=<>>=<1】||【取中间【变量1】>=<<>=<>>=<3】||</a>||<font color='red'>||</font>||<br>||<||>>=<】",
+    "group_separation": "true"
   }
 ]
