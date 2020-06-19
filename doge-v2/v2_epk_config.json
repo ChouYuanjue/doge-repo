@@ -382,5 +382,13 @@
     "priority": 0,
     "reply": "*【内容】【换行】【换行】【现行日期-月】月【现行日期-日】日【换行】【访问https://v1.alapi.cn/api/dog?format=text】【换行】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[截图]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【判含【内容】>=<.>=<【返回】】【分隔】【Web-创建【判空【文本-取文本左【内容】>=< 】>=<【内容】】>=<>=<>=<（【取中间【内容】>=< >=< >=<1】，【文本-取文本右【内容】>=< 】）】【传递】【分隔】【延迟1】【Web-截图【传递变量】】【Web-释放【传递变量】】",
+    "group_separation": "true"
   }
 ]
