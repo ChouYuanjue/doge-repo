@@ -398,5 +398,13 @@
     "priority": 0,
     "reply": "【拦截】http://fulugsbot.yobot.club:9222/yobot/help/",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[夸我]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【访问-UTFhttps://chp.shadiao.app/api.php】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
   }
 ]
