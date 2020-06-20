@@ -414,5 +414,13 @@
     "priority": 0,
     "reply": "【管理】【赋值常量接口-Ecy>=<【取整【内容】】】【写出【常量接口-Ecy】>=<【应用目录】ecy接口.ini】【艾特】 碱基接口已更换至接口【常量接口-Ecy】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[文章]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【访问-GBKhttp://api.myepk.club/?prefix=wzsc&msg=【编码【内容】】】【传递】【分隔】【替换【传递变量】>=<<br>&nbsp;&nbsp;&nbsp;&nbsp;|| <h1 align=\"center\">||</h1>>=<【换行】    ||            】",
+    "group_separation": "true"
   }
 ]
