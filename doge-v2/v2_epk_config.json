@@ -430,5 +430,13 @@
     "priority": 0,
     "reply": "*【替换【取中间11【替换【取中间【访问http://m.66law.cn/tiaoli/9.aspx】>=<条\">>=<</p><p style=\"text-indent:2em;\" id=\"】>=<</p><p style=\"text-indent:2em;\">>=<【换行】    】</p><h4>>=<11>=<</p><h4>】>=<&amp;nbsp;>=< 】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[今日说法]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*【循环5>=<【赋值变量1>=<【替换【替换　　第【取中间【访问http://news.12371.cn/2018/03/22/ARTI1521673331685307.shtml】>=<　　第>=<　　第】>=<</p>】>=<<p>】】【判含【变量1】>=<节 |章 >=<【变量1】【跳出】>=<】】",
+    "group_separation": "true"
   }
 ]
