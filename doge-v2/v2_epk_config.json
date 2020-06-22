@@ -438,5 +438,13 @@
     "priority": 0,
     "reply": "*【循环5>=<【赋值变量1>=<【替换【替换　　第【取中间【访问http://news.12371.cn/2018/03/22/ARTI1521673331685307.shtml】>=<　　第>=<　　第】>=<</p>】>=<<p>】】【判含【变量1】>=<节 |章 >=<【变量1】【跳出】>=<】】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[请百合]",
+    "match_mode": "fuzzy",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=B2EE248FF6CD5FACA90B78704A72A93B.jpg]*[CQ:image,file=E768B0454C6826503F05FC23F310778E.jpg]*[CQ:image,file=3EC05C1DA63C5D24A90A792A632EA10D.jpg]*[CQ:image,file=972759F5A82DA2CC09992E3B288F5C14.jpg]*[CQ:image,file=6DFD7302FDC113B9BE96F8220E3DCB0B.jpg]*[CQ:image,file=49293B9394A6847D9A4EA5A85FCD4189.jpg]*[CQ:image,file=B14C1CAA93B09AFB611E7EBAF50D1DDB.jpg]*[CQ:image,file=6E700E08C823CFCBB30F319FADD893C0.jpg]*[CQ:image,file=B98D2612A85A923F83DE0462F598EB19.jpg]*[CQ:image,file=08830084A9FB1B2F0B5045035BBCC7D3.jpg]*[CQ:image,file=8472DE3D1D74F8FDAEEC049970188950.jpg]*[CQ:image,file=7209C3A7AC6AEFD57AA8F0943BA5E5FF.jpg]*[CQ:image,file=540DE1298165FB7E27A809FD5268AAD5.jpg]*[CQ:image,file=15702A0C3D3AE7BE8F7664681B8D5527.jpg]*[CQ:image,file=3DE576417AF24B65C5DE62B8A60766E6.jpg]*[CQ:image,file=C735556C1E3A1FDC379C7D84EE1DDBB0.jpg]",
+    "group_separation": "true"
   }
 ]
