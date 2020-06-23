@@ -454,5 +454,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【访问-UTFhttps://nmsl.shadiao.app/api.php?level=min&from=xxx】【传递】【分隔】【传递变量】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[以图搜瓶]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "请发送一张图片！",
+    "group_separation": "true"
   }
 ]
