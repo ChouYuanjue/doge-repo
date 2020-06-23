@@ -462,5 +462,13 @@
     "priority": 0,
     "reply": "请发送一张图片！",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[以图搜番]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "请发送一张图片！",
+    "group_separation": "true"
   }
 ]
