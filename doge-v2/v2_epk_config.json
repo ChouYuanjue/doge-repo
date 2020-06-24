@@ -502,5 +502,13 @@
     "priority": 0,
     "reply": "【【判断【发送者QQ】>=<1000000>=<!null】】【【判断【子正则.#xh\\((.#xh)\\) 被管理员禁言(.#xh)>=<【内容】>=<1】>=<【机器人QQ】>=<!null】】[私聊主人]我在这个群被禁言了【子正则.#xh\\((.#xh)\\) 被管理员禁言(.#xh)>=<【内容】>=<2】【换行】群号：【当前群号】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[cmd ping]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 10,
+    "reply": "【判含【内容】>=<#bq>=<>=<!back【艾特】请不要使用并且命令！】【cmd [等待] ping 【内容】>\"【运行目录】\\cmd.log\"】【读入【运行目录】\\cmd.log】",
+    "group_separation": "true"
   }
 ]
