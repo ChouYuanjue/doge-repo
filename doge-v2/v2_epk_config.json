@@ -494,5 +494,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【换行】【现行日期-月】月【现行日期-日】日【换行】【访问https://v1.alapi.cn/api/dog?format=text】【换行】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[.* 被管理员禁言.*]",
+    "match_mode": "regex",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【【判断【发送者QQ】>=<1000000>=<!null】】【【判断【子正则.#xh\\((.#xh)\\) 被管理员禁言(.#xh)>=<【内容】>=<1】>=<【机器人QQ】>=<!null】】[私聊主人]我在这个群被禁言了【子正则.#xh\\((.#xh)\\) 被管理员禁言(.#xh)>=<【内容】>=<2】【换行】群号：【当前群号】",
+    "group_separation": "true"
   }
 ]
