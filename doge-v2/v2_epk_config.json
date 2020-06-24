@@ -486,5 +486,13 @@
     "priority": 0,
     "reply": "【内容】【换行】【访问-UTFhttps://pyq.shadiao.app/api.php】【传递】【分隔】【传递变量】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[舔我]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【艾特】【换行】【换行】【现行日期-月】月【现行日期-日】日【换行】【访问https://v1.alapi.cn/api/dog?format=text】【换行】",
+    "group_separation": "true"
   }
 ]
