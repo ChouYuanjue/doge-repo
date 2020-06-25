@@ -518,5 +518,13 @@
     "priority": 89,
     "reply": "【管理】已开启！【分隔】【写配置【应用目录】开关.txt>=<寻访开关>=<【当前群号】！>=<1】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[仓库]",
+    "match_mode": "exact",
+    "trigger_method": "private",
+    "priority": 89,
+    "reply": "【更新变量库存6】【换行】【更新变量库存5】",
+    "group_separation": "true"
   }
 ]
