@@ -510,5 +510,13 @@
     "priority": 10,
     "reply": "【判含【内容】>=<#bq>=<>=<!back【艾特】请不要使用并且命令！】【cmd [等待] ping 【内容】>\"【运行目录】\\cmd.log\"】【读入【运行目录】\\cmd.log】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[开启寻访]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 89,
+    "reply": "【管理】已开启！【分隔】【写配置【应用目录】开关.txt>=<寻访开关>=<【当前群号】！>=<1】",
+    "group_separation": "true"
   }
 ]
