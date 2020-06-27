@@ -542,5 +542,13 @@
     "priority": 89,
     "reply": "【更新变量库存5】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[关闭寻访]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 89,
+    "reply": "【管理】已关闭！【分隔】【写配置【应用目录】开关.txt>=<寻访开关>=<【当前群号】！>=<0】",
+    "group_separation": "true"
   }
 ]
