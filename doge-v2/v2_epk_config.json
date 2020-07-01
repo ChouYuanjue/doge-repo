@@ -590,5 +590,13 @@
     "priority": 89,
     "reply": "【更新变量库存6】【换行】【更新变量库存5】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[库存6]",
+    "match_mode": "exact",
+    "trigger_method": "private",
+    "priority": 89,
+    "reply": "【更新变量库存6】",
+    "group_separation": "true"
   }
 ]
