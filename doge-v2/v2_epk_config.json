@@ -630,5 +630,13 @@
     "priority": 89,
     "reply": "【主人】【文件-删除【应用目录】剩余次数.txt】已重置",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量没抽到六星】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【写配置【应用目录】保底.txt>=<无六星次数>=<【发送者QQ】>=<【计算【读配置【应用目录】保底.txt>=<无六星次数>=<【发送者QQ】>=<0】+1】】",
+    "group_separation": "true"
   }
 ]
