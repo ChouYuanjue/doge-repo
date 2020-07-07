@@ -646,5 +646,13 @@
     "priority": 99999999,
     "reply": "【取配置【应用目录】抽卡库存.txt>=<【发送者QQ】】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量库存6】]",
+    "match_mode": "exact",
+    "trigger_method": "private",
+    "priority": 99999999,
+    "reply": "【艾特】你的六星们【换行】【循环【取出行数【更新变量库存】】>=<【判含【取出一行【变量库存】>=<[序号]】>=<★★★★★★>=<>=<【取出一行【变量库存】>=<[序号]】【换行】】】",
+    "group_separation": "true"
   }
 ]
