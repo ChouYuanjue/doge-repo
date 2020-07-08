@@ -670,5 +670,13 @@
     "priority": 99999999,
     "reply": "【读配置【应用目录】明日方舟.ini>=<当期up>=<当期up4>=<0】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量当期up5】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<当期up>=<当期up5>=<临光/守林人/格劳克斯/送葬人/灰喉/吽】",
+    "group_separation": "true"
   }
 ]
