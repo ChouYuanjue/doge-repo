@@ -686,5 +686,13 @@
     "priority": 99999999,
     "reply": "【读配置【应用目录】明日方舟.ini>=<当期up>=<当期up6>=<塞雷娅/赫拉格/莫斯提马/煌】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量十连寻访】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【【更新变量寻访随机数】】【更新变量寻访】【分隔】",
+    "group_separation": "true"
   }
 ]
