@@ -694,5 +694,13 @@
     "priority": 99999999,
     "reply": "【【更新变量寻访随机数】】【更新变量寻访】【分隔】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量干员】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "★★★★★★ 【更新变量干员6】【换行】【分隔】★★★★★ 【更新变量干员5】【换行】【分隔】4★ 【更新变量干员4】【换行】【分隔】3★ 【更新变量干员3】",
+    "group_separation": "true"
   }
 ]
