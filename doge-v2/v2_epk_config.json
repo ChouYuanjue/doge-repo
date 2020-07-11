@@ -710,5 +710,13 @@
     "priority": 99999999,
     "reply": "【随机数100】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量寻访】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【判循【逻辑【变量寻访随机数】>=【取出一行【分隔】【计算【更新变量增加概率】+2】【换行】【分隔】10【换行】【分隔】60【换行】【分隔】101【分隔】>=<【序号】】】>=<】【分隔】【取出一行【更新变量干员】>=<【行序】】",
+    "group_separation": "true"
   }
 ]
