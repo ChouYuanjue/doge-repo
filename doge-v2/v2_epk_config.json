@@ -726,5 +726,13 @@
     "priority": 99999999,
     "reply": "【取中间/【变量全部干员3】/>=</>=</】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量干员4】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【比较【随机数100】>=<【变量当期up4概率】>=<【取中间/【变量全部干员4】/>=</>=</】>=<【取中间/【变量当期up4】/>=</>=</】】",
+    "group_separation": "true"
   }
 ]
