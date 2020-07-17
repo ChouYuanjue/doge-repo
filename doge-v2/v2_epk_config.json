@@ -782,5 +782,13 @@
     "priority": 99999999,
     "reply": "【读配置【应用目录】明日方舟.ini>=<all>=<6>=<能天使/推进之王/伊芙利特/艾雅法拉/安洁莉娜/闪灵/夜莺/星熊/塞雷娅/银灰/斯卡蒂/陈/黑/赫拉格/麦哲伦/莫斯提马/煌/阿/刻俄柏/W/温蒂/傀影】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量当期up4概率】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<当期up概率>=<当期up4概率>=<0】",
+    "group_separation": "true"
   }
 ]
