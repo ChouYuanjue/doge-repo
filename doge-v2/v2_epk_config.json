@@ -790,5 +790,13 @@
     "priority": 99999999,
     "reply": "【读配置【应用目录】明日方舟.ini>=<当期up概率>=<当期up4概率>=<0】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量当期up5概率】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<当期up概率>=<当期up5概率>=<50】",
+    "group_separation": "true"
   }
 ]
