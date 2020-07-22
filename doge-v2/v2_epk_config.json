@@ -814,5 +814,13 @@
     "priority": 99999999,
     "reply": "【写配置【应用目录】抽卡库存.txt>=<【发送者QQ】>=<【变量十连寻访】>=<【计算【读配置【应用目录】抽卡库存.txt>=<【发送者QQ】>=<【变量十连寻访】>=<0】+1】】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量抽到六星】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【写配置【应用目录】保底.txt>=<无六星次数>=<【发送者QQ】>=<0】",
+    "group_separation": "true"
   }
 ]
