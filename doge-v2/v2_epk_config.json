@@ -822,5 +822,13 @@
     "priority": 99999999,
     "reply": "【写配置【应用目录】保底.txt>=<无六星次数>=<【发送者QQ】>=<0】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量没抽到六星数】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】保底.txt>=<无六星次数>=<【发送者QQ】>=<0】",
+    "group_separation": "true"
   }
 ]
