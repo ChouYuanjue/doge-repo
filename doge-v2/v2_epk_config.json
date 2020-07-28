@@ -854,5 +854,13 @@
     "priority": 99999999,
     "reply": "【读配置【应用目录】剩余次数.txt>=<剩余次数>=<【发送者QQ】>=<100】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[新的一天]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【文件-删除【应用目录】剩余次数.txt】新的一天，不知道怎么回事，你又获得了100连（发送“抽完”直接抽完今天的100抽）",
+    "group_separation": "true"
   }
 ]
