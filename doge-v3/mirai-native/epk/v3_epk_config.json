@@ -14,5 +14,13 @@
     "priority": -11,
     "reply": "【主人【随取是的master！>=<是的主人！】】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[主页的主人，单个关键词例子]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": -11,
+    "reply": "【判含【发送者QQ】>=<【替换【读配置【应用目录】\\远程配置.ini>=<配置>=<主人>=<0】>=<*>=<|>=<】>=<!null>=<主人才能触发的回复】",
+    "group_separation": "true"
   }
 ]
