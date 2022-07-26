@@ -6,5 +6,13 @@
     "priority": -11,
     "reply": "【函数主人>=<【判含【发送者QQ】>=<【替换【读配置【应用目录】\\远程配置.ini>=<配置>=<主人>=<0】>=<#xh>=<|>=<】>=<!null>=<[参数1]】】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[我是主人吗]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": -11,
+    "reply": "【主人【随取是的master！>=<是的主人！】】",
+    "group_separation": "true"
   }
 ]
