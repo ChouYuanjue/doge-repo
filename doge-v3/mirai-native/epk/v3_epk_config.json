@@ -38,5 +38,13 @@
     "priority": -11,
     "reply": "【艾特】【换行】【图链【内容】】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[&#91;初始化函数图链&#93;]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": -11,
+    "reply": "【函数图链>=<【判断【判空【当前群号】>=<0】>=<0>=<【分隔】【赋值变量file-raw>=<【取中间【msg】>=<file={>=<}>=<1】】【分隔】【赋值变量file>=<【Fori【分隔】【分割取出【变量file-raw】>=<->=<[序号]】【分隔】>=<【变量file-raw】>=<-】】【分隔】【赋值变量图链>=<https://gchat.qpic.cn/gchatpic_new//--【变量file】/0】【分隔】>=<【分隔】【赋值变量file>=<【取中间【msg】>=<file=/>=<.mnimg>=<1】】【分隔】【赋值变量图链>=<https://gchat.qpic.cn/gchatpic_new//【变量file】/0】【分隔】】【分隔】【变量图链】】",
+    "group_separation": "true"
   }
 ]
