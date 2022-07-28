@@ -30,5 +30,13 @@
     "priority": -11,
     "reply": "【判含【发送者QQ】>=<123456789|2333333333>=<!null>=<这里添加主人才能触发的回复】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[/pic-url]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": -11,
+    "reply": "【艾特】【换行】【图链【内容】】",
+    "group_separation": "true"
   }
 ]
