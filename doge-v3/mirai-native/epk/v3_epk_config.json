@@ -54,5 +54,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【访问-UTFhttps://doubi.ren/zuanbot/api.php?level=min&from=xxx】【传递】【分隔】【传递变量】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[/gan waifu]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【随机数0-199999】【传递】【分隔】【访问https://www.thiswaifudoesnotexist.net/snippet-【传递变量1】.txt】【传递】【分隔】【判含【传递变量】>=<<!DOCTYPE html>>=<!source>=<!back【重发/gan waifu】】【传递】【分隔】【图片https://www.thiswaifudoesnotexist.net/example-【传递变量1】.jpg】",
+    "group_separation": "true"
   }
 ]
