@@ -70,5 +70,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【赋值变量1>=<【取中间【访问https://api.pi.delivery/v1/pi?start=【内容1】&numberOfDigits=【内容2】【分隔】】>=<{\"content\":\">=<\"}>=<1】】【变量1】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[/anime]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片https://pic.re/image】",
+    "group_separation": "true"
   }
 ]
