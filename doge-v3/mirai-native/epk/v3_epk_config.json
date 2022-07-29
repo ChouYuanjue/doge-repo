@@ -62,5 +62,13 @@
     "priority": 0,
     "reply": "【随机数0-199999】【传递】【分隔】【访问https://www.thiswaifudoesnotexist.net/snippet-【传递变量1】.txt】【传递】【分隔】【判含【传递变量】>=<<!DOCTYPE html>>=<!source>=<!back【重发/gan waifu】】【传递】【分隔】【图片https://www.thiswaifudoesnotexist.net/example-【传递变量1】.jpg】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[/math pi (.*) (.*)]",
+    "match_mode": "regex",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【赋值变量1>=<【取中间【访问https://api.pi.delivery/v1/pi?start=【内容1】&numberOfDigits=【内容2】【分隔】】>=<{\"content\":\">=<\"}>=<1】】【变量1】",
+    "group_separation": "true"
   }
 ]
