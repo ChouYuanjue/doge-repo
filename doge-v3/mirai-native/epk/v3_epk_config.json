@@ -94,5 +94,13 @@
     "priority": 0,
     "reply": "欢迎来到学术交流群",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[&#91;多条&#93;&#91;群员离群&#93;|&#91;群员被踢&#93;]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "*【发送者QQ】离开了我们",
+    "group_separation": "true"
   }
 ]
