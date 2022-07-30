@@ -86,5 +86,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【访问-GBKhttps://doubi.ren/zuanbot/api.php?level=min&from=xxx】【传递】【分隔】【传递变量】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[【群员入群】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "欢迎来到学术交流群",
+    "group_separation": "true"
   }
 ]
