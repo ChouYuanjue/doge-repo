@@ -78,5 +78,13 @@
     "priority": 0,
     "reply": "【图片https://pic.re/image】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[/amuse gar]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【艾特】【换行】【访问-GBKhttps://doubi.ren/zuanbot/api.php?level=min&from=xxx】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
   }
 ]
