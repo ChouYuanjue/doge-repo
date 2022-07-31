@@ -118,5 +118,13 @@
     "priority": 0,
     "reply": "*【判真【逻辑【内容】】>=<true>=<false】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[/jianh]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*【艾特】【换行】返回结果：【换行】【访问https://api.isoyu.com/jianhuang.php?imgurl=【图链【内容】】】【传递变量】",
+    "group_separation": "true"
   }
 ]
