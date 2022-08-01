@@ -142,5 +142,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【换行】【现行日期-月】月【现行日期-日】日【换行】【访问https://v2.alapi.cn/api/dog?token=${ALAPI_TOKEN}&format=text【分隔】】【换行】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[/law]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*【循环5>=<【赋值变量1>=<【替换【替换　　第【取中间【访问http://news.12371.cn/2018/03/22/ARTI1521673331685307.shtml】>=<　　第>=<　　第】>=<</p>】>=<<p>】】【判含【变量1】>=<节 |章 >=<【变量1】【跳出】>=<】】",
+    "group_separation": "true"
   }
 ]
