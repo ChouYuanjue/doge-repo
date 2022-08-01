@@ -126,5 +126,13 @@
     "priority": 0,
     "reply": "*【艾特】【换行】返回结果：【换行】【访问https://api.isoyu.com/jianhuang.php?imgurl=【图链【内容】】】【传递变量】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[/amuse du me]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【赋值变量1>=<【取中间【访问-UTFhttps://api.shadiao.pro/du】>=<{\"type\":\">=<\"}>=<1】】[Unicode=【变量1】]",
+    "group_separation": "true"
   }
 ]
