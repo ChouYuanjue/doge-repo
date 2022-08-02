@@ -158,5 +158,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【分隔】【赋值变量1>=<【取中间【访问-UTFhttps://api.shadiao.pro/chp】>=<{\"type\":\">=<\"}>=<1】】[Unicode=【变量1】]",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/echo ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【内容】",
+    "group_separation": ""
   }
 ]
