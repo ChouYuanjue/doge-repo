@@ -174,5 +174,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【图片http://i.upmath.me/png/【替换【编码【内容】】>=<%26%2391%3B||%26%2393%3B>=<%5B||%5D】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/tex urender]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【图片http://i.upmath.me/png/【内容】】",
+    "group_separation": ""
   }
 ]
