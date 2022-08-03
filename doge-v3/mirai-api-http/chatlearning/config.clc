@@ -1,0 +1,44 @@
+﻿{
+   "unmergegrouplist": [],
+   "learninggrouplist": [
+      511561245
+   ],
+   "replygrouplist": [
+      511561245
+   ],
+   "interval": 900,
+   "sendmode": 0,
+   "mergetime": 900,
+   "learning": 1,
+   "merge": 1,
+   "reply": 1,
+   "replychance": 30,
+   "admin": 0,
+   "Administrator": [
+      123456
+   ],
+   "blackfreq": 5,
+   "voicereply": 0,
+   "voicereplychance": 20,
+   "synthesizer": "",
+   "version": "2.9.8",
+   "tag": {},
+   "singlereplychance": {},
+   "singlevoicereplychance": {},
+   "typefreq": {},
+   "tempmessagenum": 32,
+   "fastdelete": 0,
+   "replywait": [
+      0,
+      0
+   ],
+   "voicecharerror": "存在违规字符，转换失败",
+   "voicecderror": "转换冷却中",
+   "voicelengtherror": "长度超过限制",
+   "deletesuccess": "已从词库内删除！",
+   "deletetemperror": "删除失败，该消息已不在缓存内",
+   "deletefinderror": "删除失败，词库中已无法找到该答案",
+   "replycd": 3,
+   "stopsign": 0,
+   "voicecommand": "快说 "
+}
