@@ -182,5 +182,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【图片http://i.upmath.me/png/【内容】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/tex random]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片C:\\Users\\Administrator\\Desktop\\新建文件夹 (4)\\所有\\酷Q Pro\\data\\image\\formula_images】",
+    "group_separation": ""
   }
 ]
