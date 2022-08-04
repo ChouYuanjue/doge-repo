@@ -198,5 +198,13 @@
     "priority": 0,
     "reply": "【艾特】【赋值变量1>=<【访问https://image.thum.io/get/width/600/crop/1200/https://mathworld.wolfram.com/【内容】.html】】【图片https://image.thum.io/get/width/600/crop/1200/https://mathworld.wolfram.com/【内容】.html】【分隔】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/math em ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【赋值变量1>=<【访问https://image.thum.io/get/width/600/crop/1200/https://encyclopediaofmath.org/wiki/【内容】】】【图片https://image.thum.io/get/width/600/crop/1200/https://encyclopediaofmath.org/wiki/【内容】】【分隔】",
+    "group_separation": ""
   }
 ]
