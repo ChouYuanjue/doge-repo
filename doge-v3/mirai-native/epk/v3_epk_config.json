@@ -190,5 +190,13 @@
     "priority": 0,
     "reply": "【图片C:\\Users\\Administrator\\Desktop\\新建文件夹 (4)\\所有\\酷Q Pro\\data\\image\\formula_images】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/math mw ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【赋值变量1>=<【访问https://image.thum.io/get/width/600/crop/1200/https://mathworld.wolfram.com/【内容】.html】】【图片https://image.thum.io/get/width/600/crop/1200/https://mathworld.wolfram.com/【内容】.html】【分隔】",
+    "group_separation": ""
   }
 ]
