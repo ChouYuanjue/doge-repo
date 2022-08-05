@@ -206,5 +206,13 @@
     "priority": 0,
     "reply": "【艾特】【赋值变量1>=<【访问https://image.thum.io/get/width/600/crop/1200/https://encyclopediaofmath.org/wiki/【内容】】】【图片https://image.thum.io/get/width/600/crop/1200/https://encyclopediaofmath.org/wiki/【内容】】【分隔】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/math calc ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【计算【内容】】",
+    "group_separation": ""
   }
 ]
