@@ -270,5 +270,13 @@
     "priority": 0,
     "reply": "完整说明文档：https://docs-doge.netlify.app/【分隔】【换行】如被墙请访问此网址：http://w8t.cn/MxUe9",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/frun (.*) (&#91;\\S&#93;*)]",
+    "match_mode": "regex",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【cmd [等待]curl -H \"Content-Type:application/json; charset=UTF-8\" -X POST -d \"{\\\"clientId\\\":\\\"${JDOODLE_CLIENT_ID}\\\",\\\"clientSecret\\\":\\\"${JDOODLE_CLIENT_SECRET}\\\",\\\"script\\\":\\\"【内容2】\\\",\\\"language\\\":\\\"【内容1】\\\",\\\"versionIndex\\\":\\\"0\\\"}\" https://api.jdoodle.com/v1/execute>\"【运行目录】\\cmd.log\"】【赋值变量2>=<【读入【运行目录】\\cmd.log】】【赋值变量3>=<【取中间【变量2】>=<\"output\":\">=<\",\"sta】】【艾特】【换行】【替换【变量3】>=<\\n>=<【换行】】",
+    "group_separation": ""
   }
 ]
