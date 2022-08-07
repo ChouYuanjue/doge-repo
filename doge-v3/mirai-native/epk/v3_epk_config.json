@@ -254,5 +254,13 @@
     "priority": 0,
     "reply": "【图片https://thishorsedoesnotexist.com/】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/game 24p]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "欢迎使用24点功能。此功能需要联系作者在群内开启。【换行】发送“24点”开始游戏，回答请用等于号\"=\"开头。【换行】允许四则运算 +, -, #xh, / 和位运算 >>(右移)，<<(左移)，&(与)，^(异或)，|(或)【换行】 注意：这里的^不是乘方运算！！！【分隔】",
+    "group_separation": ""
   }
 ]
