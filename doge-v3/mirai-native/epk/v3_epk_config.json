@@ -230,5 +230,13 @@
     "priority": 0,
     "reply": "【图片https://thisartworkdoesnotexist.com/】【分隔】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/gan cat]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?https://thiscatdoesnotexist.com/】",
+    "group_separation": ""
   }
 ]
