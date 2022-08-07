@@ -238,5 +238,13 @@
     "priority": 0,
     "reply": "【图片https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?https://thiscatdoesnotexist.com/】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/ver]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "Running MiraiConsole v2.12.0, built on 2022-07-03 10:57:58.【分隔】【换行】Frontend Terminal: version 2.12.0, provided by Mamoe Technologies【分隔】【换行】Bot: 豆子 Doge version 3.5.3【分隔】【换行】Permission Service: Built In Permission Service",
+    "group_separation": ""
   }
 ]
