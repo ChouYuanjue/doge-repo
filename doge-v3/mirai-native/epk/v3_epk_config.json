@@ -286,5 +286,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【赋值变量1>=<【访问https://v2.alapi.cn/api/shici?token=${ALAPI_TOKEN}&format=json&type=【内容】【分隔】】】【取中间【变量1】>=<\"content\":\">=<\",\"au】【换行】—— 【取中间【变量1】>=<\"author\":\">=<\",\"or】 【取中间【变量1】>=<\"origin\":\">=<\",\"ca】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/ask]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "[私聊2700074128]来自【发送者QQ】的问题：【内容】",
+    "group_separation": ""
   }
 ]
