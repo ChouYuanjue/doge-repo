@@ -294,5 +294,13 @@
     "priority": 0,
     "reply": "[私聊2700074128]来自【发送者QQ】的问题：【内容】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/insult sh]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【替换【取中间【访问https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?http://www.pangloss.com/seidel/Shaker/index.html/】>=<2\">>=<</font】>=<<br>>=<】",
+    "group_separation": ""
   }
 ]
