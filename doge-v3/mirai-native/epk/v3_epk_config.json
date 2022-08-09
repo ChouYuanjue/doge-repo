@@ -302,5 +302,13 @@
     "priority": 0,
     "reply": "【艾特】【替换【取中间【访问https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?http://www.pangloss.com/seidel/Shaker/index.html/】>=<2\">>=<</font】>=<<br>>=<】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/insult gensh]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【访问https://insultapi.vercel.app/api/generated】",
+    "group_separation": ""
   }
 ]
