@@ -310,5 +310,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【访问https://insultapi.vercel.app/api/generated】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/insult lu]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【取中间【访问https://ergofabulous.org/luther/】>=<larger\">>=<</p】",
+    "group_separation": ""
   }
 ]
