@@ -350,5 +350,13 @@
     "priority": 0,
     "reply": "【访问https://cactus.nci.nih.gov/chemical/structure/【内容】/stdinchikey】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/chem img ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片https://cactus.nci.nih.gov/chemical/structure/【内容】/image】",
+    "group_separation": ""
   }
 ]
