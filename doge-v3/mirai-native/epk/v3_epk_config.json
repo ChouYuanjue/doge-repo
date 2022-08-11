@@ -374,5 +374,13 @@
     "priority": 0,
     "reply": "【访问https://cactus.nci.nih.gov/chemical/structure/【内容】/smiles】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/chem names ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【访问https://cactus.nci.nih.gov/chemical/structure/【内容】/names】",
+    "group_separation": ""
   }
 ]
