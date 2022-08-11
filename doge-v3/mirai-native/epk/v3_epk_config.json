@@ -382,5 +382,13 @@
     "priority": 0,
     "reply": "【访问https://cactus.nci.nih.gov/chemical/structure/【内容】/names】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/perc (.*) (.*)]",
+    "match_mode": "regex",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【替换【访问https://radial-nonstop-jasmine.glitch.me/api?generator=【内容1】&list=【内容2】】>=<<br>>=<【换行】】",
+    "group_separation": ""
   }
 ]
