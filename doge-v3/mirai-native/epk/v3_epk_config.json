@@ -398,5 +398,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【进制【内容1】>=<【内容2】>=<【内容3】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/gan furry]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片https://thisfursonadoesnotexist.com/v2/jpgs/seed【随机数0-9】【随机数0-9】【随机数0-9】【随机数0-9】【随机数0-9】.jpg】",
+    "group_separation": ""
   }
 ]
