@@ -406,5 +406,13 @@
     "priority": 0,
     "reply": "【图片https://thisfursonadoesnotexist.com/v2/jpgs/seed【随机数0-9】【随机数0-9】【随机数0-9】【随机数0-9】【随机数0-9】.jpg】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/repo]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "项目地址：【分隔】【换行】https://github.com/doge-qbot/doge-repo【分隔】",
+    "group_separation": ""
   }
 ]
