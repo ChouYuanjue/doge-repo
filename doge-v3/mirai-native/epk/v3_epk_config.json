@@ -414,5 +414,13 @@
     "priority": 0,
     "reply": "项目地址：【分隔】【换行】https://github.com/doge-qbot/doge-repo【分隔】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/gan anime]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片https://thisanimedoesnotexist.ai/results/psi-0.【随机数1-9】/seed【随机数0-9】【随机数0-9】【随机数0-9】【随机数0-9】【随机数0-9】.png】",
+    "group_separation": ""
   }
 ]
