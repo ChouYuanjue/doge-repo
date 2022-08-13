@@ -430,5 +430,13 @@
     "priority": 0,
     "reply": "【赋值变量1>=<【随机数1-999999】】【隐藏【访问https://image.thum.io/get/width/600/crop/1200/https://thischemicaldoesnotexist.com/?seed=【变量1】【分隔】】】【图片https://image.thum.io/get/width/600/crop/1200/https://thischemicaldoesnotexist.com/?seed=【变量1】】【分隔】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/yg ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【cmd [等待]curl -F \"text=【内容】\" -H \"api-key:your-key\" https://api.deepai.org/api/text2img【分隔】>\"【运行目录】\\yg【当前群号】.log\"】【赋值变量2>=<【读入【运行目录】\\yg【当前群号】.log】】【艾特】【换行】【图片【取中间【变量2】>=<url\": \">=<\"】】",
+    "group_separation": ""
   }
 ]
