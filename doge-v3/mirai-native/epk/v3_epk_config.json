@@ -422,5 +422,13 @@
     "priority": 0,
     "reply": "【图片https://thisanimedoesnotexist.ai/results/psi-0.【随机数1-9】/seed【随机数0-9】【随机数0-9】【随机数0-9】【随机数0-9】【随机数0-9】.png】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/gan chem]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【赋值变量1>=<【随机数1-999999】】【隐藏【访问https://image.thum.io/get/width/600/crop/1200/https://thischemicaldoesnotexist.com/?seed=【变量1】【分隔】】】【图片https://image.thum.io/get/width/600/crop/1200/https://thischemicaldoesnotexist.com/?seed=【变量1】】【分隔】",
+    "group_separation": ""
   }
 ]
