@@ -486,5 +486,13 @@
     "priority": 0,
     "reply": "【cmd [等待]curl \"https://judge0-ce.p.rapidapi.com/submissions/【内容】?base64_encoded=false&fields=#xh\" -H \"X-RapidAPI-Host: judge0-ce.p.rapidapi.com\" -H \"X-RapidAPI-Key: your-key\">\"【运行目录】\\cmdrunout.log\"】【分隔】【赋值变量2>=<【读入【运行目录】\\cmdrunout.log】】【艾特】【换行】【替换【取中间【变量2】>=<stdout\":\">=<\",\"status】>=<\\n>=<【换行】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/encode base64 ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【编码BASE64【内容】】",
+    "group_separation": ""
   }
 ]
