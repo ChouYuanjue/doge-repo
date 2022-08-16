@@ -510,5 +510,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【编码到USC2【内容】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/encode hex ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【HexE【内容】】",
+    "group_separation": ""
   }
 ]
