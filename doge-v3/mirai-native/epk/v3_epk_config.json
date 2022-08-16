@@ -526,5 +526,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【解码USC2【内容】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/decode hex ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【HexD【内容】】",
+    "group_separation": ""
   }
 ]
