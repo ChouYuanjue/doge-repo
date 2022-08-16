@@ -534,5 +534,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【HexD【内容】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/decode url ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【解码URL1【内容】】",
+    "group_separation": ""
   }
 ]
