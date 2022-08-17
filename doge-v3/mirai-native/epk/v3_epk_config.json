@@ -550,5 +550,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【文本加密【内容1】>=<【内容2】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/decrypt (.*) (.*)]",
+    "match_mode": "regex",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【文本解密【内容1】>=<【内容2】】",
+    "group_separation": ""
   }
 ]
