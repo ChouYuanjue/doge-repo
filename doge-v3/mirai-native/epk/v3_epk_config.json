@@ -542,5 +542,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【解码URL1【内容】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/encrypt (.*) (.*)]",
+    "match_mode": "regex",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【文本加密【内容1】>=<【内容2】】",
+    "group_separation": ""
   }
 ]
