@@ -630,5 +630,13 @@
     "priority": 0,
     "reply": "【cmd [等待]curl -X POST \"https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=true&fields=#xh\" -H \"Content-Type: application/json\" -H \"X-RapidAPI-Host: judge0-ce.p.rapidapi.com\" -H \"X-RapidAPI-Key: your-key\" -H \"content-type: application/json\" -d \"{\\\"language_id\\\": 54, \\\"source_code\\\": \\\"【编码BASE64【内容】】\\\", \\\"stdin\\\": \\\"SnVkZ2Uw\\\"}\">\"【运行目录】\\run【发送者QQ】.log\"】【分隔】【赋值变量2>=<【取中间【读入【运行目录】\\run【发送者QQ】.log】>=<token\":\">=<\"】】【cmd [等待]curl \"https://judge0-ce.p.rapidapi.com/submissions/【变量2】?base64_encoded=false&fields=#xh\" -H \"X-RapidAPI-Host: judge0-ce.p.rapidapi.com\" -H \"X-RapidAPI-Key: your-key\">\"【运行目录】\\runout【发送者QQ】.log\"】【分隔】【赋值变量3>=<【读入【运行目录】\\runout【发送者QQ】.log】】【赋值变量4>=<【读入【运行目录】\\runout【发送者QQ】.log】】【艾特】【换行】【替换【取中间【变量3】>=<stdout\":\">=<\",\"status】>=<\\n>=<【换行】】【换行】Error:【换行】【替换【取中间【变量4】>=<stderr\":>=<,\"to】>=<\\n>=<【换行】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/run c ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【cmd [等待]curl -X POST \"https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=true&fields=#xh\" -H \"Content-Type: application/json\" -H \"X-RapidAPI-Host: judge0-ce.p.rapidapi.com\" -H \"X-RapidAPI-Key: your-key\" -H \"content-type: application/json\" -d \"{\\\"language_id\\\": 50, \\\"source_code\\\": \\\"【编码BASE64【内容】】\\\", \\\"stdin\\\": \\\"SnVkZ2Uw\\\"}\">\"【运行目录】\\run【发送者QQ】.log\"】【分隔】【赋值变量2>=<【取中间【读入【运行目录】\\run【发送者QQ】.log】>=<token\":\">=<\"】】【cmd [等待]curl \"https://judge0-ce.p.rapidapi.com/submissions/【变量2】?base64_encoded=false&fields=#xh\" -H \"X-RapidAPI-Host: judge0-ce.p.rapidapi.com\" -H \"X-RapidAPI-Key: your-key\">\"【运行目录】\\runout【发送者QQ】.log\"】【分隔】【赋值变量3>=<【读入【运行目录】\\runout【发送者QQ】.log】】【赋值变量4>=<【读入【运行目录】\\runout【发送者QQ】.log】】【艾特】【换行】【替换【取中间【变量3】>=<stdout\":\">=<\",\"status】>=<\\n>=<【换行】】【换行】Error:【换行】【替换【取中间【变量4】>=<stderr\":>=<,\"to】>=<\\n>=<【换行】】",
+    "group_separation": ""
   }
 ]
