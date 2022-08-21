@@ -694,5 +694,13 @@
     "priority": 0,
     "reply": "【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\wh】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/meme pg]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\pg】",
+    "group_separation": ""
   }
 ]
