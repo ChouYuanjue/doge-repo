@@ -662,5 +662,13 @@
     "priority": 0,
     "reply": "你(【发送者QQ】)无权限使用此功能块",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/siku read (.*) (.*)]",
+    "match_mode": "regex",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【赋值变量1>=<【取中间【访问http://skqs.guoxuedashi.net/【内容1】/】>=<<a href=\"http://siku.guoxuedashi.net/>=</images/】】【艾特】【换行】【图片http://siku.guoxuedashi.net/【变量1】/images/【内容2】_jpg.jpg】",
+    "group_separation": ""
   }
 ]
