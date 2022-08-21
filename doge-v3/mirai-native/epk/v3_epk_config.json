@@ -670,5 +670,13 @@
     "priority": 0,
     "reply": "【赋值变量1>=<【取中间【访问http://skqs.guoxuedashi.net/【内容1】/】>=<<a href=\"http://siku.guoxuedashi.net/>=</images/】】【艾特】【换行】【图片http://siku.guoxuedashi.net/【变量1】/images/【内容2】_jpg.jpg】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/siku kw ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【赋值变量1>=<【取中间【访问http://www.guoxuedashi.net/so.php?sokey=【编码【内容1】】&kt=1】>=<以下为#zzk四库全书#yzk在线阅读</a></dt>>=<<dt>以下为】】【艾特】【换行】ID:【取中间【变量1】>=<href=\"http://skqs.guoxuedashi.net/>=</\">=<1】 【取中间【变量1】>=<target=\"_blank\">=<</a></dd>>=<1】【换行】ID:【取中间【变量1】>=<href=\"http://skqs.guoxuedashi.net/>=</\">=<2】 【取中间【变量1】>=<target=\"_blank\">=<</a></dd>>=<2】【换行】ID:【取中间【变量1】>=<href=\"http://skqs.guoxuedashi.net/>=</\">=<3】 【取中间【变量1】>=<target=\"_blank\">=<</a></dd>>=<3】【换行】ID:【取中间【变量1】>=<href=\"http://skqs.guoxuedashi.net/>=</\">=<4】 【取中间【变量1】>=<target=\"_blank\">=<</a></dd>>=<4】【换行】ID:【取中间【变量1】>=<href=\"http://skqs.guoxuedashi.net/>=</\">=<5】 【取中间【变量1】>=<target=\"_blank\">=<</a></dd>>=<5】",
+    "group_separation": ""
   }
 ]
