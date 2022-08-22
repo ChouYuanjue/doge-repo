@@ -702,5 +702,13 @@
     "priority": 0,
     "reply": "【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\pg】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/meme fu]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\fu】",
+    "group_separation": ""
   }
 ]
