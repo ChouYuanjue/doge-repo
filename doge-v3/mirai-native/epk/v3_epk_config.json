@@ -710,5 +710,13 @@
     "priority": 0,
     "reply": "【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\fu】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/meme mc]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片https://api.ixiaowai.cn/mcapi/mcapi.php】",
+    "group_separation": ""
   }
 ]
