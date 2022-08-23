@@ -726,5 +726,13 @@
     "priority": 0,
     "reply": "【图片https://api.ixiaowai.cn/gqapi/gqapi.php】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[江子旧约]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\江子圣训\\Camera】",
+    "group_separation": ""
   }
 ]
