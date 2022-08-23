@@ -734,5 +734,13 @@
     "priority": 0,
     "reply": "【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\江子圣训\\Camera】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[数吧球闻口狩]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\数吧球闻口狩】",
+    "group_separation": ""
   }
 ]
