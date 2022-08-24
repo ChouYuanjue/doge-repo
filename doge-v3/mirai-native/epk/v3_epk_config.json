@@ -742,5 +742,13 @@
     "priority": 0,
     "reply": "【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\数吧球闻口狩】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/phil idea]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【赋值变量1>=<【随机数1-15】】【赋值变量2>=<【访问https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?https://philosophyapi.herokuapp.com/api/ideas/?page=【随机数1-39】】】【艾特】【换行】【取中间【变量2】>=<\"quote\":\">=<\">=<【变量1】】【换行】——【取中间【变量2】>=<\"author\":\">=<\">=<【变量1】】",
+    "group_separation": ""
   }
 ]
