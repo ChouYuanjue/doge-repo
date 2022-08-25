@@ -750,5 +750,13 @@
     "priority": 0,
     "reply": "【赋值变量1>=<【随机数1-15】】【赋值变量2>=<【访问https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?https://philosophyapi.herokuapp.com/api/ideas/?page=【随机数1-39】】】【艾特】【换行】【取中间【变量2】>=<\"quote\":\">=<\">=<【变量1】】【换行】——【取中间【变量2】>=<\"author\":\">=<\">=<【变量1】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/phil kw ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【赋值变量1>=<【随机数1-15】】【赋值变量2>=<【访问https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?https://philosophyapi.herokuapp.com/api/ideas/?search=【编码【内容】】】】【艾特】【换行】【取中间【变量2】>=<\"quote\":\">=<\">=<【变量1】】【换行】——【取中间【变量2】>=<\"author\":\">=<\">=<【变量1】】【分隔】",
+    "group_separation": ""
   }
 ]
