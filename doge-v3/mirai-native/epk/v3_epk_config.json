@@ -758,5 +758,13 @@
     "priority": 0,
     "reply": "【赋值变量1>=<【随机数1-15】】【赋值变量2>=<【访问https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?https://philosophyapi.herokuapp.com/api/ideas/?search=【编码【内容】】】】【艾特】【换行】【取中间【变量2】>=<\"quote\":\">=<\">=<【变量1】】【换行】——【取中间【变量2】>=<\"author\":\">=<\">=<【变量1】】【分隔】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/phil er]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【赋值变量1>=<【访问https://philosophyapi.herokuapp.com/api/philosophers】】【赋值变量n>=<【随机数1-12】】【赋值变量name>=<【取中间【变量1】>=<\"name\":\">=<\">=<【变量n】】】【赋值变量id>=<【取中间【变量1】>=<\"count\":>=<,\"ne>=<【变量n】】】【赋值变量photo>=<【取中间【变量1】>=<\"photo\":\">=<\">=<【变量n】】】【赋值变量bd>=<【取中间【变量1】>=<\"born_date\":\">=<\">=<【变量n】】】【赋值变量dd>=<【取中间【变量1】>=<\"death_date\":\">=<\">=<【变量n】】】【赋值变量school>=<【取中间【变量1】>=<\"school\":[>=<]>=<【变量n】】】【艾特】【换行】【变量name】【换行】【图片https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?【变量photo】】【换行】From 【变量bd】 to 【变量dd】【换行】School: 【变量school】【分隔】",
+    "group_separation": ""
   }
 ]
