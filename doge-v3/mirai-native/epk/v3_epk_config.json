@@ -766,5 +766,13 @@
     "priority": 0,
     "reply": "【赋值变量1>=<【访问https://philosophyapi.herokuapp.com/api/philosophers】】【赋值变量n>=<【随机数1-12】】【赋值变量name>=<【取中间【变量1】>=<\"name\":\">=<\">=<【变量n】】】【赋值变量id>=<【取中间【变量1】>=<\"count\":>=<,\"ne>=<【变量n】】】【赋值变量photo>=<【取中间【变量1】>=<\"photo\":\">=<\">=<【变量n】】】【赋值变量bd>=<【取中间【变量1】>=<\"born_date\":\">=<\">=<【变量n】】】【赋值变量dd>=<【取中间【变量1】>=<\"death_date\":\">=<\">=<【变量n】】】【赋值变量school>=<【取中间【变量1】>=<\"school\":[>=<]>=<【变量n】】】【艾特】【换行】【变量name】【换行】【图片https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?【变量photo】】【换行】From 【变量bd】 to 【变量dd】【换行】School: 【变量school】【分隔】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/math oeis A]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【隐藏【访问https://image.thum.io/get/width/1200/crop/1200/https://oeis.org/A【内容】】】【隐藏【访问https://image.thum.io/get/width/1200/crop/1200/https://oeis.org/A【内容】/graph】】【艾特】【换行】【图片https://image.thum.io/get/width/1200/crop/1200/https://oeis.org/A【内容】】【换行】【图片https://image.thum.io/get/width/1200/crop/1200/https://oeis.org/A【内容】/graph】",
+    "group_separation": ""
   }
 ]
