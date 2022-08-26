@@ -798,5 +798,13 @@
     "priority": 0,
     "reply": "【cmd [等待]curl -F \"content=【图链【内容】】\" -F \"style=【图二链【内容】】\" -H \"api-key:your-key\" https://api.deepai.org/api/fast-style-transfer【分隔】>\"【运行目录】\\styp【发送者QQ】.log\"】【赋值变量2>=<【读入【运行目录】\\styp【发送者QQ】.log】】【艾特】【换行】【图片【取中间【变量2】>=<url\": \">=<\"】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[&#91;初始化函数图二链&#93;]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【函数图二链>=<【判断【判空【当前群号】>=<0】>=<0>=<【分隔】【赋值变量file-raw>=<【取中间【msg】>=<file={>=<}>=<2】】【分隔】【赋值变量file>=<【Fori【分隔】【分割取出【变量file-raw】>=<->=<[序号]】【分隔】>=<【变量file-raw】>=<-】】【分隔】【赋值变量图链>=<https://gchat.qpic.cn/gchatpic_new//--【变量file】/0】【分隔】>=<【分隔】【赋值变量file>=<【取中间【msg】>=<file=/>=<.mnimg>=<1】】【分隔】【赋值变量图链>=<https://gchat.qpic.cn/gchatpic_new//【变量file】/0】【分隔】】【分隔】【变量图链】】",
+    "group_separation": ""
   }
 ]
