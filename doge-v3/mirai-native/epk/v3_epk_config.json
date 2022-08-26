@@ -790,5 +790,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】[CQ:image,file=EPK自定义回复\\【内容】.jpg]",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/style pic ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【cmd [等待]curl -F \"content=【图链【内容】】\" -F \"style=【图二链【内容】】\" -H \"api-key:your-key\" https://api.deepai.org/api/fast-style-transfer【分隔】>\"【运行目录】\\styp【发送者QQ】.log\"】【赋值变量2>=<【读入【运行目录】\\styp【发送者QQ】.log】】【艾特】【换行】【图片【取中间【变量2】>=<url\": \">=<\"】】",
+    "group_separation": ""
   }
 ]
