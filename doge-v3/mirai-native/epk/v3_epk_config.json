@@ -774,5 +774,13 @@
     "priority": 0,
     "reply": "【隐藏【访问https://image.thum.io/get/width/1200/crop/1200/https://oeis.org/A【内容】】】【隐藏【访问https://image.thum.io/get/width/1200/crop/1200/https://oeis.org/A【内容】/graph】】【艾特】【换行】【图片https://image.thum.io/get/width/1200/crop/1200/https://oeis.org/A【内容】】【换行】【图片https://image.thum.io/get/width/1200/crop/1200/https://oeis.org/A【内容】/graph】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/game nc]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "欢迎使用九子棋功能。游戏规则详见文档【换行】【分隔】匹配玩家指令：【换行】【分隔】·/nc match---匹配【换行】【分隔】·/nc matching [@群员]([QQ])---指定匹配【换行】【分隔】·/nc rival---查看匹配列表【换行】【分隔】·/nc exit---退出匹配【换行】【分隔】开始游戏后，在自己回合内发送对应位置即可落子（如A1），不区分大小写。【换行】移动棋子阶段：若想将自己的棋子从A1移动至A2，发送A1-A2即可，不区分大小写。【分隔】【换行】【分隔】棋盘：【换行】【分隔】【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\nc.jpg】【换行】【分隔】对局中发送exit退出对局。",
+    "group_separation": ""
   }
 ]
