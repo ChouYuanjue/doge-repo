@@ -822,5 +822,13 @@
     "priority": 0,
     "reply": "【主人【艾特】【换行】【图片【内容】】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/toonify]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【cmd [等待]curl -F \"image=【图链【内容】】\" -H \"api-key:your-key\" https://api.deepai.org/api/toonify【分隔】>\"【运行目录】\\dr【发送者QQ】.log\"】【赋值变量2>=<【读入【运行目录】\\dr【发送者QQ】.log】】【艾特】【换行】【图片【取中间【变量2】>=<url\": \">=<\"】】",
+    "group_separation": ""
   }
 ]
