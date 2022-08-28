@@ -830,5 +830,13 @@
     "priority": 0,
     "reply": "【cmd [等待]curl -F \"image=【图链【内容】】\" -H \"api-key:your-key\" https://api.deepai.org/api/toonify【分隔】>\"【运行目录】\\dr【发送者QQ】.log\"】【赋值变量2>=<【读入【运行目录】\\dr【发送者QQ】.log】】【艾特】【换行】【图片【取中间【变量2】>=<url\": \">=<\"】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/chart ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【图片https://quickchart.io/chart?c=【替换【编码【内容】】>=<%26%2391%3B||%26%2393%3B>=<%5B||%5D】】",
+    "group_separation": ""
   }
 ]
