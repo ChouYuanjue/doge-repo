@@ -1,0 +1,10 @@
+# wolfram|alpha 的 appid, 前往 https://developer.wolframalpha.com/portal/myapps/index.html 获得
+appid: 'your appid'
+# 触发前缀, 为空时是两个单引号
+prefix: '/wa '
+# 当发生错误时的提示信息
+error_msg: ''
+# 图片与文本的分割线, 为空时是 ---------, 填 empty 时为空白字符
+separation_line: ''
+# 是否构建转发消息
+isForward: true
