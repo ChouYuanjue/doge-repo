@@ -846,5 +846,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【赋值变量1>=<【随机数1-1145141919】】【隐藏【访问https://image.thum.io/get/width/1200/https://thatsmathematics.com/mathgen/paper.php?nameType%5B1%5D=generic&nameType%5B2%5D=famous&nameType%5B3%5D=custom&customName%5B3%5D=&nameType%5B4%5D=custom&customName%5B4%5D=&seed=【变量1】&format=pdf】】【图片https://image.thum.io/get/width/1200/https://thatsmathematics.com/mathgen/paper.php?nameType%5B1%5D=generic&nameType%5B2%5D=famous&nameType%5B3%5D=custom&customName%5B3%5D=&nameType%5B4%5D=custom&customName%5B4%5D=&seed=【变量1】&format=pdf】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/dream random]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【图片https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?https://boredhumans.b-cdn.net/dreams/【随机数1-125】.jpg】",
+    "group_separation": ""
   }
 ]
