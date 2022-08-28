@@ -838,5 +838,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【图片https://quickchart.io/chart?c=【替换【编码【内容】】>=<%26%2391%3B||%26%2393%3B>=<%5B||%5D】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/gen math]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【赋值变量1>=<【随机数1-1145141919】】【隐藏【访问https://image.thum.io/get/width/1200/https://thatsmathematics.com/mathgen/paper.php?nameType%5B1%5D=generic&nameType%5B2%5D=famous&nameType%5B3%5D=custom&customName%5B3%5D=&nameType%5B4%5D=custom&customName%5B4%5D=&seed=【变量1】&format=pdf】】【图片https://image.thum.io/get/width/1200/https://thatsmathematics.com/mathgen/paper.php?nameType%5B1%5D=generic&nameType%5B2%5D=famous&nameType%5B3%5D=custom&customName%5B3%5D=&nameType%5B4%5D=custom&customName%5B4%5D=&seed=【变量1】&format=pdf】",
+    "group_separation": ""
   }
 ]
