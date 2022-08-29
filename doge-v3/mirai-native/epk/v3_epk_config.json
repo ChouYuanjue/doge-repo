@@ -870,5 +870,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【图片https://quickchart.io/chart?v=3&c=【替换【编码【内容】】>=<%26%2391%3B||%26%2393%3B>=<%5B||%5D】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/gen cs]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【赋值变量1>=<【访问https://boredhumans.com/research_papers.php】】TITLE: 【取中间【变量1】>=<<font size='3'><center><B>>=<</B></B><BR>】【换行】ABSTRACT: 【取中间【变量1】>=<</B></B><BR>>=<<b<br>        <td>】",
+    "group_separation": ""
   }
 ]
