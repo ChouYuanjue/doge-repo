@@ -854,5 +854,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【图片https://www.ersupport.com/plugins/QuickWebProxy/miniProxy.php?https://boredhumans.b-cdn.net/dreams/【随机数1-125】.jpg】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[暗裔旧约]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\雅南】",
+    "group_separation": ""
   }
 ]
