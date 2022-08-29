@@ -862,5 +862,13 @@
     "priority": 0,
     "reply": "【图片C:\\Users\\Administrator\\Desktop\\mirai-naive\\data\\image\\雅南】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/chartv3 ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【图片https://quickchart.io/chart?v=3&c=【替换【编码【内容】】>=<%26%2391%3B||%26%2393%3B>=<%5B||%5D】】",
+    "group_separation": ""
   }
 ]
