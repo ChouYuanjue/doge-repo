@@ -878,5 +878,13 @@
     "priority": 0,
     "reply": "【艾特】【换行】【赋值变量1>=<【访问https://boredhumans.com/research_papers.php】】TITLE: 【取中间【变量1】>=<<font size='3'><center><B>>=<</B></B><BR>】【换行】ABSTRACT: 【取中间【变量1】>=<</B></B><BR>>=<<b<br>        <td>】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/gen hep-ph]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【赋值变量1>=<【访问http://snarxiv.org】】TITLE: 【取中间【变量1】>=<",
+    "group_separation": ""
   }
 ]
