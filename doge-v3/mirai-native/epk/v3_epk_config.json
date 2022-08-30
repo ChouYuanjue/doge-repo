@@ -894,5 +894,13 @@
     "priority": 10,
     "reply": "【cmd [等待]curl -F \"image=【图链【内容】】\" -H \"api-key:your-key\" https://api.deepai.org/api/deepdream【分隔】>\"【运行目录】\\dr【发送者QQ】.log\"】【赋值变量2>=<【读入【运行目录】\\dr【发送者QQ】.log】】【艾特】【换行】【图片【取中间【变量2】>=<url\": \">=<\"】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/encrypt ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 10,
+    "reply": "【艾特】【换行】【文本加密【内容】】",
+    "group_separation": ""
   }
 ]
