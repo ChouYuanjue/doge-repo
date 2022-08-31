@@ -926,5 +926,13 @@
     "priority": 10,
     "reply": "【内容】【换行】【访问-UTFhttps://doubi.ren/zuanbot/api.php?level=min&from=xxx】【传递】【分隔】【传递变量】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[/amuse du ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 10,
+    "reply": "【内容】【换行】【赋值变量1>=<【取中间【访问-UTFhttps://api.shadiao.pro/du】>=<{\"type\":\">=<\"}>=<1】】[Unicode=【变量1】]",
+    "group_separation": "true"
   }
 ]
