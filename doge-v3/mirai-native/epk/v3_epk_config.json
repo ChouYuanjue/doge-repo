@@ -910,5 +910,13 @@
     "priority": 10,
     "reply": "【艾特】【换行】【文本解密【内容】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/amuse chp ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 10,
+    "reply": "【内容】【换行】【赋值变量1>=<【取中间【访问-UTFhttps://api.shadiao.pro/chp】>=<{\"type\":\">=<\"}>=<1】】[Unicode=【变量1】]",
+    "group_separation": "true"
   }
 ]
