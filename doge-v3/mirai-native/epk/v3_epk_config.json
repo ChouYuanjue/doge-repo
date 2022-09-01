@@ -934,5 +934,13 @@
     "priority": 10,
     "reply": "【内容】【换行】【赋值变量1>=<【取中间【访问-UTFhttps://api.shadiao.pro/du】>=<{\"type\":\">=<\"}>=<1】】[Unicode=【变量1】]",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[/amuse tian ]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 10,
+    "reply": "*【内容】【换行】【换行】【现行日期-月】月【现行日期-日】日【换行】【访问https://v2.alapi.cn/api/dog?token=${ALAPI_TOKEN}&format=text【分隔】】【换行】",
+    "group_separation": "true"
   }
 ]
