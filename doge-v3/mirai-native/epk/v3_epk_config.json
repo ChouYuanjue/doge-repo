@@ -942,5 +942,13 @@
     "priority": 10,
     "reply": "*【内容】【换行】【换行】【现行日期-月】月【现行日期-日】日【换行】【访问https://v2.alapi.cn/api/dog?token=${ALAPI_TOKEN}&format=text【分隔】】【换行】",
     "group_separation": "true"
+  },
+  {
+    "keyword": "[/perc ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 10,
+    "reply": "【替换【访问https://radial-nonstop-jasmine.glitch.me/api?generator=【内容】&list=output】>=<<br>>=<【换行】】",
+    "group_separation": ""
   }
 ]
