@@ -950,5 +950,13 @@
     "priority": 10,
     "reply": "【替换【访问https://radial-nonstop-jasmine.glitch.me/api?generator=【内容】&list=output】>=<<br>>=<【换行】】",
     "group_separation": ""
+  },
+  {
+    "keyword": "[/math oeis ]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 10,
+    "reply": "【隐藏【访问https://image.thum.io/get/width/1200/crop/1200/https://oeis.org/search?q=【内容】&sort=&language=&go=Search】】【艾特】【换行】【图片https://image.thum.io/get/width/1200/crop/1200/https://oeis.org/search?q=【内容】&sort=&language=&go=Search】",
+    "group_separation": ""
   }
 ]
