@@ -1,0 +1,28 @@
+{
+    "colors": {
+        "description": "魔方6面颜色",
+        "type": "list",
+        "hint": "一个包含6个元素的颜色列表，对应魔方6个面 [前, 后, 左, 右, 上, 下]，可选颜色为：red, orange, yellow, green, blue, white, black, purple, pink, brown, gray, gold, silver, cyan, navy, lightblue, lightgreend等等符合颜色命名的任意颜色",
+        "default": [
+            "green",
+            "blue",
+            "red",
+            "orange",
+            "yellow",
+            "white"
+        ]
+    },
+    "bg_color": {
+        "description": "背景颜色",
+        "type": "string",
+        "hint": "可选颜色同上",
+        "default": "black"
+
+    },
+    "formulas": {
+        "description": "公式",
+        "type": "object",
+        "hint": "存储一些魔方的快捷公式，键为公式名称，值为公式内容",
+        "items":{}
+    }
+}
