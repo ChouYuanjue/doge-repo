@@ -1,0 +1,4 @@
+name: doge_fourier
+desc: 将 SVG / 文本 转为傅里叶级数动图（显示旋转向量）
+version: v1.1.1
+author: runnel
