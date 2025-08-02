@@ -1,0 +1,4 @@
+name: doge_latex
+version: 1.0.0
+desc: 通过matplotlib的mathtext渲染latex公式
+author: runnel
