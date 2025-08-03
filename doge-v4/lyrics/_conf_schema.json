@@ -1,0 +1,20 @@
+{
+  "preprocess_lyrics": {
+    "description": "是否预处理歌词以提高匹配准确率",
+    "type": "bool",
+    "hint": "开启后会对歌词进行预处理，如去除标点、统一大小写等，以提高匹配准确率",
+    "default": true
+  },
+  "match_threshold": {
+    "description": "歌词匹配阈值",
+    "type": "float",
+    "hint": "匹配阈值越高，匹配越精确，但可能导致部分歌词无法匹配。范围: 0.1-1.0",
+    "default": 0.85
+  },
+  "auto_import_default_lyrics": {
+    "description": "是否自动导入默认歌词库",
+    "type": "bool",
+    "hint": "开启后，插件初始化或重载时会自动将默认歌词库中的歌词导入到用户歌词目录中；关闭后，将不再自动导入",
+    "default": true
+  }
+}
