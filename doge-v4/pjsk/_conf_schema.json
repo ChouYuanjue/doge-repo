@@ -1,0 +1,94 @@
+{
+    "answer_timeout": {
+        "description": "回答超时时间（秒）",
+        "type": "int",
+        "default": 30,
+        "hint": "设置玩家回答问题的超时时间，单位为秒。"
+    },
+    "daily_play_limit": {
+        "description": "每位用户每日可进行的游戏次数",
+        "type": "int",
+        "default": 15,
+        "hint": "设置每个用户每天可以玩几次猜歌游戏。"
+    },
+    "super_users": {
+        "description": "超级用户（管理员）列表",
+        "type": "list",
+        "items": {
+            "type": "string"
+        },
+        "default": [],
+        "hint": "在此处添加管理员的ID（字符串形式），他们将有权限使用特殊指令。"
+    },
+    "group_whitelist": {
+        "description": "群聊白名单",
+        "type": "list",
+        "items": {
+            "type": "string"
+        },
+        "default": [],
+        "hint": "在此处添加允许使用此插件的群聊ID。如果列表为空，则所有群聊都允许使用。"
+    },
+    "game_cooldown_seconds": {
+        "description": "游戏冷却时间（秒）",
+        "type": "int",
+        "default": 60,
+        "hint": "同一群聊/私聊中，两轮游戏之间的冷却时间（秒）。"
+    },
+    "max_guess_attempts": {
+        "description": "每轮游戏的最大猜测次数",
+        "type": "int",
+        "default": 10,
+        "hint": "设置每轮游戏最多可以被猜错多少次。"
+    },
+    "clip_duration_seconds": {
+        "description": "发送的歌曲片段时长（秒）",
+        "type": "int",
+        "default": 10,
+        "hint": "设置发送给用户的歌曲片段的长度。"
+    },
+    "bonus_time_after_first_answer": {
+        "type": "int",
+        "default": 5,
+        "description": "奖励有效时间。第一个玩家答对后，在此时间（秒）内答对的其它玩家也能得分。设为0则禁用此功能，所有在规定时间内答对的玩家都可得分。"
+    },
+    "end_game_after_bonus_time": {
+        "type": "bool",
+        "default": true,
+        "description": "是否在奖励有效时间结束后立即结束游戏并公布答案。如果为 false，游戏将继续直到超时或达到最大尝试次数。"
+    },
+    "debug_mode": {
+        "type": "bool",
+        "default": false,
+        "description": "调试模式。启用后，游戏会立即显示问题和答案，无需等待玩家回答。适合测试不同的音频效果和排查问题。"
+    },
+    "daily_listen_limit": {
+        "description": "每日听歌次数限制。'听钢琴'、'听伴奏'、'听人声'、'听贝斯'和'听鼓组'功能共享此限制。",
+        "type": "int",
+        "default": 5,
+        "hint": "设置每个用户每天可以使用“听xx”系列功能的总次数。"
+    },
+    "use_local_resources": {
+        "description": "是否使用本地资源",
+        "type": "bool",
+        "default": false,
+        "hint": "如果为 true, 插件将从本地 resources 文件夹加载音频和图片。如果为 false, 将从下方配置的 URL 加载。"
+    },
+    "remote_resource_url_base": {
+        "description": "远程资源服务器的根 URL",
+        "type": "string",
+        "default": "http://47.110.56.9",
+        "hint": "当'使用本地资源'为 false 时, 插件将从此 URL 下载资源。URL末尾不需要加'/'。例如: https://example.com/sekai_assets"
+    },
+    "lightweight_mode": {
+        "type": "bool",
+        "default": false,
+        "description": "轻量模式。启用后将禁用部分消耗CPU的音频处理功能（如变速、倒放），只保留从服务器直接下载裁剪的音频功能，以降低服务器负载。"
+    },
+    "stats_server_api_key": {
+        "description": "[可选] 全服统计服务器的API密钥",
+        "type": "string",
+        "default": "",
+        "hint": "用于连接全服排行榜和统计功能。请从服务器后台获取此密钥。留空则禁用所有联网功能。"
+    }
+} 
