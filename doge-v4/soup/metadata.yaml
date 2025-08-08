@@ -1,0 +1,9 @@
+name: doge_soup 
+desc: AI海龟汤推理游戏插件，支持自动生成谜题、智能判断、验证系统、智能提示、存储库管理等功能。
+version: v1.0.0
+author: runnel
+
+# 事件监听器配置
+event_listener:
+  default_priority: 100  # 确保高于默认 reply 插件
+  stop_propagation: false  # 不阻止其他插件继续处理
