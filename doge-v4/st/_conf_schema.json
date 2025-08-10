@@ -1,0 +1,14 @@
+{
+    "limit": {
+        "description": "API返回图片的数量上限",
+        "type": "int",
+        "default": 100,
+        "hint": "建议设置在100以内"
+    },
+    "display_tags": {
+        "description": "是否显示图片的tags字段",
+        "type": "bool",
+        "default": false,
+        "hint": "如果为true，则在发送图片前显示该图片的tags信息"
+    }
+}

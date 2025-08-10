@@ -1,0 +1,4 @@
+name: doge_st 
+desc: 从safebooru上根据tag搜索图片
+version: v1.0.0
+author: runnel
