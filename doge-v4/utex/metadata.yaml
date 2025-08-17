@@ -1,0 +1,4 @@
+name: doge_utex
+desc: 将LaTeX公式通过线上接口转换为图片
+version: v1.0.0 
+author: runnel 
