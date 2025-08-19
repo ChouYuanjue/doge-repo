@@ -1,0 +1,57 @@
+﻿2022-07-26 15:59:05
+Traceback (most recent call last):
+  File "ChatClass.py", line 375, in run
+  File "Chatmain.py", line 1854, in getcommand_chat
+  File "simuse.py", line 88, in Fetch_Message
+  File "json\__init__.py", line 346, in loads
+  File "json\decoder.py", line 337, in decode
+  File "json\decoder.py", line 355, in raw_decode
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+2022-07-26 20:45:40
+Traceback (most recent call last):
+  File "ChatClass.py", line 375, in run
+  File "ChatReply.py", line 624, in main
+  File "ChatReply.py", line 557, in listening
+  File "simuse.py", line 88, in Fetch_Message
+  File "json\__init__.py", line 346, in loads
+  File "json\decoder.py", line 337, in decode
+  File "json\decoder.py", line 355, in raw_decode
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+2022-07-26 20:45:43
+Traceback (most recent call last):
+  File "ChatClass.py", line 375, in run
+  File "Chatmain.py", line 1854, in getcommand_chat
+  File "simuse.py", line 88, in Fetch_Message
+  File "json\__init__.py", line 346, in loads
+  File "json\decoder.py", line 337, in decode
+  File "json\decoder.py", line 355, in raw_decode
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+2022-07-26 20:45:43
+Traceback (most recent call last):
+  File "ChatClass.py", line 375, in run
+  File "ChatLearning.py", line 339, in main
+  File "ChatLearning.py", line 167, in listening
+  File "ChatLearning.py", line 125, in extractmessage
+  File "simuse.py", line 88, in Fetch_Message
+  File "json\__init__.py", line 346, in loads
+  File "json\decoder.py", line 337, in decode
+  File "json\decoder.py", line 355, in raw_decode
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+2022-07-27 14:23:53
+<function getcommand_chat at 0x0000022ADE9E8C10>：与api-http连接被强制中断
+2022-07-27 14:23:53
+<function main at 0x0000022ADE9D2700>：与api-http连接被强制中断
+2022-07-27 14:53:44
+<function main at 0x0000022ADE9D2700>：与api-http连接被强制中断
+2022-07-27 14:53:44
+<function getcommand_chat at 0x0000022ADE9E8C10>：与api-http连接被强制中断
+2022-07-27 14:56:40
+<function main at 0x0000022ADE9D2700>：与api-http连接被强制中断
+2022-07-27 14:56:40
+<function getcommand_chat at 0x0000022ADE9E8C10>：与api-http连接被强制中断
+2022-07-27 14:56:40
+<function main at 0x0000022ADE951700>：与api-http连接被强制中断

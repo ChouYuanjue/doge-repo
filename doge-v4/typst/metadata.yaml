@@ -1,0 +1,5 @@
+name: doge_typst
+desc: 渲染Typst代码并返回图片
+version: v0.2.1 
+author: Laplace
+repo: https://github.com/Laplace825/astrbot_plugin_typst_render

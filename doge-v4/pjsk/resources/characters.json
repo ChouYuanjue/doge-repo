@@ -1,0 +1,210 @@
+[
+    {
+        "characterId": 1,
+        "name": "ick",
+        "fullName": "星乃一歌",
+        "fullNameRuby": "ほしのいちか",
+        "fullNameEnglish": "HOSHINO ICHIKA",
+        "unit": "light_sound"
+    },
+    {
+        "characterId": 2,
+        "name": "saki",
+        "fullName": "天馬咲希",
+        "fullNameRuby": "てんまさき",
+        "fullNameEnglish": "TENMA SAKI",
+        "unit": "light_sound"
+    },
+    {
+        "characterId": 3,
+        "name": "hnm",
+        "fullName": "望月穂波",
+        "fullNameRuby": "もちづきほなみ",
+        "fullNameEnglish": "MOCHIZUKI HONAMI",
+        "unit": "light_sound"
+    },
+    {
+        "characterId": 4,
+        "name": "shiho",
+        "fullName": "日野森志歩",
+        "fullNameRuby": "ひのもりしほ",
+        "fullNameEnglish": "HINOMORI SHIHO",
+        "unit": "light_sound"
+    },
+    {
+        "characterId": 5,
+        "name": "mnr",
+        "fullName": "花里みのり",
+        "fullNameRuby": "はなさとみのり",
+        "fullNameEnglish": "HANASATO MINORI",
+        "unit": "idol"
+    },
+    {
+        "characterId": 6,
+        "name": "hrk",
+        "fullName": "桐谷遥",
+        "fullNameRuby": "きりたにはるか",
+        "fullNameEnglish": "KIRITANI HARUKA",
+        "unit": "idol"
+    },
+    {
+        "characterId": 7,
+        "name": "airi",
+        "fullName": "桃井愛莉",
+        "fullNameRuby": "ももいあいり",
+        "fullNameEnglish": "MOMOI AIRI",
+        "unit": "idol"
+    },
+    {
+        "characterId": 8,
+        "name": "szk",
+        "fullName": "日野森雫",
+        "fullNameRuby": "ひのもりしずく",
+        "fullNameEnglish": "HINOMORI SHIZUKU",
+        "unit": "idol"
+    },
+    {
+        "characterId": 9,
+        "name": "khn",
+        "fullName": "小豆沢こはね",
+        "fullNameRuby": "あずさわこはね",
+        "fullNameEnglish": "AZUSAWA KOHANE",
+        "unit": "street"
+    },
+    {
+        "characterId": 10,
+        "name": "an",
+        "fullName": "白石杏",
+        "fullNameRuby": "しらいしあん",
+        "fullNameEnglish": "SHIRAISHI AN",
+        "unit": "street"
+    },
+    {
+        "characterId": 11,
+        "name": "akito",
+        "fullName": "東雲彰人",
+        "fullNameRuby": "しののめあきと",
+        "fullNameEnglish": "SHINONOME AKITO",
+        "unit": "street"
+    },
+    {
+        "characterId": 12,
+        "name": "toya",
+        "fullName": "青柳冬弥",
+        "fullNameRuby": "あおやぎとうや",
+        "fullNameEnglish": "AOYAGI TOYA",
+        "unit": "street"
+    },
+    {
+        "characterId": 13,
+        "name": "tks",
+        "fullName": "天馬司",
+        "fullNameRuby": "てんまつかさ",
+        "fullNameEnglish": "TENMA TSUKASA",
+        "unit": "theme_park"
+    },
+    {
+        "characterId": 14,
+        "name": "emu",
+        "fullName": "鳳えむ",
+        "fullNameRuby": "おおとりえむ",
+        "fullNameEnglish": "OTORI EMU",
+        "unit": "theme_park"
+    },
+    {
+        "characterId": 15,
+        "name": "nene",
+        "fullName": "草薙寧々",
+        "fullNameRuby": "くさなぎねね",
+        "fullNameEnglish": "KUSANAGI NENE",
+        "unit": "theme_park"
+    },
+    {
+        "characterId": 16,
+        "name": "rui",
+        "fullName": "神代類",
+        "fullNameRuby": "かみしろるい",
+        "fullNameEnglish": "KAMISHIRO RUI",
+        "unit": "theme_park"
+    },
+    {
+        "characterId": 17,
+        "name": "knd",
+        "fullName": "宵崎奏",
+        "fullNameRuby": "よいさきかなで",
+        "fullNameEnglish": "YOISAKI KANADE",
+        "unit": "school_refusal"
+    },
+    {
+        "characterId": 18,
+        "name": "mfy",
+        "fullName": "朝比奈まふゆ",
+        "fullNameRuby": "あさひなまふゆ",
+        "fullNameEnglish": "ASAHINA MAFUYU",
+        "unit": "school_refusal"
+    },
+    {
+        "characterId": 19,
+        "name": "ena",
+        "fullName": "東雲絵名",
+        "fullNameRuby": "しののめえな",
+        "fullNameEnglish": "SHINONOME ENA",
+        "unit": "school_refusal"
+    },
+    {
+        "characterId": 20,
+        "name": "mzk",
+        "fullName": "暁山瑞希",
+        "fullNameRuby": "あきやまみずき",
+        "fullNameEnglish": "AKIYAMA MIZUKI",
+        "unit": "school_refusal"
+    },
+    {
+        "characterId": 21,
+        "name": "miku",
+        "fullName": "初音ミク",
+        "fullNameRuby": "はつねみく",
+        "fullNameEnglish": "HATSUNE MIKU",
+        "unit": "piapro"
+    },
+    {
+        "characterId": 22,
+        "name": "rin",
+        "fullName": "鏡音リン",
+        "fullNameRuby": "かがみねりん",
+        "fullNameEnglish": "KAGAMINE RIN",
+        "unit": "piapro"
+    },
+    {
+        "characterId": 23,
+        "name": "len",
+        "fullName": "鏡音レン",
+        "fullNameRuby": "かがみねれん",
+        "fullNameEnglish": "KAGAMINE LEN",
+        "unit": "piapro"
+    },
+    {
+        "characterId": 24,
+        "name": "luka",
+        "fullName": "巡音ルカ",
+        "fullNameRuby": "めぐりねるか",
+        "fullNameEnglish": "MEGURINE LUKA",
+        "unit": "piapro"
+    },
+    {
+        "characterId": 25,
+        "name": "meiko",
+        "fullName": "MEIKO",
+        "fullNameRuby": "めいこ",
+        "fullNameEnglish": "MEIKO",
+        "unit": "piapro"
+    },
+    {
+        "characterId": 26,
+        "name": "kaito",
+        "fullName": "KAITO",
+        "fullNameRuby": "かいと",
+        "fullNameEnglish": "KAITO",
+        "unit": "piapro"
+    }
+]

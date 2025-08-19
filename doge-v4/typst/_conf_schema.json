@@ -1,0 +1,16 @@
+{
+    "math_font_size": {
+        "description": "默认数学字体大小",
+        "type": "string",
+        "hint": "pt, em, px等, 例如 14pt",
+        "obvious_hint": true,
+        "default": "14pt"
+    },
+    "math_height":{
+        "description": "生成数学公式的图片高度",
+        "type": "string",
+        "hint": "默认情况下 auto, 自动适应高度",
+        "obvious_hint": true,
+        "default": "auto"
+    }
+} 

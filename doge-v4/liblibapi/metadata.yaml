@@ -1,0 +1,4 @@
+name: doge_liblib
+desc: 调用liblib进行文生图、图生图、可以自己换大模型,lora模型，支持contorlnet控制，支持自定义confyuiAPI
+author: machinad
+repo: https://github.com/machinad/astrbot_plugin_liblibapi

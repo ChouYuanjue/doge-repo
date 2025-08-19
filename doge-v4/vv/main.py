@@ -1,0 +1,57 @@
+from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+from astrbot.api.star import Context, Star, register
+import os
+import asyncio
+import time
+
+
+@register("vv", "runnel", "发送最符合关键词的vv表情包", "1.0.0")
+class MyPlugin(Star):
+    def __init__(self, context: Context):
+        super().__init__(context)
+
+
+    @filter.command("vv") 
+    async def execute_script(self, event: AstrMessageEvent, query: str):
+        current_dir = os.path.dirname(__file__)
+        example_path = os.path.join(current_dir, "vv_pic.py")
+
+
+        if not os.path.exists(example_path):
+            yield event.plain_result("vv_pic doesn't exist！")
+            return
+
+        command = f'python "{example_path}" "{query}"'
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+
+            output = stdout.decode('utf-8', errors='ignore').strip() if stdout else "" # 去除首尾转义字符
+            error = stderr.decode('utf-8', errors='ignore') if stderr else ""
+
+            # print(output)
+            if output:
+                if output == "none":
+                    yield event.plain_result(f"未找到与'{query}'相匹配的结果\n建议尝试使用更简短的关键词")
+                else:
+                    yield event.image_result(os.path.join(current_dir, output).strip())
+            if error:
+                yield event.plain_result(f"错误：\n{error}")
+
+            for filename in os.listdir(current_dir):
+                if filename.endswith(".webp"):
+                    file_path = os.path.join(current_dir, filename)
+                    try:
+                        os.remove(file_path)
+                        print(f"已删除文件: {file_path}")
+                    except Exception as e:
+                        print(f"删除文件失败: {file_path}, 错误: {e}")
+        except Exception as e:
+            yield event.plain_result(f"执行失败：{str(e)}")
+
+    async def terminate(self):
+        pass

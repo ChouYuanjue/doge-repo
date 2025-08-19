@@ -1,0 +1,135 @@
+{
+    "text_imgType":{
+        "description": "生成图片的模式",
+        "type": "string",
+        "default": "sd1.5/XL模式(可自定义模型)",
+        "options": [
+            "sd1.5/XL模式(可自定义模型)",
+            "flux模式",
+            "confyui模式"
+        ],
+        "hint": "生成图片的模式"
+    },
+    "AccessKey": {
+        "description": "Access密钥",
+        "type": "string",
+        "hint": "请前往  https://www.liblib.art/apis 注册账号，并获取 AccessKey",
+        "default": "AccessKey",
+        "obvious_hint": true
+    },
+    "SecretKey": {
+        "description": "Secret密钥",
+        "type": "string",
+        "default": "SecretKey",
+        "hint": "请前往  https://www.liblib.art/apis 注册账号，并获取 AccessKey"
+    },
+    "height": {
+        "description": "生成图片的高度",
+        "type": "int",
+        "default": "1024",
+        "hint": "图片分辨率的高度"
+    },
+    "width": {
+        "description": "生成图片的宽度",
+        "type": "int",
+        "default": "1024",
+        "hint": "图片分辨率的宽度"
+    },
+    "num_inference_steps": {
+        "description": "推理步数",
+        "type": "int",
+        "default": 28,
+        "hint": "生成图片时的推理步数，数值越大生成质量越高但速度越慢"
+    },
+    "seed":{
+        "description": "随机种子",
+        "type": "int",
+        "default": -1,
+        "hint": "生成图片时的随机种子，-1为随机种子"
+    },
+    "prompt_Translation":{
+        "description": "提示词翻译",
+        "type": "object",
+        "hint": "是否翻译提示词",
+        "items":{
+            "is_Translation":{
+                "description": "是否翻译提示词",
+                "type": "bool",
+                "default": false,
+                "hint": "是否翻译提示词"
+            },
+            "Translation_Type":{
+                "description": "翻译语言",
+                "type": "string",
+                "default": "sd格式提示词",
+                "options": [
+                    "sd格式提示词",
+                    "英语直译(自然语言)",
+                    "中译中(ai润色)"
+                ],
+                "hint": "翻译语言"
+             }
+         }
+     },
+    "sd1.5/xl_config": {
+    "description": "使用sd1.5/XL模式的配置",
+    "type": "object",
+    "hint": "模型id、loraid、lora权重等",
+    "items": {
+      "is_SdLora": {
+        "description": "sd模式是否使用lora",
+        "type": "bool",
+        "default": false,
+        "hint": "是否使用sd1.5/XL模式lora模型"
+      },
+      "modelId": {
+        "description": "大模型ID",
+        "type": "string",
+        "default": "0ea388c7eb854be3ba3c6f65aac6bfd3",   
+        "hint": "https://www.liblib.art点击要使用的模型,在浏览器url处获取模型链接结尾的version_uuid"
+      },
+      "sd_lora_modelid":{
+        "description": "sd1.5/xl模型lora模型ID",
+        "type": "string",
+        "default": "31360f2f031b4ff6b589412a52713fcf",
+        "hint": "lora模型ID,sd1.5/XL模式专用，仅sd1.5/XL模式模式生效"
+      },
+      "sd_lora_scale":{
+        "description": "sd1.5/xl模型lora模型权重",
+        "type": "float",
+        "default": 0.9,
+        "hint": "lora权重，仅sd1.5/XL模式模式生效"
+      }
+    }
+   },
+    "flux_config": {
+    "description": "flux模式配置",
+    "type": "object",
+    "hint": "lora模型id，lora权重等",
+    "items": {
+      "is_fluxLora": {
+        "description": "flux模式是否使用lora",
+        "type": "bool",
+        "default": false,
+        "hint": "是否使用flux模式lora模型"
+      },
+      "flux_lora_modelid":{
+        "description": "flux模型lora模型ID",
+        "type": "string",
+        "default": "169505112cee468b95d5e4a5db0e5669",
+        "hint": "lora模型ID,flux模式专用，仅模式flux生效"
+      },
+      "flux_lora_scale":{
+        "description": "flux模型lora模型权重",
+        "type": "float",
+        "default": 0.9,
+        "hint": "lora权重，仅flux模式生效"
+      }
+    }
+  },
+  "confyui_overwriting":{
+    "description": "confyui的api覆写（如果有的话）",
+    "type": "text",
+    "hint":"为了方便自定义API调用插件配置，可以把以下几个占位符填入API对应的值中：{{prompt}}:提示词、{{height}}:高度、{{width}}:宽度、{{seed}}:随机种子、{{steps}}:推理步数。{{img_url}}传入图片的url。用法示例{\"prompt\":\"{{prompt}}\",\"height\":{{height}},\n\"width\":{{width}},\n\"seed\":{{seed}},\n\"steps\":{{steps}}\n}"
+  }
+}

@@ -1,0 +1,866 @@
+[
+  {
+    "keyword": "[.*给我(.*)光明.*]",
+    "match_mode": "regex",
+    "trigger_method": "group",
+    "priority": -1,
+    "reply": "【判含【内容】>=<一|二|三|四|五|六|七|八|九|十|百|千>=<>=<!back【禁言60】恭喜【艾特】因不识阿拉伯数字，先被电了3600秒！】【传递】【分隔】【判含【内容】>=<秒>=<>=<!back【禁言1440】恭喜【艾特】因发现QQ竟然有禁言几秒的选项，被TX悄悄淦了1天】【传递】【分隔】0【子正则(\\d+)天>=<【内容】>=<1】【传递】【分隔】0【子正则(\\d+)小时>=<【内容】>=<1】【传递】【分隔】0【子正则(\\d+)分>=<【内容】>=<1】【传递】【分隔】【计算【分隔】【传递变量3】×1440+【传递变量4】×60+【传递变量5】【分隔】】【分隔】【传递】【分隔】【判断【传递变量】>=<0>=<!source>=<4320】【传递】【分隔】【判含【内容】>=<年|月>=<>=<!back【禁言43200】】【分隔】【比较【传递变量】>=<43200>=<!back【禁言43200】>=<【禁言【传递变量】】】【分隔】【分隔】【读配置【应用目录】记录\\禁言次数.ini>=<【当前群号】>=<【发送者QQ】>=<0】【传递】【分隔】【写配置【应用目录】记录\\禁言次数.ini>=<【当前群号】>=<【发送者QQ】>=<【计算1+【传递变量】】】【传递】【分隔】这是你在本群第【计算1+【传递变量8】】次请求电自己。【分隔】【分隔】【判含【发送者管理权限】>=<群主|管理>=<【艾特】恭喜你被电了【传递变量6】分钟！>=<汝自为管理，自裁，自电，不亦乐乎？】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[.*给我(.*)电疗.*]",
+    "match_mode": "regex",
+    "trigger_method": "group",
+    "priority": -1,
+    "reply": "【判含【内容】>=<一|二|三|四|五|六|七|八|九|十|百|千>=<>=<!back【禁言60】恭喜【艾特】因不识阿拉伯数字，先被电了3600秒！】【传递】【分隔】【判含【内容】>=<秒>=<>=<!back【禁言1440】恭喜【艾特】因发现QQ竟然有禁言几秒的选项，被TX悄悄淦了1天】【传递】【分隔】0【子正则(\\d+)天>=<【内容】>=<1】【传递】【分隔】0【子正则(\\d+)小时>=<【内容】>=<1】【传递】【分隔】0【子正则(\\d+)分>=<【内容】>=<1】【传递】【分隔】【计算【分隔】【传递变量3】×1440+【传递变量4】×60+【传递变量5】【分隔】】【分隔】【传递】【分隔】【判断【传递变量】>=<0>=<!source>=<4320】【传递】【分隔】【判含【内容】>=<年|月>=<>=<!back【禁言43200】】【分隔】【比较【传递变量】>=<43200>=<!back【禁言43200】>=<【禁言【传递变量】】】【分隔】【分隔】【读配置【应用目录】记录\\禁言次数.ini>=<【当前群号】>=<【发送者QQ】>=<0】【传递】【分隔】【写配置【应用目录】记录\\禁言次数.ini>=<【当前群号】>=<【发送者QQ】>=<【计算1+【传递变量】】】【传递】【分隔】这是你在本群第【计算1+【传递变量8】】次请求电自己。【分隔】【分隔】【判含【发送者管理权限】>=<群主|管理>=<【艾特】恭喜你被电了【传递变量6】分钟！>=<汝自为管理，自裁，自电，不亦乐乎？】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[.*(.*)谁(.*)最(.*)可爱(.*).*]",
+    "match_mode": "regex",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "*当然是我们的上帝了～",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[.*CalculatePi start(.*) for(.*)digits.*]",
+    "match_mode": "regex",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【赋值变量1>=<【超级访问https://api.pi.delivery/v1/pi?start=【内容1】&numberOfDigits=【内容2】】】【分隔】【艾特】【换行】【取中间【变量1】>=<\">=<\">=<3】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[.*随机数(.*)-(.*).*]",
+    "match_mode": "regex",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*【随机数【内容1】-【内容2】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[help]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【拦截】使用说明戳这里：http://8rr.co/wnN9",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[jianh:]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*【艾特】【换行】返回结果：【换行】【访问https://api.isoyu.com/jianhuang.php?imgurl=【内容】】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[logic:]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*【判真【逻辑【内容】】>=<true>=<false】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[say]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*【度丫丫】【内容】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[pixivid=]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【图片https://pixiv.cat/【内容】.jpg】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[epk run ]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【主人】【拦截】【分隔】【判含【内容】>=<#zzk传递#yzk>=<>=<【分隔】【子关键词=【分隔】#zzk赋值变量传递#fgf【替换【内容】>=<#zzk传递变量#yzk||#zzk传递#yzk>=<#zzk变量传递#yzk||#yzk#zzk赋值变量传递#fgf】#yzk#zzk变量传递#yzk【分隔】】】【分隔】【反转义【CQ反转义【替换【内容】>=<【换行】】】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[&#91;多条&#93;&#91;群员离群&#93;|&#91;群员被踢&#93;]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "*【发送者QQ】离开了我们",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[&#91;禁言事件&#93;]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【判真【逻辑【内容】=0】>=<【艾特】电疗结束，请付费！>=<恭喜【艾特】被电了【内容】秒！】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[毒TA]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【内容】【换行】【取中间【访问http://www.nows.fun/】>=<font-size: 2rem;\">>=<</span>>=<1】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【前提QQ以图搜瓶】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "少女祈祷中……[分页]【分隔】【赋值变量返回源码>=<【替换【访问-UTFhttps://saucenao.com/search.php?db=999&api_key=a7833174233107ad85ad25122bc868b31e77c254&url=【图链】】>=<%2F||%3F||%3D||%26>=</||?||=||&>=<>=<[并列]】】【分隔】【循环6>=<【判含【取中间【变量返回源码】>=<class=\"resulttable\">=</table>=<[序号]】>=<Pixiv ID: >=<>=<【赋值变量PIXIV>=<【取中间【变量返回源码】>=<class=\"resulttable\">=</table>=<[序号]】】【跳出】】】【分隔】【赋值变量匹配率>=<【取中间【变量PIXIV】>=<resultsimilarityinfo\">=<.>=<1】】【分隔】【比较【取整【变量匹配率】】>=<70>=<【分隔】SauceNAO结果：【换行】【分隔】匹配率：【取整【变量匹配率】】%【换行】【分隔】标题：【取中间【变量PIXIV】>=<strong>>=<<>=<1】【换行】【分隔】画师：【取中间【变量PIXIV】>=<\"linkify\">>=<<>=<3】【换行】【分隔】直链：https://pixiv.cat/【取中间【变量PIXIV】>=<\"linkify\">>=<<>=<2】.jpg【分隔】>=<豆子找不到类似的图呢】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【前提取码】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【【判含【内容】>=<[>=<!null】】【替换【内容】>=<[||]>=<&#91;||&#93;】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【前提QQ以图搜番】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "少女祈祷中……[分页]【分隔】【赋值变量1>=<【替换【访问-UTFhttps://saucenao.com/search.php?db=999&api_key=a7833174233107ad85ad25122bc868b31e77c254&url=【图链】】>=<%2F||%3F||%3D||%26>=</||?||=||&>=<>=<[并列]】】【分隔】【赋值变量PIXIV>=<【取中间【变量1】>=<class=\"resulttable\">=</table>=<1】】【分隔】【赋值变量匹配率>=<【取中间【变量PIXIV】>=<resultsimilarityinfo\">=<.>=<1】】【分隔】【赋值变量链接>=<https://is.gd/create.php?format=simple&url=https://img【取中间【变量PIXIV】>=<\"https://img>=<\">=<1】】【分隔】SauceNAO结果：【换行】【分隔】匹配率：【取整【变量匹配率】】%【换行】【分隔】标题：【取中间【变量PIXIV】>=<strong>>=<<>=<1】【换行】【分隔】画师：【取中间【变量PIXIV】>=<\"linkify\">>=<<>=<3】【换行】【分隔】链接：【访问【变量链接】】【换行】【分隔】原图：【取中间【变量PIXIV】>=<<a href=\">=<\">=<2】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【群员入群】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "欢迎来到学术交流群",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[浮力豆]",
+    "match_mode": "fuzzy",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=A2035CE904FE7AEB241D9995C966C391.jpg]",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[花样清屏]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【拦截】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[猫狗]",
+    "match_mode": "fuzzy",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "*[CQ:image,file=F2A500C9916928CF0E1F7A51B7691FFD.jpg]*[CQ:image,file=7571E78DD2BB22247661BE003B351626.jpg]*[CQ:image,file=B27953F6C61374DDEEE13FB89114DCE0.jpg]*[CQ:image,file=A6E5B60B98685BE415855BFEB279AD7A.jpg]",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[夸TA]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【内容】【换行】【访问-UTFhttps://chp.shadiao.app/api.php】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来点百合]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "*【赋值变量1>=<【取中间【访问https://api.computerfreaker.cf/v1/yuri】>=<{\"url\":\">=<\"}>=<1】】【赋值变量2>=<【替换【变量1】>=<\\】】【图片【变量2】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来点乱码]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【艾特】【换行】【访问-GBKhttps://chp.shadiao.app/api.php】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来份狗粮]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "*【赋值变量1>=<【取中间【访问https://api.computerfreaker.cf/v1/hug】>=<{\"url\":\">=<\"}>=<1】】【赋值变量2>=<【替换【变量1】>=<\\】】【图片【变量2】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[毒我]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【艾特】【换行】【取中间【访问http://www.nows.fun/】>=<font-size: 2rem;\">>=<</span>>=<1】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[取码]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】请发送欲取内容！",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来神]",
+    "match_mode": "",
+    "trigger_method": "",
+    "priority": 0,
+    "reply": "",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[骂TA]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【内容】【换行】【访问-UTFhttps://nmsl.shadiao.app/api.php?level=min&from=xxx】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来只猫娘]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "*【赋值变量1>=<【取中间【访问https://api.computerfreaker.cf/v1/neko】>=<{\"url\":\">=<\"}>=<1】】【赋值变量2>=<【替换【变量1】>=<\\】】【图片【变量2】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来只老婆~]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "*[CQ:rich,text=群聊的聊天记录 réseau:  &#91;吐舌头&#93; 查看1条转发消息]*[CQ:image,file=1226578A0786C796BB14EDC5B6AC146B.gif]*&#91;吐舌头&#93;*[CQ:image,file=B241710AB2ADEFE41D92411EC4029432.jpg]*Trebor!*[CQ:at,qq=2700074128] 浮力最近好忙qwq*say 难道笑不是桀桀桀吗",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来只插画]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=D57DCA55E2D25F09F7F379A9F4B9F371.jpg]*[CQ:image,file=9A6B2FDD8C0966F9D498E17953B0DA20.jpg]",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来只童年猫狗]",
+    "match_mode": "fuzzy",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=A6E5B60B98685BE415855BFEB279AD7A.jpg]*[CQ:image,file=B27953F6C61374DDEEE13FB89114DCE0.jpg]",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来只w哥]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=0974C0D6F16E791535953A3A1CC79382.jpg]",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来只狗]",
+    "match_mode": "fuzzy",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=566FDFC9481206DC20C909C94B859F35.jpg]*[CQ:image,file=6BF1E1F01C0C4A259C9024D57BA9F0B4.jpg]*[CQ:image,file=9AF3B8CAC43E48AABDFEB715339372B4.jpg]*[CQ:image,file=99719ECC3D79291E9CE50EFA48A90666.jpg]*[CQ:image,file=7E3B08A7C4FB6B28FDE42A564E9CBC61.jpg]*[CQ:image,file=87A22623C4695871AFBE6775B49B6890.jpg]*[CQ:image,file=C64D25A1151C83A8D23A086A2F3564AD.jpg]*[CQ:image,file=5872BA7200EFD06CBF4A292C5A2E6F8E.jpg]*[CQ:image,file=DACBED3A7B9260D154F3BFBB03FCFCEB.jpg]*[CQ:image,file=CA7CBA8853C87F9933A0A30B1DA5F7FD.jpg]*[CQ:image,file=65ACE9ECE3CF610B65B051AAFAEE4A27.jpg]*[CQ:image,file=2F445C02B7E255928F9F14E85A54663B.jpg]*[CQ:image,file=0322C090BB951B46A8E2629B5EF718C8.jpg]",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来只豆力浮]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=E0504D44B5F51EAAE33CDAB3E8C24F0B.jpg]",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来只浮力姬]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=E22E34BB5C7BA687428BF41F08CE3160.jpg]",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来只碱基]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "http://myepk.club:2020/?msg=ecyurl【判空【常量接口-Ecy】>=<【赋值常量接口-Ecy>=<【读入【应用目录】ecy接口.ini】】【常量接口-Ecy】】【传递】【分隔】【访问-GBK【传递变量】】【传递】【分隔】【判含【传递变量】>=<[Pic=>=<【图片【传递变量】】>=<【传递变量】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[来只老婆]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【随机数0-199999】【传递】【分隔】【访问https://www.thiswaifudoesnotexist.net/snippet-【传递变量1】.txt】【传递】【分隔】【判含【传递变量】>=<<!DOCTYPE html>>=<!source>=<!back【重发来只老婆】】【传递】【分隔】【图片https://www.thiswaifudoesnotexist.net/example-【传递变量1】.jpg】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[费马]",
+    "match_mode": "fuzzy",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "[CQ:11111111]",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[强基计划]",
+    "match_mode": "fuzzy",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*强浮力基(つд??)",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[狠狠毒TA]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【内容】【换行】【访问-UTFhttps://du.shadiao.app/api.php】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[狠狠毒我]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【访问-UTFhttps://du.shadiao.app/api.php】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[狠狠骂TA]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【群管】【内容】【换行】【访问-UTFhttps://nmsl.shadiao.app/api.php?&from=xxx】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[狠狠骂我]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【群管】【艾特】【换行】【访问-UTFhttps://nmsl.shadiao.app/api.php?&from=xxx】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[迫害czl]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【赋值变量1>=<【取中间【访问http://www.guoxuedashi.com/search/?keyword=%E5%BA%9F&ys=AND&keyword2=&sub=%E5%85%A8%E6%96%87%E6%A3%80%E7%B4%A2&ys3=AND&keyword3=&ys4=AND&keyword4=&ys5=AND&keyword5=&sid=0&cid=0&ms=0&page=【随机数1-150】】>=<<hr>>=<<hr>>=<【随机数1-15】】】【替换【变量1】>=<【取中间【变量1】>=<<>=<>>=<1】||【取中间【变量1】>=<<>=<>>=<3】||</a>||<font color='red'>||</font>||<br>||<||>>=<】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[迫害LZY]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【赋值变量1>=<【取中间【访问http://www.guoxuedashi.com/search/?keyword=%E9%99%86&ys=OR&keyword2=%E6%8C%AF&sub=%E5%85%A8%E6%96%87%E6%A3%80%E7%B4%A2&ys3=OR&keyword3=%E5%AE%87&ys4=AND&keyword4=&ys5=AND&keyword5=&sid=0&cid=0&ms=0&page=【随机数1-150】】>=<<hr>>=<<hr>>=<【随机数1-15】】】【替换【变量1】>=<【取中间【变量1】>=<<>=<>>=<1】||【取中间【变量1】>=<<>=<>>=<3】||</a>||<font color='red'>||</font>||<br>||<||>>=<】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[舔TA]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*【内容】【换行】【换行】【现行日期-月】月【现行日期-日】日【换行】【访问https://v1.alapi.cn/api/dog?format=text】【换行】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[截图]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【判含【内容】>=<.>=<【返回】】【分隔】【Web-创建【判空【文本-取文本左【内容】>=< 】>=<【内容】】>=<>=<>=<（【取中间【内容】>=< >=< >=<1】，【文本-取文本右【内容】>=< 】）】【传递】【分隔】【延迟1】【Web-截图【传递变量】】【Web-释放【传递变量】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[redive帮助]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【拦截】http://fulugsbot.yobot.club:9222/yobot/help/",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[夸我]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【访问-UTFhttps://chp.shadiao.app/api.php】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[更换接口]",
+    "match_mode": "prefix",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【管理】【赋值常量接口-Ecy>=<【取整【内容】】】【写出【常量接口-Ecy】>=<【应用目录】ecy接口.ini】【艾特】 碱基接口已更换至接口【常量接口-Ecy】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[文章]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【访问-GBKhttp://api.myepk.club/?prefix=wzsc&msg=【编码【内容】】】【传递】【分隔】【替换【传递变量】>=<<br>&nbsp;&nbsp;&nbsp;&nbsp;|| <h1 align=\"center\">||</h1>>=<【换行】    ||            】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[今日刑法]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*【替换【取中间11【替换【取中间【访问http://m.66law.cn/tiaoli/9.aspx】>=<条\">>=<</p><p style=\"text-indent:2em;\" id=\"】>=<</p><p style=\"text-indent:2em;\">>=<【换行】    】</p><h4>>=<11>=<</p><h4>】>=<&amp;nbsp;>=< 】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[今日说法]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*【循环5>=<【赋值变量1>=<【替换【替换　　第【取中间【访问http://news.12371.cn/2018/03/22/ARTI1521673331685307.shtml】>=<　　第>=<　　第】>=<</p>】>=<<p>】】【判含【变量1】>=<节 |章 >=<【变量1】【跳出】>=<】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[请百合]",
+    "match_mode": "fuzzy",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "*[CQ:image,file=B2EE248FF6CD5FACA90B78704A72A93B.jpg]*[CQ:image,file=E768B0454C6826503F05FC23F310778E.jpg]*[CQ:image,file=3EC05C1DA63C5D24A90A792A632EA10D.jpg]*[CQ:image,file=972759F5A82DA2CC09992E3B288F5C14.jpg]*[CQ:image,file=6DFD7302FDC113B9BE96F8220E3DCB0B.jpg]*[CQ:image,file=49293B9394A6847D9A4EA5A85FCD4189.jpg]*[CQ:image,file=B14C1CAA93B09AFB611E7EBAF50D1DDB.jpg]*[CQ:image,file=6E700E08C823CFCBB30F319FADD893C0.jpg]*[CQ:image,file=B98D2612A85A923F83DE0462F598EB19.jpg]*[CQ:image,file=08830084A9FB1B2F0B5045035BBCC7D3.jpg]*[CQ:image,file=8472DE3D1D74F8FDAEEC049970188950.jpg]*[CQ:image,file=7209C3A7AC6AEFD57AA8F0943BA5E5FF.jpg]*[CQ:image,file=540DE1298165FB7E27A809FD5268AAD5.jpg]*[CQ:image,file=15702A0C3D3AE7BE8F7664681B8D5527.jpg]*[CQ:image,file=3DE576417AF24B65C5DE62B8A60766E6.jpg]*[CQ:image,file=C735556C1E3A1FDC379C7D84EE1DDBB0.jpg]",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[骂我]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【访问-UTFhttps://nmsl.shadiao.app/api.php?level=min&from=xxx】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[以图搜瓶]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "请发送一张图片！",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[以图搜番]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "请发送一张图片！",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[治愈我]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【艾特】【换行】【访问-UTFhttps://pyq.shadiao.app/api.php】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[治愈TA]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 0,
+    "reply": "【内容】【换行】【访问-UTFhttps://pyq.shadiao.app/api.php】【传递】【分隔】【传递变量】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[舔我]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【艾特】【换行】【换行】【现行日期-月】月【现行日期-日】日【换行】【访问https://v1.alapi.cn/api/dog?format=text】【换行】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[.* 被管理员禁言.*]",
+    "match_mode": "regex",
+    "trigger_method": "both",
+    "priority": 0,
+    "reply": "【【判断【发送者QQ】>=<1000000>=<!null】】【【判断【子正则.#xh\\((.#xh)\\) 被管理员禁言(.#xh)>=<【内容】>=<1】>=<【机器人QQ】>=<!null】】[私聊主人]我在这个群被禁言了【子正则.#xh\\((.#xh)\\) 被管理员禁言(.#xh)>=<【内容】>=<2】【换行】群号：【当前群号】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[cmd ping]",
+    "match_mode": "prefix",
+    "trigger_method": "group",
+    "priority": 10,
+    "reply": "【判含【内容】>=<#bq>=<>=<!back【艾特】请不要使用并且命令！】【cmd [等待] ping 【内容】>\"【运行目录】\\cmd.log\"】【读入【运行目录】\\cmd.log】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[开启寻访]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 89,
+    "reply": "【管理】已开启！【分隔】【写配置【应用目录】开关.txt>=<寻访开关>=<【当前群号】！>=<1】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[仓库]",
+    "match_mode": "exact",
+    "trigger_method": "private",
+    "priority": 89,
+    "reply": "【更新变量库存6】【换行】【更新变量库存5】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[仓库6]",
+    "match_mode": "exact",
+    "trigger_method": "private",
+    "priority": 89,
+    "reply": "【更新变量库存6】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[仓库5]",
+    "match_mode": "exact",
+    "trigger_method": "private",
+    "priority": 89,
+    "reply": "【更新变量库存5】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[关闭寻访]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 89,
+    "reply": "【管理】已关闭！【分隔】【写配置【应用目录】开关.txt>=<寻访开关>=<【当前群号】！>=<0】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[寻访初始化]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 89,
+    "reply": "【写配置【应用目录】明日方舟.ini>=<all>=<6>=<能天使/推进之王/伊芙利特/艾雅法拉/安洁莉娜/闪灵/夜莺/星熊/塞雷娅/银灰/斯卡蒂/陈/黑/赫拉格/麦哲伦/莫斯提马/煌/阿/刻俄柏/傀影/W/温蒂】【分隔】【写配置【应用目录】明日方舟.ini>=<all>=<5>=<白面鸮/凛冬/德克萨斯/芙兰卡/拉普兰德/幽灵鲨/蓝毒/白金/陨星/天火/梅尔/赫默/华法琳/临光/红/雷蛇/可颂/普罗旺斯/守林人/崖心/初雪/真理/空/狮蝎/食铁兽/夜魔/诗怀雅/格劳克斯/星极/送葬人/槐琥/苇草/布洛卡/灰喉/吽/惊蛰/极境】【分隔】【写配置【应用目录】明日方舟.ini>=<all>=<4>=<夜烟/远山/杰西卡/流星/白雪/清道夫/红豆/杜宾/缠丸/霜叶/慕斯/砾/暗索/末药/调香师/角峰/蛇屠箱/古米/深海色/地灵/阿消/猎蜂/格雷伊/苏苏洛/桃金娘/红云/梅/安比尔】【分隔】【写配置【应用目录】明日方舟.ini>=<all>=<3>=<芬/香草/翎羽/玫兰莎/卡缇/米格鲁/克洛丝/炎熔/芙蓉/安赛尔/史都华德/梓兰/空爆/月见夜/斑点/泡普卡】【分隔】【写配置【应用目录】明日方舟.ini>=<当期up>=<当期up6>=<塞雷娅/赫拉格/莫斯提马/煌】【分隔】【写配置【应用目录】明日方舟.ini>=<当期up>=<当期up5>=<临光/守林人/格劳克斯/送葬人/灰喉/吽】【分隔】【写配置【应用目录】明日方舟.ini>=<当期up>=<当期up5>=<临光/守林人/格劳克斯/送葬人/灰喉/吽】【分隔】【写配置【应用目录】明日方舟.ini>=<当期up>=<当期up4>=<0】【分隔】【写配置【应用目录】明日方舟.ini>=<当期up概率>=<当期up6概率>=<50】【分隔】【写配置【应用目录】明日方舟.ini>=<当期up概率>=<当期up5概率>=<50】【分隔】【写配置【应用目录】明日方舟.ini>=<当期up概率>=<当期up4概率>=<0】【分隔】初始化完成！发送“寻访十次”“寻访一次”“抽完”试试看吧！【换行】【分隔】配置文件路径：【应用目录】明日方舟.ini【分隔】【主人】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[寻访十次]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 89,
+    "reply": "【判真【逻辑【读配置【应用目录】开关.txt>=<寻访开关>=<【当前群号】！>=<0】=1】>=<【分隔】【判真【逻辑【更新变量剩余次数】>0】>=<【分隔】【艾特】【换行】【分隔】【循环10>=<【更新变量十连寻访】【更新变量存库存】【判含【变量十连寻访】>=<★★★★★★>=<【更新变量没抽到六星】>=<【更新变量抽到六星】】【换行】【更新变量次数减一】】【分隔】你已经【更新变量没抽到六星数】抽没有六星了【分隔】【分隔】【分隔】>=<今日次数已用完】【分隔】>=<寻访已关闭】【分隔】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[寻访一次]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 89,
+    "reply": "【判真【逻辑【读配置【应用目录】开关.txt>=<寻访开关>=<【当前群号】！>=<0】=1】>=<【分隔】【判真【逻辑【更新变量剩余次数】>0】>=<【分隔】【艾特】【换行】【更新变量十连寻访】【更新变量存库存】【判含【变量十连寻访】>=<★★★★★★>=<【更新变量没抽到六星】>=<【更新变量抽到六星】】【更新变量次数减一】【换行】你已经【更新变量没抽到六星数】抽没有六星了【分隔】>=<今天次数已用完】【分隔】>=<寻访已关闭】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[抽完]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 89,
+    "reply": "【判真【逻辑【读配置【应用目录】开关.txt>=<寻访开关>=<【当前群号】！>=<0】=1】>=<【分隔】【艾特】【分隔】【判真【逻辑【更新变量剩余次数】>0】>=<剩下【变量剩余次数】抽，你抽到的五六星有【换行】【分隔】【循环【变量剩余次数】>=<【分隔】【判含【更新变量十连寻访】>=<★★★★★>=<【更新变量存库存【分隔】】>=<【更新变量存库存】【变量十连寻访】【换行】【分隔】】【分隔】【更新变量次数减一】【判含【变量十连寻访】>=<★★★★★★>=<【更新变量没抽到六星】>=<【更新变量抽到六星】】【分隔】】>=<今日次数已用完【分隔】】【分隔】>=<寻访已关闭】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[库存]",
+    "match_mode": "exact",
+    "trigger_method": "private",
+    "priority": 89,
+    "reply": "【更新变量库存6】【换行】【更新变量库存5】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[库存6]",
+    "match_mode": "exact",
+    "trigger_method": "private",
+    "priority": 89,
+    "reply": "【更新变量库存6】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[库存5]",
+    "match_mode": "exact",
+    "trigger_method": "private",
+    "priority": 89,
+    "reply": "【更新变量库存5】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[更新寻访变量]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 89,
+    "reply": "【主人】更新完成！【分隔】【【分隔】【更新变量当期up6】【分隔】【更新变量当期up6概率】【分隔】【更新变量当期up5】【分隔】【更新变量当期up5概率】【分隔】【更新变量当期up4】【分隔】【更新变量当期up4概率】【分隔】【更新变量全部干员6】【分隔】【更新变量全部干员5】【分隔】【更新变量全部干员4】【分隔】【更新变量全部干员3】【分隔】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[明日方舟up]",
+    "match_mode": "exact",
+    "trigger_method": "both",
+    "priority": 89,
+    "reply": "【判断1>=<【读配置【应用目录】开关.txt>=<寻访开关>=<【当前群号】！>=<1】>=<>=<【分隔】6★ 【变量当期up6】（占【变量当期up6概率】%）【换行】【分隔】5★ 【变量当期up5】（占【变量当期up5概率】%）【换行】【分隔】4★ 【变量当期up4】（占【变量当期up4概率】%）【换行】【分隔】6★ 2%，5★ 8%，4★ 50%，3★ 40%【分隔】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[重置次数]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 89,
+    "reply": "【主人】【文件-删除【应用目录】剩余次数.txt】已重置",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量没抽到六星】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【写配置【应用目录】保底.txt>=<无六星次数>=<【发送者QQ】>=<【计算【读配置【应用目录】保底.txt>=<无六星次数>=<【发送者QQ】>=<0】+1】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量库存】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【取配置【应用目录】抽卡库存.txt>=<【发送者QQ】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量库存6】]",
+    "match_mode": "exact",
+    "trigger_method": "private",
+    "priority": 99999999,
+    "reply": "【艾特】你的六星们【换行】【循环【取出行数【更新变量库存】】>=<【判含【取出一行【变量库存】>=<[序号]】>=<★★★★★★>=<>=<【取出一行【变量库存】>=<[序号]】【换行】】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量库存5】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【艾特】你的五星们【换行】【循环【取出行数【更新变量库存】】>=<【判含【取出一行【变量库存】>=<[序号]】>=<★★★★★>=<>=<【判含【取出一行【变量库存】>=<[序号]】>=<★★★★★★>=<【取出一行【变量库存】>=<[序号]】【换行】>=<】】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量当期up4】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<当期up>=<当期up4>=<0】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量当期up5】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<当期up>=<当期up5>=<临光/守林人/格劳克斯/送葬人/灰喉/吽】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量当期up6】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<当期up>=<当期up6>=<塞雷娅/赫拉格/莫斯提马/煌】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量十连寻访】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【【更新变量寻访随机数】】【更新变量寻访】【分隔】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量干员】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "★★★★★★ 【更新变量干员6】【换行】【分隔】★★★★★ 【更新变量干员5】【换行】【分隔】4★ 【更新变量干员4】【换行】【分隔】3★ 【更新变量干员3】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量寻访随机数】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【随机数100】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量寻访】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【判循【逻辑【变量寻访随机数】>=【取出一行【分隔】【计算【更新变量增加概率】+2】【换行】【分隔】10【换行】【分隔】60【换行】【分隔】101【分隔】>=<【序号】】】>=<】【分隔】【取出一行【更新变量干员】>=<【行序】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量干员3】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【取中间/【变量全部干员3】/>=</>=</】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量干员4】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【比较【随机数100】>=<【变量当期up4概率】>=<【取中间/【变量全部干员4】/>=</>=</】>=<【取中间/【变量当期up4】/>=</>=</】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量干员5】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【比较【随机数100】>=<【变量当期up5概率】>=<【取中间/【变量全部干员5】/>=</>=</】>=<【取中间/【变量当期up5】/>=</>=</】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量干员6】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【比较【随机数100】>=<【变量当期up6概率】>=<【取中间/【变量全部干员6】/>=</>=</】>=<【取中间/【变量当期up6】/>=</>=</】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量全部干员3】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<all>=<3>=<芬/香草/翎羽/玫兰莎/卡缇/米格鲁/克洛丝/炎熔/芙蓉/安赛尔/史都华德/梓兰/空爆/月见夜/斑点/泡普卡】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量全部干员4】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<all>=<4>=<夜烟/远山/杰西卡/流星/白雪/清道夫/红豆/杜宾/缠丸/霜叶/慕斯/砾/暗索/末药/调香师/角峰/蛇屠箱/古米/深海色/地灵/阿消/猎蜂/格雷伊/苏苏洛/桃金娘/红云/梅/安比尔】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量全部干员5】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<all>=<5>=<白面鸮/凛冬/德克萨斯/芙兰卡/拉普兰德/幽灵鲨/蓝毒/白金/陨星/天火/梅尔/赫默/华法琳/临光/红/雷蛇/可颂/普罗旺斯/守林人/崖心/初雪/真理/空/狮蝎/食铁兽/夜魔/诗怀雅/格劳克斯/星极/送葬人/槐琥/苇草/布洛卡/灰喉/吽/惊蛰/巫恋/极境】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量全部干员6】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<all>=<6>=<能天使/推进之王/伊芙利特/艾雅法拉/安洁莉娜/闪灵/夜莺/星熊/塞雷娅/银灰/斯卡蒂/陈/黑/赫拉格/麦哲伦/莫斯提马/煌/阿/刻俄柏/W/温蒂/傀影】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量当期up4概率】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<当期up概率>=<当期up4概率>=<0】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量当期up5概率】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<当期up概率>=<当期up5概率>=<50】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量当期up6概率】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】明日方舟.ini>=<当期up概率>=<当期up6概率>=<50】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量存库存】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【写配置【应用目录】抽卡库存.txt>=<【发送者QQ】>=<【变量十连寻访】>=<【计算【读配置【应用目录】抽卡库存.txt>=<【发送者QQ】>=<【变量十连寻访】>=<0】+1】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量抽到六星】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【写配置【应用目录】保底.txt>=<无六星次数>=<【发送者QQ】>=<0】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量没抽到六星数】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】保底.txt>=<无六星次数>=<【发送者QQ】>=<0】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量增加概率】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【判真【逻辑【更新变量没抽到六星数】>50】>=<【计算【更新变量没抽到六星数】-50，×2】>=<0】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量次数减一】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【写配置【应用目录】剩余次数.txt>=<剩余次数>=<【发送者QQ】>=<【计算【读配置【应用目录】剩余次数.txt>=<剩余次数>=<【发送者QQ】>=<100】-1】】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[【变量剩余次数】]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【读配置【应用目录】剩余次数.txt>=<剩余次数>=<【发送者QQ】>=<100】",
+    "group_separation": "true"
+  },
+  {
+    "keyword": "[新的一天]",
+    "match_mode": "exact",
+    "trigger_method": "group",
+    "priority": 99999999,
+    "reply": "【文件-删除【应用目录】剩余次数.txt】新的一天，不知道怎么回事，你又获得了100连（发送“抽完”直接抽完今天的100抽）",
+    "group_separation": "true"
+  }
+]

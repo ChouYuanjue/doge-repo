@@ -1,0 +1,61 @@
+{
+    "dpi": {
+        "description": "渲染图片的DPI (每英寸点数)",
+        "type": "int",
+        "default": 300,
+        "hint": "较高的DPI会使图片更清晰，但文件也更大。"
+    },
+    "fontsize": {
+        "description": "渲染LaTeX文本的默认字体大小",
+        "type": "int",
+        "default": 18,
+        "hint": "调整字体大小以适应您的需求。"
+    },
+    "bgcolor": {
+        "description": "渲染图片的背景颜色 (例如 'white', '#FFFFFF', 'none' 表示透明)",
+        "type": "string",
+        "default": "white",
+        "hint": "使用 'none' 可以获得透明背景的图片。"
+    },
+    "fgcolor": {
+        "description": "渲染LaTeX文本的前景颜色 (例如 'black', '#000000')",
+        "type": "string",
+        "default": "black"
+    },
+    "max_delimiter_height": {
+        "description": "仅包含分隔符的行在渲染后的最大高度 (像素)",
+        "type": "int",
+        "default": 2,
+        "hint": "用于控制由连续逗号等产生的分隔符行的视觉高度，使其尽可能小。"
+    },
+    "autocrop_padding": {
+        "description": "自动裁剪后在内容周围添加的额外边距 (像素)",
+        "type": "int",
+        "default": 0,
+        "hint": "设置为0以实现最紧密的裁剪。如果希望内容和图片边缘有一点点空隙，可以设为1或2。"
+    },
+    "stitch_line_spacing": {
+        "description": "拼接多行图片时，在每行之间添加的垂直间距 (像素)",
+        "type": "int",
+        "default": 5,
+        "hint": "设置为0则行与行紧密相连。建议值为0-10。"
+    },
+    "manual_command_delimiter": {
+        "description": "手动 /latex 命令使用的分隔符",
+        "type": "string",
+        "default": ",",
+        "hint": "当使用 /latex 命令时，此字符用于分割公式的不同步骤。"
+    },
+    "enable_auto_render": {
+        "description": "是否启用自动检测和渲染消息中的LaTeX内容",
+        "type": "bool",
+        "default": false,
+        "hint": "警告：自动检测可能消耗资源且可能误判。请谨慎开启。"
+    },
+    "auto_render_delimiter": {
+        "description": "自动渲染时使用的分隔符",
+        "type": "string",
+        "default": ",",
+        "hint": "当自动检测到LaTeX并渲染时，此字符用于分割公式的不同步骤。"
+    }
+}

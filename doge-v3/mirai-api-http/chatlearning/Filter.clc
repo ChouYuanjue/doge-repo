@@ -1,0 +1,11 @@
+﻿{
+   "filter": [],
+   "sensitive": [],
+   "blackdict": {},
+   "type": [
+      "At",
+      "AtAll",
+      "Quote",
+      "Poke"
+   ]
+}

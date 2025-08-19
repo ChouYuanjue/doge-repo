@@ -1,0 +1,5 @@
+name: doge_lyrics
+desc: 发送一句歌词，机器人会回复下一句。
+version: v1.2.2 
+author: EEEpai
+repo: https://github.com/EEEpai/astrbot_plugin_lyricnext # 插件的仓库地址
