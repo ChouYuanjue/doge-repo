@@ -137,7 +137,9 @@
 sudo docker run -itd -p 6180-6200:6180-6200 -p 11451:11451 -v $PWD/data:/AstrBot/data -v /etc/localtime:/etc/localtime:ro -v /etc/timezone:/etc/timezone:ro --name astrbot m.daocloud.io/docker.io/soulter/astrbot:latest
 ```
 该操作会将容器中的`/AstrBot/data`目录映射到`~/astrbot/data`。如需映射其他目录请自行修改以上指令。
+
 3. 将`doge-v4/`下的文件复制到`~/astrbot/data/plugins/`。
+
 4. 通过面板重启bot以加载插件。
 
 （如果不会使用docker不建议使用此方案部署，容易滋生问题。）
@@ -145,12 +147,15 @@ sudo docker run -itd -p 6180-6200:6180-6200 -p 11451:11451 -v $PWD/data:/AstrBot
 **方式 B：本地运行**
 
 1. 克隆AstrBot仓库，切换路径至仓库目录。
+
 2. 运行以下指令：
 ```
 uv sync
 uv run main.py
 ```
+
 3. 将 `doge-v4/` 下文件复制到`/AstrBot/data/`
+
 4. 通过面板重启bot以加载插件。
 
 如果仍不会部署请参考[AstrBot 官方文档](https://docs.astrbot.app/)。
@@ -203,12 +208,15 @@ uv run main.py
 ## 6. 常见问答（FAQ）
 
 **Q: 一次性支持多平台吗？**
+
 A: 可以。建议先接一个平台，稳定后再逐步扩展。
 
 **Q: 插件该放哪里？怎么热更新？**
+
 A: 放在 `plugins/`。支持热加载；生产环境建议重启以保证一致性。
 
 **Q: 需要前置驱动或手机协议文件吗？**
+
 A: 取决于所选平台与适配器。请按对应文档准备设备信息、协议选择与风控处理策略。
 
 
