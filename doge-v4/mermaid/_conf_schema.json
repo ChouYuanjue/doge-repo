@@ -1,0 +1,8 @@
+{
+    "MERMAID_INK_SERVER": {
+        "description": "mermaid.ink服务器地址",
+        "type": "string",
+        "hint": "服务器项目地址为https://github.com/jihchi/mermaid.ink",
+        "default": "https://mermaid.ink"
+    }
+}

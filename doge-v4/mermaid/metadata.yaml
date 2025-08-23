@@ -1,0 +1,6 @@
+name: doge_mermaid 
+desc: 使用Mermaid语法生成图表的AstrBot插件 
+help: 使用 /mermaid [主题] 或命令llm生成相关主题的图表 
+version: v1.3.0 
+author: kterna 
+repo: https://github.com/kterna/astrbot_plugin_mermaid
