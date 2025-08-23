@@ -101,6 +101,7 @@
     ├── latex
     ├── liblibapi
     ├── lyrics
+    ├── mc
     ├── meme
     ├── music
     ├── pjsk
@@ -112,6 +113,7 @@
     ├── typst
     ├── utex
     ├── vv
+    ├── wiki
     └── wp
 
 ```

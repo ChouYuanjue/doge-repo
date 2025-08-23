@@ -1,0 +1,6 @@
+name: doge_wiki 
+desc: deepwiki插件 
+help: 使用deepwiki查询指定github仓库，可作为问答助手 
+version: v1.0.1 
+author: Zhalslar 
+repo: https://github.com/Zhalslar/astrbot_plugin_deepwiki
