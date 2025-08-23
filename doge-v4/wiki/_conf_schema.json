@@ -1,0 +1,8 @@
+{
+    "default_repo_name": {
+        "description": "默认查询的仓库",
+        "type": "string",
+        "hint": "如果指令输入的参数未指定仓库，则使用此仓库",
+        "default": "ChouYuanjue/doge-repo"
+    }
+}
