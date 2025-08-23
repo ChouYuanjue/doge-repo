@@ -1,0 +1,6 @@
+name: doge_gomoku 
+desc: 五子棋双人对战 # 
+help: 使用 /gomoku pvp 开始游戏，/gomoku join 加入游戏，/gomoku (x,y) 落子
+version: v1.1.0
+author: zhx，runnel
+repo: https://github.com/zhx8702/astrbot_plugin_gomoku

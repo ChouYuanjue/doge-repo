@@ -97,12 +97,15 @@
     ├── fourier
     ├── genshin
     ├── gol
+    ├── gomoku
     ├── honkai
     ├── latex
     ├── liblibapi
     ├── lyrics
     ├── mc
     ├── meme
+    ├── mermaid
+    ├── mirage
     ├── music
     ├── pjsk
     ├── pokemon
