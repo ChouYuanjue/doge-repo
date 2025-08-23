@@ -1,0 +1,5 @@
+name: doge_mcgetter 
+desc: 查询mc服务器信息和玩家列表,渲染为图片 
+version: v1.4.0
+author: QiChen
+repo: https://github.com/QiChenSn/astrbot_mcgetter 
