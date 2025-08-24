@@ -1,0 +1,275 @@
+<meta http-equiv="content-type" content="application/xhtml+xml; charset=utf-8"/>
+<head>
+  <style>
+  body {
+    background-color: whitesmoke;
+    margin:50px;
+    font-family: sans-serif;
+  }
+  #main{
+    text-align: center;
+  }
+  @keyframes expand-in {
+    from {height: 2px;}
+    to {height:256px ;}
+  }
+  .parser-cell {
+    width: 640px;
+    height: 256px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 2px 2px 2px rgba(0,0,0,0.2);
+    margin: 5px;
+    margin-left: 20px;
+    margin-right: 20px;
+    animation-name: expand-in;
+    animation-duration: 0.2s;
+    /*animation-fill-mode: forwards;*/
+  }
+  .render-cell {
+    width: 256px;
+    height: 256px;
+    max-width: 256px;
+    max-height: 256px;
+  }
+  .source-cell{
+    width: 364px;
+    height: 236px;
+    max-width: 364px;
+    max-height: 236px;
+    overflow: scroll;
+    font-family: monospace;
+    font-size: 26px;
+  }
+  .source-cell:focus {
+    outline: none;
+  }
+  .vertical-rule{
+    width: 0px;
+    height: 230px;
+    border-left: 1px solid gainsboro;
+    border-right: 1px solid silver;
+  }
+  .source-container{
+    padding:10px;
+  }
+  .insert-container{
+    width: 640px;
+    border: 1px solid rgba(0,0,0,0);
+    height: 32px;
+    margin:0px;
+    margin-left:20px;
+    opacity:0;
+    transition: 0.2s;
+  }
+  .insert-container:hover{
+    opacity:1;
+  }
+  .insert-rule{
+    width: 640px;
+    border-top: 1px solid gainsboro;
+    border-bottom: 1px solid silver;
+    height: 0px;
+    margin:0px;
+    margin-top:16px;
+    margin-bottom:16px;
+  }
+  .big-button{
+    color:grey;
+    font-size:32px;
+    text-align: center;
+    line-height: 31px;
+    font-family: monospace;
+    width:32px;
+    height: 32px;
+    background-color: white;
+    border-radius: 16px;
+    box-shadow: 2px 2px 2px rgba(0,0,0,0.2);
+    /*margin: 20px;*/
+    /*margin-left: calc(50% - 16px);*/
+    cursor: pointer;
+  -webkit-touch-callout: none;
+    -webkit-user-select: none; 
+     -khtml-user-select: none;
+       -moz-user-select: none;
+        -ms-user-select: none;
+            user-select: none;
+  }
+  .insert-button{
+    position: relative;
+    left: 304px;
+    top: -16px;
+  }
+  #instructions{
+    position: absolute;
+    left:0px;
+    top:0px;
+    color: grey;
+  }
+  </style>
+</head>
+
+<body>
+  <h1>RRPL Interactive Demo</h1>
+  <i>Describing Chinese Characters with Recursive Radical Packing Language (<a href="https://github.com/LingDong-/rrpl">Details</a>)</i>
+  <div id="main"></div>
+  <div id="instructions">
+  </div>
+  <script src="rrpl_parser.js"></script>
+  <script src="render.js"></script>
+  <script>
+
+    var cell_template = `  
+      <div class="parser-cell">
+        <table>
+          <tr>
+            <td class="render-cell"></td>
+            <td><div class="vertical-rule"></div></td>
+            <td class="source-container"><div class="source-cell" contenteditable="true"></div></td>
+          </tr>
+        </table>
+      <div>
+    `
+    var btn_template = `
+      <div class='insert-container'>
+        <div class='insert-rule'>
+          <div class="big-button insert-button" onclick="newCell(this);">+</div>
+        </div>
+      </div>
+    `
+
+    function fromHTML(htmlString) {
+      var div = document.createElement('div');
+      div.innerHTML = htmlString.trim();
+      return div.firstChild; 
+    }
+    var rcells;
+    var scells;
+    var scrolling = undefined;
+
+    function smoothScrollIntoView(elt){
+      if (scrolling != undefined && scrolling != elt){
+        return;
+      }
+      scrolling = elt;
+      var targ = elt.offsetTop-window.innerHeight*0.4+elt.offsetHeight/2;
+      var oldtop = document.body.scrollTop;
+      var y = document.body.scrollTop;
+      y = y * 0.9 + (targ) * 0.1;
+      document.body.scrollTop = y;
+      if (Math.abs(document.body.scrollTop-oldtop) < 1)
+      {
+        scrolling = undefined;
+        return;
+      }else{
+        setTimeout(function(){smoothScrollIntoView(elt)}, 10); 
+      }  
+    }
+
+    function newCell(btn){
+      var main = document.getElementById("main");
+      var cell = fromHTML(cell_template)
+      if (btn == undefined){
+        main.appendChild(fromHTML(btn_template))
+        main.appendChild(cell);
+      }else{
+        main.insertBefore(fromHTML(btn_template),btn.parentNode.parentNode)
+        main.insertBefore(cell,btn.parentNode.parentNode)
+      }
+      
+      rcells = document.getElementsByClassName("render-cell");
+      scells = document.getElementsByClassName("source-cell");
+
+      console.log((typeof smoothScrollIntoView));
+      smoothScrollIntoView(cell)
+
+      ;(function(){
+        var btn_ = btn;
+        setTimeout(function(){
+          if (examples != undefined){
+            var idx;
+            if (btn_ != undefined){
+              idx = Array.from(document.getElementsByClassName("insert-button")).indexOf(btn_)-1;
+            }else{
+              idx = scells.length-1
+            }
+            scells[idx].innerHTML = randExample();
+          }
+        },200)
+      })()
+    }
+
+    newCell();newCell();
+    document.getElementById("main").appendChild(fromHTML(btn_template));
+    setInterval(function(){
+      var div = document.getElementById("instructions");
+      div.style.left = (800)+"px"
+      div.style.top = document.body.scrollTop
+    },10)
+
+
+    var data = undefined
+    var examples = undefined
+    function loadJSON(filename,callback) {   
+      var xobj = new XMLHttpRequest();
+      xobj.overrideMimeType("application/json");
+      xobj.open('GET', filename, true);
+      xobj.onreadystatechange = function () {
+        if (xobj.readyState == 4) {
+          callback(JSON.parse(xobj.responseText));
+        }
+      };
+      xobj.send(null);  
+    }
+    function randExample(){
+      var keys = Object.keys(examples)
+      return examples[keys[Math.floor(Math.random()*keys.length)]];
+    }
+
+    loadJSON("./dist/min-trad-compiled.json",(x)=>(data=x))
+    loadJSON("./dist/min-trad.json",function(x){
+      examples=x
+      for (var i = 0; i < rcells.length; i++){
+        scells[i].innerHTML = randExample();
+      }
+    })
+
+    if (scells.length > 0){
+      scells[0].focus();
+    }
+
+    function renderStr(X){
+      var vdict = {"_0":X}
+      parser.preprocess(vdict,data)
+      var conf = {gri:true,xof:28,yof:28,wid:200,hei:200,col:"black"}
+      var c = "";
+      while (count(vdict["_0"], "(") < count(vdict["_0"],")")){
+        vdict["_0"]="("+vdict["_0"]
+      }
+      for (var j = 0; j < 10; j++){
+        try{
+          c = renderChar(parser.parse(vdict["_0"]),conf)
+          break;
+        }catch (e){
+          vdict["_0"]+=")"
+        }
+      }
+      if (!c.length){
+        c = "<text x='128' y='128' color='black' style='font-family:monospace;font-size:20px;'>?</text>"
+      }
+      return "<svg xmlns='http://www.w3.org/2000/svg' width='256' height='256'>"+c+"</svg>"  
+    }
+
+    function update(){
+      if (data != undefined){
+        for (var i = 0; i < rcells.length; i++){
+          // console.log(scells[i].innerHTML);
+          rcells[i].innerHTML = renderStr(scells[i].innerText);
+        }
+      }
+      setTimeout(update,200)
+    }
+    update()
+  </script>
+
+</body>
