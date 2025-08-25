@@ -11,9 +11,10 @@ from io import BytesIO
 import os
 import re
 from volcenginesdkarkruntime import Ark
+import requests
 
 
-@register("doubao", "runnel", "豆包AI插件", "1.0.0")
+@register("doubao", "runnel", "豆包AI插件", "1.2.0")
 class DoubaoAIPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -44,17 +45,35 @@ class DoubaoAIPlugin(Star):
 
     @db.command("i2v")
     async def image_to_video(self, event: AstrMessageEvent):
-        """图生视频: /db i2v [文本] <首帧图片> [尾帧图片]"""
+        """图生视频: /db i2v <文本> <图片>"""
         try:
-            # 解析消息
             message = event.message_str or ""
             text = message[len("/db i2v"):].strip()
 
-            # 提取图片（包括直接发送和引用的）
+            # 提取图片
             image_urls = await self.extract_images_from_event(event)
-            if not image_urls:
-                yield event.plain_result("请提供至少一张图片")
+            if not text or not image_urls:
+                yield event.plain_result("请提供文本描述和图片")
                 return
+
+            # 检查图片尺寸是否符合要求
+            valid_images = []
+            for img_url in image_urls:
+                try:
+                    # 获取图片并检查尺寸
+                    response = requests.get(img_url, timeout=10)
+                    img = Image.open(BytesIO(response.content))
+                    width, height = img.size
+
+                    if width < 300 or height < 300:
+                        yield event.plain_result(f"图片尺寸不符合要求 (需要至少300px×300px)，当前图片尺寸: {width}×{height}px")
+                        return
+                    valid_images.append(img_url)
+                except Exception as e:
+                    yield event.plain_result(f"无法获取或处理图片: {str(e)}")
+                    return
+
+            video_url = await self._call_i2v_api(text, valid_images)
 
             await event.send(event.plain_result("开始生成视频，请稍候..."))
             video_url = await self._call_i2v_api(text, image_urls)
@@ -80,11 +99,12 @@ class DoubaoAIPlugin(Star):
             message = event.message_str or ""
             text = message[len("/db i2i"):].strip()
 
-            # 提取图片（包括直接发送和引用的）
-            image_url = await self.extract_image_from_event(event)
-            if not text or not image_url:
+            image_urls = await self.extract_images_from_event(event)
+            if not text or not image_urls:
                 yield event.plain_result("请提供文本描述和图片")
                 return
+            # 取第一张图片用于生成
+            image_url = image_urls[0]
 
             await event.send(event.plain_result("开始生成图片，请稍候..."))
             image_url = await self._call_i2i_api(text, image_url)
