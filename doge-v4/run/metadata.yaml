@@ -1,0 +1,5 @@
+name: doge_run
+desc: 调用菜鸟教程在线编译器执行代码
+help: 使用 /run <语言> <代码> 执行代码
+version: v1.0.0
+author: runnel
