@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 class WolframAlphaPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
-        self.appid = "your-api-key"
+        self.appid = "your-key"
         self.base_url = "https://api.wolframalpha.com/v2/query"
         self.error_msg = "查询过程中发生错误，请稍后再试。"
         if not self.appid:
