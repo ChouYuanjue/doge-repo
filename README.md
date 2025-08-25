@@ -31,7 +31,7 @@
 ## 1. 我应该从哪个版本开始？
 
 * **v4（doge-v4）— 当前版本**：基于 **AstrBot** 框架（Python）。如果你是首次部署或想获得最新功能，请从 v4 开始。
-* **v3（doge-v3）— 旧版本**：基于 **Mirai** 框架（JVM）。仅用于回溯或研究旧实现，不建议部署。
+* **v3（doge-v3）— 旧版本**：基于 **Mirai** 框架（JVM）。仅用于回溯或研究旧实现，不建议部署。此版本分为四个子模块，其中主体为`mirai-native`和`mirai-jvm`。
 * **v2（doge-v2）— 历史版本**：基于 **CQP** 的早期实现，生态已停运；如需复刻，通常需用 **go-cqhttp** / **mirai-native** / **MiraiCQ** 等替代底层。不建议部署。
 
 
@@ -115,12 +115,14 @@
     ├── pjsk
     ├── pokemon
     ├── rrpl
+    ├── run
     ├── soup
     ├── st
     ├── trace
     ├── typst
     ├── utex
     ├── vv
+    ├── wa
     ├── wiki
     └── wp
 
