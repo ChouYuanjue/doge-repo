@@ -39,7 +39,7 @@ class DoubaoAIPlugin(Star):
             "duration": 5
         }
 
-    @filter.command_group("db")
+    @filter.command_group("doubao")
     def db(self):
         pass
 
