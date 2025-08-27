@@ -974,8 +974,10 @@ class SoupaiPlugin(Star):
                 image_urls=[],
             )
             text = llm_resp.completion_text.strip()
-            if text.startswith("提示：","soup hint"):
+            if text.startswith("提示："):
                 text = text[len("提示："):]
+            elif text.startswith("soup hint:"):
+                text = text[len("soup hint:"):]
             return text
         except Exception as e:
             logger.error(f"生成提示失败: {e}")
