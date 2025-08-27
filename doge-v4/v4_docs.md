@@ -226,7 +226,7 @@ Project Sekai（世界计划）猜歌插件，包含完整的游戏逻辑和资�
 在线代码执行插件，支持通过菜鸟教程API运行多种编程语言代码。支持Python、JavaScript、C++、Java等12种编程语言，可直接执行用户输入的代码并返回运行结果。
 
 **指令说明**：
-- `/run <语言> <代码>` ：执行指定语言的代码并返回运行结果。支持的语言：Python、JavaScript、C++、Java、PHP、Ruby、Python3、Perl、Swift、Kotlin、Go、Rust。
+- `/run <语言> <代码>` ：执行指定语言的代码并返回运行结果。支持的语言：Python、JavaScript、C、C++、Java、HTML、CSS、PHP、Ruby、Swift、Kotlin、Go。
 
 ## soup模块
 海龟汤推理游戏插件，实现AI驱动的谜题生成、动态问答判断与多难度游戏管理。基于LLM的谜题自动生成系统支持主题定制与复杂度控制，包含线程安全的题库管理、游戏状态追踪与会话控制功能，实现提问次数限制、答案验证等级与动态提示生成机制，支持游戏存档与历史记录查询，适配多种LLM提供商接口。

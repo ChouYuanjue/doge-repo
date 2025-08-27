@@ -1,4 +1,7 @@
 # 豆子 Doge 仓库说明
+![GitHub repo size](https://img.shields.io/github/repo-size/ChouYuanjue/doge-repo)
+![GitHub last commit](https://img.shields.io/github/last-commit/ChouYuanjue/doge-repo)
+![GitHub stars](https://img.shields.io/github/stars/ChouYuanjue/doge-repo)
 
 > QQ 机器人「豆子 Doge」源码仓库导读与上手指南
 
@@ -16,11 +19,17 @@
 
 `v1`活跃时间为 2019 年，采用 CQA 。仅有关键词回复和图灵api聊天两个功能，完全基于酷Q自带面板进行配置，不存在源码一说。
 
-`v2`活跃时间为 2020 年，采用 CQP 。仓库中文件与`v2`实际功能不完全对应，只包含可以找到的少部分源文件。`v2`文档可参见: [v2_docs.pdf](doge-v2/v2_docs.pdf) （**注意**：此文档为早期版本，基本不包含此仓库中源文件所涉及的功能）
+`v2`活跃时间为 2020 年，采用 CQP 。仓库中文件与`v2`实际功能不完全对应，只包含可以找到的少部分源文件。
 
-`v3`活跃时间为 2022 年，采用 Mirai。仓库基本实现全收录。`v3`文档可参见：[v3_docs.md](doge-v3/v3_docs.md) 或者 [豆子 Doge 说明文档](https://docs-doge.netlify.app)
+- `v2`文档可参见: [v2_docs.pdf](doge-v2/v2_docs.pdf) （**注意**：此文档为早期版本，基本不包含此仓库中源文件所涉及的功能）
 
-`v4`为现行版本，采用 AstrBot。仓库实时更新。`v4`文档可参见：[v4_docs.md](doge-v4/v4_docs.md)，已整合入bot的知识库，可直接向bot提问来咨询详情
+`v3`活跃时间为 2022 年，采用 Mirai。仓库基本实现全收录.
+
+- `v3`文档可参见：[v3_docs.md](doge-v3/v3_docs.md) 或者 [豆子 Doge 说明文档](https://docs-doge.netlify.app)
+
+`v4`为现行版本，采用 AstrBot。仓库实时更新。
+
+- `v4`文档可参见：[v4_docs.md](doge-v4/v4_docs.md)，已整合入bot的知识库，可直接向bot提问来咨询详情
 
 四个版本的豆子始终活跃于数学吧官群，在此对数吧群的各位表示感谢。豆子诞生的契机是认识了丽琪，复刻丽琪的功能也一度成为开发豆子的动力和目标。在开发过程中，丽琪的作者多次进行了倾力指导。没有丽琪，也就不会有如今的豆子。感谢伟大的丽琪之父fyr。特别鸣谢sym学长，在服务器方面不遗余力地进行了大量指导，让豆子得以成功摆脱本地部署的种种不便。
 
