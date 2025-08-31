@@ -45,10 +45,10 @@ class DoubaoAIPlugin(Star):
 
     @db.command("i2v")
     async def image_to_video(self, event: AstrMessageEvent):
-        """图生视频: /db i2v <文本> <图片>"""
+        """图生视频: /doubao i2v <文本> <图片>"""
         try:
             message = event.message_str or ""
-            text = message[len("/db i2v"):].strip()
+            text = message[len("/doubao i2v"):].strip()
 
             # 提取图片
             image_urls = await self.extract_images_from_event(event)
@@ -94,10 +94,10 @@ class DoubaoAIPlugin(Star):
 
     @db.command("i2i")
     async def image_to_image(self, event: AstrMessageEvent):
-        """图生图: /db i2i <文本> <图片>"""
+        """图生图: /doubao i2i <文本> <图片>"""
         try:
             message = event.message_str or ""
-            text = message[len("/db i2i"):].strip()
+            text = message[len("/doubao i2i"):].strip()
 
             image_urls = await self.extract_images_from_event(event)
             if not text or not image_urls:
@@ -117,10 +117,10 @@ class DoubaoAIPlugin(Star):
 
     @db.command("t2v")
     async def text_to_video(self, event: AstrMessageEvent):
-        """文生视频: /db t2v <文本>"""
+        """文生视频: /doubao t2v <文本>"""
         try:
             message = event.message_str or ""
-            text = message[len("/db t2v"):].strip()
+            text = message[len("/doubao t2v"):].strip()
 
             if not text:
                 yield event.plain_result("请提供文本描述")
@@ -145,10 +145,10 @@ class DoubaoAIPlugin(Star):
 
     @db.command("t2i")
     async def text_to_image(self, event: AstrMessageEvent):
-        """文生图: /db t2i <文本>"""
+        """文生图: /doubao t2i <文本>"""
         try:
             message = event.message_str or ""
-            text = message[len("/db t2i"):].strip()
+            text = message[len("/doubao t2i"):].strip()
 
             if not text:
                 yield event.plain_result("请提供文本描述")
