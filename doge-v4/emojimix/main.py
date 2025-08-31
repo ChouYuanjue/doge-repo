@@ -2,13 +2,15 @@ import asyncio
 import aiohttp
 from typing import Optional, List, Dict, Any
 import emoji
+import os
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger, AstrBotConfig
 import astrbot.api.message_components as Comp
+from volcenginesdkarkruntime import Ark
 
 
-@register("emojimix", "runnel ", "合成emoji插件", "1.0.0")
+@register("emojimix", "runnel ", "合成emoji插件", "2.0.0")
 class EmojiMixPlugin(Star):
     def __init__(self, context: Context, config: Optional[AstrBotConfig] = None):
         super().__init__(context)
@@ -17,6 +19,15 @@ class EmojiMixPlugin(Star):
         self.base_url_template = self.config.get("base_url_template")
         self.request_timeout = self.config.get("request_timeout")
         self.auto_trigger = self.config.get("auto_trigger", True)
+        
+        # 初始化豆包API客户端
+        self.api_key = os.environ.get("ARK_API_KEY", "")
+        self.base_url = "https://ark.cn-beijing.volces.com/api/v3"
+        self.client = Ark(
+            base_url=self.base_url,
+            api_key=self.api_key
+        )
+        self.t2i_model = "doubao-seedream-3-0-t2i-250415"
 
     async def initialize(self):
         logger.info("EmojiKitchenPlugin 初始化完成。")
@@ -83,6 +94,29 @@ class EmojiMixPlugin(Star):
 
         logger.info(f"未能找到 {emoji1} 和 {emoji2} 的有效混合 Emoji URL。")
         return None
+        
+    async def _call_doubao_t2i_api(self, emoji_input: str) -> Optional[str]:
+        """调用豆包文生图API生成emoji混合图片"""
+        try:
+            prompt = f"输入的emoji为{emoji_input}，任务要求是根据输入的emoji生成一张融合各emoji特征的唯一一个新emoji，保证照顾到各emoji的特征，flat design。图片的比例为1:1，背景为白色。"
+            
+            logger.info(f"调用豆包API生成图片，提示词: {prompt}")
+            
+            response = self.client.images.generate(
+                model=self.t2i_model,
+                prompt=prompt
+            )
+            
+            if response.data and len(response.data) > 0:
+                image_url = response.data[0].url
+                logger.info(f"豆包API图片生成成功，URL: {image_url}")
+                return image_url
+            else:
+                logger.error("豆包API返回数据格式异常")
+                return None
+        except Exception as e:
+            logger.error(f"调用豆包API失败: {str(e)}")
+            return None
 
     # --- 辅助函数：提取文本中的 Emoji ---
     def _extract_emojis_from_text(self, text: str) -> List[str]:
@@ -109,11 +143,26 @@ class EmojiMixPlugin(Star):
 
         if result_url:
             logger.info(f"成功合成 {emoji1} + {emoji2}，发送图片: {result_url}")
-            yield event.chain_result([Comp.Image.fromURL(result_url)])
+            # 修复错误：之前错误地引用了未定义的变量doubao_image_url
+            # 恢复原始逻辑，使用chain_result发送原始emoji kitchen的图片
+            yield event.image_result(result_url)
         else:
-            response_text = f"😟 抱歉，无法找到 {emoji1} 和 {emoji2} 的混合 Emoji。\n可能是这对组合不存在，或者输入的不是有效的单个 Emoji 哦。"
-            logger.info(f"未能找到 {emoji1} + {emoji2} 的混合 Emoji。")
-            yield event.plain_result(response_text)
+            # 尝试调用豆包API生成图片
+            logger.info(f"尝试使用豆包API生成 {emoji1} + {emoji2} 的混合图片")
+            await event.send(event.plain_result("原始emoji组合未找到，正在调用AI生成图片，请稍候..."))
+            
+            emoji_input = f"{emoji1} 和 {emoji2}"
+            doubao_image_url = await self._call_doubao_t2i_api(emoji_input)
+            
+            if doubao_image_url:
+                logger.info(f"豆包API成功生成 {emoji1} + {emoji2} 的混合图片")
+                # 使用专门的image_result方法发送豆包API生成的图片
+                yield event.plain_result(f"图片生成成功")
+                yield event.image_result(doubao_image_url)
+            else:
+                response_text = f"😟 抱歉，无法找到 {emoji1} 和 {emoji2} 的混合 Emoji，且调用AI生成图片也失败了。"
+                logger.info(f"未能找到 {emoji1} + {emoji2} 的混合 Emoji，且豆包API调用失败。")
+                yield event.plain_result(response_text)
 
     # --- 命令处理 ---
     @filter.command("emojimix", alias={"合成emoji"}, priority=1)
