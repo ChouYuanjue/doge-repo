@@ -1,0 +1,8 @@
+{
+    "custom_word_list": {
+        "type": "string",
+        "description": "自定义单词",
+        "hint": "这里的单词不会在游戏开始时被抽中，但是可以通过拼写检查。支持正则表达式，多个单词间用;连接。",
+        "default": ""
+    }
+}

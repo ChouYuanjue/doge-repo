@@ -1,6 +1,7 @@
-from astrbot.api.event import filter, AstrMessageEvent
+# 修复导入部分，使用正确的导入路径
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
+from astrbot.api.event import filter, AstrMessageEvent 
 from urllib.parse import quote
 import asyncio
 import tempfile
@@ -21,6 +22,8 @@ class ComplexPlotterPlugin(Star):
         self.playwright = None
         self.browser = None
         self.is_initialized = False
+        # 添加auto_cleanup_files属性，避免初始化错误
+        self.auto_cleanup_files = True
         # 从配置中获取代理设置，默认不使用代理
         self.proxy = self.config.get("proxy", None)
         
@@ -100,6 +103,7 @@ class ComplexPlotterPlugin(Star):
 
     @complex.command("plot")
     async def complex_plot(self, event: AstrMessageEvent):
+        # 可以重新添加类型注解了，因为已经正确导入了AstrMessageEvent
         try:
             if not self.is_initialized:
                 await self.initialize()
@@ -121,10 +125,16 @@ class ComplexPlotterPlugin(Star):
             
         except Exception as e:
             logger.error(f"complex plot error: {str(e)}")
-            yield event.plain_result(f"生成图像时出错: {str(e)}")
+            # 确保使用正确的方式返回错误信息
+            if hasattr(event, 'plain_result'):
+                yield event.plain_result(f"生成图像时出错: {str(e)}")
+            else:
+                # 回退到使用reply方法
+                yield event.reply(f"生成图像时出错: {str(e)}")
 
     @complex.command("custom")
     async def complex_custom(self, event: AstrMessageEvent):
+        # 可以重新添加类型注解了
         try:
             if not self.is_initialized:
                 await self.initialize()
@@ -143,7 +153,12 @@ class ComplexPlotterPlugin(Star):
             
         except Exception as e:
             logger.error(f"complex custom error: {str(e)}")
-            yield event.plain_result(f"执行自定义代码时出错: {str(e)}")
+            # 确保使用正确的方式返回错误信息
+            if hasattr(event, 'plain_result'):
+                yield event.plain_result(f"执行自定义代码时出错: {str(e)}")
+            else:
+                # 回退到使用reply方法
+                yield event.reply(f"执行自定义代码时出错: {str(e)}")
 
     async def capture_screenshot(self, url):
         """使用Playwright捕获指定URL的截图"""
@@ -307,19 +322,14 @@ class ComplexPlotterPlugin(Star):
             async with aiohttp.ClientSession() as session:
                 async with session.get(self.mihomo_subscription_url) as response:
                     if response.status == 200:
-                        # 直接获取原始内容
                         subscription_content = await response.text()
-                        
-                        # 写入原始订阅内容到文件 - 可选，用于调试
                         with open(debug_file_path, 'w', encoding='utf-8', errors='replace') as f:
                             f.write(f"=== 调试信息 - {timestamp} ===\n")
                             f.write(f"=== 请求URL ===\n{self.mihomo_subscription_url}\n\n")
                             f.write(f"=== 原始订阅内容（完整） ===\n{subscription_content}\n\n")
                             f.write(f"=== 原始订阅内容（前500字符） ===\n{subscription_content[:500]}\n\n")
                             f.write(f"=== 原始订阅内容长度 ===\n{len(subscription_content)} 字符\n\n")
-                        
                         logger.debug(f"订阅内容已写入调试文件: {debug_file_path}")
-                        
                         try:
                             decoded_content = None
                             clash_config = None

@@ -1,0 +1,6 @@
+name: doge_poker # 这是你的插件的唯一识别名。
+desc: 德州扑克简单实现，进行了qq平台的适配 # 插件简短描述
+help: 输入 /poker 查看关键词回复帮助。 # 插件的帮助信息
+version: v2.0.0 
+author: w33d, runnel 
+repo: https://github.com/Last-emo-boy/astrbot_plugin_texas_holdem_poker
