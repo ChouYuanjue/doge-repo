@@ -2,7 +2,7 @@
 ![GitHub repo size](https://img.shields.io/github/repo-size/ChouYuanjue/doge-repo)
 ![GitHub last commit](https://img.shields.io/github/last-commit/ChouYuanjue/doge-repo)
 ![GitHub stars](https://img.shields.io/github/stars/ChouYuanjue/doge-repo)
-![Line of Codes](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/ChouYuanjue/cfe9e833b1bc0f0df06c258b91feeb2c/raw/3b0c27904c6d94eb2de6d5e02f27fc745ceab698/loc.json)
+![Line of Codes](https://img.shields.io/badge/code%20lines-38940-brightgreen)
 > QQ 机器人「豆子 Doge」源码仓库导读与上手指南
 
 本文件旨在帮助你**大致了解豆子**、**快速读懂仓库结构**、**了解各版本差异**、并**尽可能成功部署机器人**
@@ -125,6 +125,7 @@
     ├── pack
     ├── pjsk
     ├── pokemon
+    ├── poker
     ├── rrpl
     ├── run
     ├── soup
@@ -135,6 +136,7 @@
     ├── utex
     ├── vv
     ├── wa
+    ├── wordle
     ├── wiki
     └── wp
 
