@@ -1,0 +1,5 @@
+name: doge_wordle
+desc: Wordle游戏，支持指定位数，加入了单词拼写检查。
+version: v2.2.1
+author: Raven95676, whzc
+repo: https://github.com/whzcc/astrbot_plugin_wordle_2_cmd
