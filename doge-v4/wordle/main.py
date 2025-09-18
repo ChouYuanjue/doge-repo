@@ -285,11 +285,11 @@ class PluginWordle(Star):
         """结束游戏"""
         session_id = event.unified_msg_origin
         if session_id not in self.game_sessions:
-            yield event.plain_result("游戏还没开始，输入“/猜单词 开始”来开始游戏吧！")
+            yield event.plain_result("游戏还没开始，输入“/wordle 开始”来开始游戏吧！")
             return
         if session_id in self.game_sessions:
             game = self.game_sessions[session_id]
-            yield event.plain_result(f"猜单词已结束，正确答案是{game.answer}。")
+            yield event.plain_result(f"wordle已结束，正确答案是{game.answer}。")
             del self.game_sessions[session_id]
 
     @wordle.command("hint")  # type: ignore
@@ -297,7 +297,7 @@ class PluginWordle(Star):
         """获取提示"""
         session_id = event.unified_msg_origin
         if session_id not in self.game_sessions:
-            yield event.plain_result("游戏还没开始，输入“/猜单词 开始”来开始游戏吧！")
+            yield event.plain_result("游戏还没开始，输入“/wordle 开始”来开始游戏吧！")
             return
         game = self.game_sessions[session_id]
 
@@ -373,7 +373,7 @@ class PluginWordle(Star):
         if session_id in self.game_sessions and event.is_at_or_wake_command:
             game = self.game_sessions[session_id]
 
-            if "猜单词 开始" in msg or "猜单词 结束" in msg or "猜单词 提示" in msg:
+            if "wordle start" in msg or "wordle end" in msg or "wordle hint" in msg:
                 return
             
             else:
@@ -385,7 +385,7 @@ class PluginWordle(Star):
                     random_text = random.choice([
                     "你要输入英语才行啊😉！",
                     "语言不正确哦，要输入英语单词。",
-                    "我以后就可以用其他语言猜单词了，不过现在还是用英语吧！",
+                    "我以后就可以用其他语言wordle了，不过现在还是用英语吧！",
                     "Try in English💬!", 
                     "需要英文单词～🔡",  
                     "Alphabet Only!🔤", 
@@ -393,7 +393,7 @@ class PluginWordle(Star):
                     "符号错误🔣，需要纯字母。", 
                     "❗Error: Expected ENGLISH :("
                 ])
-                    random_text = random_text + "\n输入“/猜单词 结束”就可以结束游戏，输入“/猜单词 提示”可以获得提示。"
+                    random_text = random_text + "\n输入“/wordle end”就可以结束游戏，输入“/wordle hint”可以获得提示。"
                     yield event.plain_result(random_text)
                     return
                 
@@ -408,7 +408,7 @@ class PluginWordle(Star):
                     f"戳啦🌀！请输入{length}个字母的英语单词。"
 
                 ])
-                    random_text = random_text + "\n输入“/猜单词 结束”就可以结束游戏，输入“/猜单词 提示”可以获得提示。"
+                    random_text = random_text + "\n输入“/wordle end”就可以结束游戏，输入“/wordle hint”可以获得提示。"
                     yield event.plain_result(random_text)
                     return   
                     
@@ -425,7 +425,7 @@ class PluginWordle(Star):
                     "（你确定这个单词存在吗😲？）",
                     "拼写错误，请检查拼写！",
                     ])
-                    random_text = random_text + "\n输入“/猜单词 结束”就可以结束游戏，输入“/猜单词 提示”可以获得提示。"
+                    random_text = random_text + "\n输入“/wordle end”就可以结束游戏，输入“/wordle hint”可以获得提示。"
                     yield event.plain_result(random_text)
                     return
             
