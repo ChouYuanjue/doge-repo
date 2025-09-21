@@ -182,7 +182,7 @@ uv sync
 uv run main.py
 ```
 
-3. 将 `doge-v4/` 下文件复制到`/AstrBot/data/`
+3. 将 `doge-v4/` 下文件复制到`/AstrBot/data/plugins/`
 
 4. 通过面板重启bot以加载插件。
 
