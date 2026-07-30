@@ -28,7 +28,8 @@ class UtexPlugin(Star):
         latex = parts[1]
         encoded = urllib.parse.quote(latex, safe="")
         svg_url = f"https://i.upmath.me/svg/{encoded}"
-
+        # 用此接口渲染是使用原生TeX, 效果比mathtext更好，且允许tikz,tikz-cd,xy-pic等宏包
+        
         try:
             resp = requests.get(svg_url)
             resp.raise_for_status()

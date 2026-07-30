@@ -144,3 +144,9 @@ nv/
 .env/
 
 *.log
+# Local credentials
+.env
+.env.*
+!.env.example
+*.local.json
+*.local.epk

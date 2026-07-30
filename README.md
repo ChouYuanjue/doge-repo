@@ -265,6 +265,11 @@ A: 取决于所选平台与适配器。请按对应文档准备设备信息、�
 
 
 
+
+## Credentials
+
+Copy `.env.example` to `.env` and fill the credentials required by the plugins you use. `.env` and generated `*.local.*` files are ignored by Git. For the archived v2/v3 configurations, run `python tools/materialize_legacy_configs.py` to create local runtime copies with environment values substituted.
+
 ## 8. 许可证
 
 本仓库使用 **GPL-3.0** 许可证。提交贡献即默认接受相同开源协议。
