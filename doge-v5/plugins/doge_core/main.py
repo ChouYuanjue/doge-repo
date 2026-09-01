@@ -133,6 +133,25 @@ class DogeCore(Star):
         if text:
             response.completion_text = markdown_to_plain(text)
 
+    @filter.on_decorating_result(priority=100)
+    async def transport_markdown_result(self, event: AstrMessageEvent) -> None:
+        """Keep formatting transport-specific at the final outbound boundary.
+
+        Normal LLM replies are created by AstrBot itself rather than through
+        Doge's ``text_result`` helper, so their Markdown flag must be restored
+        explicitly for QQ Official.  OneBot/NapCat is always plain text.  Only
+        LLM results are forced to Markdown on QQ Official so media/plugin
+        results that intentionally disabled Markdown remain untouched.
+        """
+        result = event.get_result()
+        if result is None:
+            return
+        platform = str(event.get_platform_name() or "").lower()
+        if platform == "aiocqhttp":
+            result.use_markdown(False)
+        elif platform == "qq_official" and result.is_llm_result():
+            result.use_markdown(True)
+
     @filter.command("help")
     async def help(self, event: AstrMessageEvent):
         topic = command_payload(event.message_str, "help")
