@@ -22,6 +22,45 @@ def is_onebot(event: AstrMessageEvent) -> bool:
     return platform_name(event) == "aiocqhttp"
 
 
+def markdown_to_plain(text: str) -> str:
+    """Conservatively remove Markdown syntax for transports that cannot render it.
+
+    This is intentionally presentation-only: content is preserved, formatting
+    markers are not.  It handles the Markdown constructs Doge and upstream APIs
+    commonly emit without trying to become another Markdown renderer.
+    """
+    import html
+    import re
+
+    if not text:
+        return ""
+    text = html.unescape(str(text).replace("\r\n", "\n").replace("\r", "\n"))
+    # fenced code: keep code, drop fence marker / language tag
+    text = re.sub(r"(?ms)^```[^\n]*\n(.*?)^```\s*$", lambda m: m.group(1).rstrip(), text)
+    text = re.sub(r"(?ms)^~~~[^\n]*\n(.*?)^~~~\s*$", lambda m: m.group(1).rstrip(), text)
+    # images and links
+    text = re.sub(r"!\[([^]]*)\]\([^)]*\)", lambda m: m.group(1) or "[image]", text)
+    text = re.sub(r"\[([^]]+)\]\(([^)]+)\)", lambda m: f"{m.group(1)} ({m.group(2)})", text)
+    # headings / quotes / lists / task markers
+    text = re.sub(r"(?m)^\s{0,3}#{1,6}\s+", "", text)
+    text = re.sub(r"(?m)^\s*>\s?", "", text)
+    text = re.sub(r"(?m)^\s*[-*+]\s+", "• ", text)
+    text = re.sub(r"(?m)^(\s*\d+)[.)]\s+", r"\1. ", text)
+    text = re.sub(r"(?i)\[(?:x| )\]\s*", "", text)
+    text = re.sub(r"(?m)^\s*(?:---+|___+|\*\*\*+)\s*$", "────────", text)
+    # paired inline emphasis / code; avoid touching lone '*' used in math.
+    for pat in (r"\*\*(.+?)\*\*", r"__(.+?)__", r"~~(.+?)~~", r"`([^`]+)`"):
+        text = re.sub(pat, r"\1", text, flags=re.S)
+    text = re.sub(r"(?<!\w)\*([^*\n]+)\*(?!\w)", r"\1", text)
+    text = re.sub(r"(?<!\w)_([^_\n]+)_(?!\w)", r"\1", text)
+    # raw HTML sometimes appears in upstream Markdown.
+    text = re.sub(r"<[^>]+>", "", text)
+    # unescape common Markdown escapes.
+    text = re.sub(r"\\([\\`*_{}\[\]()#+.!>~-])", r"\1", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def text_result(
     event: AstrMessageEvent,
     text: str,
@@ -34,6 +73,8 @@ def text_result(
     equivalent Markdown transport.  Setting the flag explicitly keeps behavior
     stable when global AstrBot presentation settings change.
     """
+    if is_onebot(event):
+        text = markdown_to_plain(text)
     result = event.plain_result(text)
     result.use_markdown(bool(markdown) if is_qq_official(event) else False)
     return result
@@ -52,6 +93,8 @@ def image_result(
     image = Comp.Image.fromURL(source_s) if remote else Comp.Image.fromFileSystem(source_s)
     chain = [image]
     if caption:
+        if is_onebot(event):
+            caption = markdown_to_plain(caption)
         chain.append(Comp.Plain("\n" + caption))
     result = event.chain_result(chain)
     # QQ Official media messages are msg_type=7; its adapter drops Markdown for
@@ -67,6 +110,8 @@ def images_result(
 ):
     chain = [Comp.Image.fromFileSystem(str(p)) for p in sources]
     if caption:
+        if is_onebot(event):
+            caption = markdown_to_plain(caption)
         chain.append(Comp.Plain("\n" + caption))
     result = event.chain_result(chain)
     result.use_markdown(False)
@@ -110,6 +155,9 @@ def long_result(
     * NapCat/OneBot: long output becomes native merged-forward nodes, avoiding
       group spam while retaining copyable text.
     """
+    if is_onebot(event):
+        body = markdown_to_plain(body)
+        title = markdown_to_plain(title)
     if is_onebot(event) and len(body) >= fold_threshold and event.get_group_id():
         uin = str(event.get_self_id() or "0")
         nodes = [
@@ -144,6 +192,10 @@ def mention_result(
     AstrBot's QQ Official outgoing generic parser currently ignores At and Reply
     components, so emitting Comp.At there would silently lose information.
     """
+    if is_onebot(event):
+        text = markdown_to_plain(text)
+        if target_label:
+            target_label = markdown_to_plain(target_label)
     if is_onebot(event) and target_id:
         result = event.chain_result([
             Comp.At(qq=str(target_id)),
@@ -165,6 +217,8 @@ def file_result(
     p = Path(path)
     chain = [Comp.File(name=name or p.name, file=str(p))]
     if caption:
+        if is_onebot(event):
+            caption = markdown_to_plain(caption)
         chain.append(Comp.Plain("\n" + caption))
     result = event.chain_result(chain)
     result.use_markdown(False)
