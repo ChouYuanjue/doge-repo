@@ -1,0 +1,5 @@
+name: doge_diagrams
+version: 5.4.0
+desc: 结构图与数据可视化：Graphviz、Mermaid、Vega-Lite
+author: runnel
+repo: https://github.com/ChouYuanjue/doge-repo

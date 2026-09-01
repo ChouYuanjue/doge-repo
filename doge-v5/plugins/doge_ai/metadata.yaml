@@ -1,0 +1,5 @@
+name: doge_ai
+version: 5.4.0
+desc: 轻量 AI 内部机制实验室：micrograd 与 minBPE
+author: runnel
+repo: https://github.com/ChouYuanjue/doge-repo
