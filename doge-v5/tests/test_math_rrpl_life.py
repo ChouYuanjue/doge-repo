@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
 sys.path.insert(0, str(PLUGINS))
 
-from doge_shared.capabilities import agent_capability_prompt, operation_by_id, registry
+from doge_shared.capabilities import agent_capability_prompt, operation_by_id, registry, search_capabilities
 from doge_shared.help_service import render_help
 from doge_shared.lookup import LookupService
 from doge_shared.services import MathService
@@ -46,9 +46,18 @@ class RrplGuidanceTests(unittest.TestCase):
         self.assertIsNotNone(operation_by_id("lang.rrpl.syntax"))
         self.assertIsNotNone(operation_by_id("lang.rrpl.explain"))
         prompt = agent_capability_prompt()
-        self.assertIn("- 是左右 packing", prompt)
-        self.assertIn("| 是上下 packing", prompt)
-        self.assertIn("/lang rrpl syntax", prompt)
+        self.assertIn("RRPL", prompt)
+        self.assertIn("doge_capability_search", prompt)
+        results = search_capabilities("RRPL 语法", 5)
+        self.assertEqual(results[0]["id"], "lang.rrpl.syntax")
+        syntax = results[0]
+        joined = str(syntax)
+        self.assertIn("/lang rrpl syntax", joined)
+        self.assertIn("优先读取此语法说明", joined)
+        # The full grammar is fetched by executing the syntax capability rather
+        # than being duplicated into every Agent request/search result.
+        self.assertIn("A-B", RRPL_SYNTAX_GUIDE)
+        self.assertIn("A|B", RRPL_SYNTAX_GUIDE)
 
 
 class MathExpansionTests(unittest.TestCase):

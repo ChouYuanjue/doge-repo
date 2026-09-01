@@ -41,6 +41,11 @@
       "default": true
     },
     {
+      "name": "doge_fourier",
+      "status": "formal",
+      "default": true
+    },
+    {
       "name": "doge_engineering",
       "status": "formal",
       "default": true

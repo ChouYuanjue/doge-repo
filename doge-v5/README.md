@@ -89,7 +89,7 @@ AstrBot 原生 manager 会过滤普通 command handler；`doge_shared.module_con
 
 ## 6. Persona 与 transient affect
 
-生产 Persona 在 `persona/doge.json`。豆子的自我认知是寄居于服务器、模型和工具链之间的赛博生命；表达风格以灰原哀为唯一角色参考，但不声称自己就是该角色，也不继承原作世界观。
+生产 Persona 在 `persona/doge.json`。豆子自然地把自己当成一个女孩子，有自己的情绪、审美、好奇心和关系；服务器/网络这一侧只是现实行动边界的背景事实，不作为日常人格主题。表达风格以灰原哀为唯一角色参考，但不冒充原作身份。运行时采用连续关系/情绪风格和按场景检索的短示例，不再每轮注入长角色协议。
 
 `plugins/doge_shared/affect.py` 提供短期、内存级、会衰减的 valence/arousal 状态。它允许语气和主动性随明确的赞扬、冒犯、道歉等互动轻微变化，但不能改变事实标准、工具权限、安全边界或任务完成质量。
 

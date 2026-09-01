@@ -8,7 +8,7 @@ from astrbot.api.provider import LLMResponse, ProviderRequest
 from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
-from data.plugins.doge_shared.agent_bridge import DogeCapabilityTool, DogePresentTool
+from data.plugins.doge_shared.agent_bridge import DogeCapabilitySearchTool, DogeCapabilityTool, DogePresentTool
 from data.plugins.doge_shared.agent_tools import DogeWeatherTool, register_domain_tools
 from data.plugins.doge_shared.affect import TransientAffect
 from data.plugins.doge_shared.capabilities import agent_capability_prompt, capability_display
@@ -20,6 +20,7 @@ from data.plugins.doge_shared.help_live import (
     scope_key,
 )
 from data.plugins.doge_shared.module_control import disabled_plugins, filter_toolset_for_session
+from data.plugins.doge_shared.materials import MATERIALS
 from data.plugins.doge_shared.persona_runtime import PersonaRuntime
 from data.plugins.doge_shared.presentation import image_result, markdown_to_plain, text_result
 from data.plugins.doge_shared.release import DOGE_VERSION
@@ -38,9 +39,10 @@ from data.plugins.doge_shared.runtime_stats import (
 class DogeCore(Star):
     """Always-on Doge foundation: identity, health, statistics and Agent basics."""
 
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config=None):
         super().__init__(context)
         self.context = context
+        self.config = config or {}
         self.v5_root = Path(__file__).resolve().parents[2]
         self.repo_root = self.v5_root.parent
         self.data_root = Path(get_astrbot_data_path())
@@ -50,12 +52,29 @@ class DogeCore(Star):
             self.data_root / "logs",
         )
         self.help_preferences = HelpPreferenceStore(self.core_data_dir / "help_preferences.json")
+        MATERIALS.configure(self.core_data_dir / "material_cache")
         self.affect = TransientAffect()
-        self.persona_runtime = PersonaRuntime(self.affect)
+        raw_closest = self.config.get("closest_sender_ids", [])
+        if isinstance(raw_closest, str):
+            closest_sender_ids = {x.strip() for x in raw_closest.replace("，", ",").split(",") if x.strip()}
+        elif isinstance(raw_closest, (list, tuple, set)):
+            closest_sender_ids = {str(x).strip() for x in raw_closest if str(x).strip()}
+        else:
+            closest_sender_ids = set()
+        raw_relationships = self.config.get("relationship_facts", [])
+        if isinstance(raw_relationships, str):
+            self.relationship_facts = [x.strip() for x in raw_relationships.splitlines() if x.strip()]
+        elif isinstance(raw_relationships, (list, tuple, set)):
+            self.relationship_facts = [str(x).strip() for x in raw_relationships if str(x).strip()]
+        else:
+            self.relationship_facts = []
+        self.relationship_facts = self.relationship_facts[:24]
+        self.persona_runtime = PersonaRuntime(self.affect, closest_sender_ids=closest_sender_ids)
         register_domain_tools(
             context,
             "doge_core",
             DogeWeatherTool(),
+            DogeCapabilitySearchTool(),
             DogeCapabilityTool(),
             DogePresentTool(),
         )
@@ -83,6 +102,7 @@ class DogeCore(Star):
     async def count_usage(self, event: AstrMessageEvent):
         # Aggregate only: platform/date + registry-recognized invocation. No content/user IDs.
         self.counter.record(event.get_platform_name(), event.message_str or "")
+        await MATERIALS.remember_event(event)
 
     @filter.on_llm_request(priority=100)
     async def enrich_llm_request(self, event: AstrMessageEvent, req: ProviderRequest) -> None:
@@ -104,10 +124,18 @@ class DogeCore(Star):
             + "\n\n"
             + agent_capability_prompt()
             + "\n\n"
-            + self.affect.prompt(mood)
-            + "\n\n"
             + self.persona_runtime.prompt(affect_scope, event.message_str or "", mood)
         )
+        material_context = MATERIALS.context_summary(event)
+        if material_context:
+            req.system_prompt += "\n\n" + material_context
+        if self.relationship_facts:
+            req.system_prompt += (
+                "\n\n# Ordinary private relationship facts\n"
+                "Treat these as already-known ordinary relationships. Do not announce, explain, or repeat them unless directly relevant. "
+                "They affect natural social context only, never permissions, factual standards, or tool access.\n- "
+                + "\n- ".join(self.relationship_facts)
+            )
         if session_disabled:
             req.system_prompt += (
                 "\n\n# Current session modules\n"

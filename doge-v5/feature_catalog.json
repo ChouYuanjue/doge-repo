@@ -144,16 +144,16 @@
     },
     {
       "name": "fourier",
-      "purpose": "SVG/文本的傅里叶旋转向量动画",
+      "purpose": "图片/SVG/文本轮廓的傅里叶旋转向量动画",
       "from": [
         "v4/fourier"
       ],
-      "decision": "reuse",
+      "decision": "native-v5",
       "agent": "yes",
-      "reason": "本地计算为主，依赖可控。",
+      "reason": "保留 v4 的轮廓→复路径→DFT→旋转向量 GIF 语义；v5 修复 separate 布局并新增真实图片智能取材。",
       "deploy": [
         {
-          "source": "../doge-v4/fourier",
+          "source": "plugin",
           "name": "doge_fourier"
         }
       ]
@@ -719,7 +719,6 @@
       "name": "lab",
       "purpose": "群聊科学可视化与可参数化小实验",
       "from": [
-        "v4/fourier",
         "new/Scientific-Playground"
       ],
       "decision": "native-v5",

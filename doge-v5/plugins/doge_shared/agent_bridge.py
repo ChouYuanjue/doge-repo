@@ -18,7 +18,7 @@ from astrbot.core.star.filter.command import CommandFilter
 from astrbot.core.star.star import star_map
 from astrbot.core.star.star_handler import EventType, star_handlers_registry
 
-from .capabilities import match_invocation, operation_by_id, operations_for_prefix
+from .capabilities import match_invocation, operation_by_id, operations_for_prefix, search_capabilities
 from .module_control import is_plugin_enabled
 
 _ASSET_KEY = "_doge_agent_assets"
@@ -241,6 +241,49 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         ),
     }
     return json.dumps(payload, ensure_ascii=False)
+
+
+@dataclass
+class DogeCapabilitySearchTool(FunctionTool[AstrAgentContext]):
+    name: str = "doge_capability_search"
+    description: str = (
+        "按自然语言检索 Doge 正式能力 registry，返回最相关的精确指令语法、参数、附件要求和示例。"
+        "当你知道用户想做什么但不确定 Doge 的具体命令时先调用它；不要凭记忆编造命令。先用用户原语言搜索一次，只有候选不明确时才换词再次搜索，不要中英文重复搜同一件事。"
+    )
+    parameters: dict = Field(default_factory=lambda: {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "能力需求或关键词，例如 西夏文翻译、RRPL语法、符号积分、生命游戏GIF、CIF晶体、Lean形式化",
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12,
+                "description": "返回候选数，默认 6",
+            },
+        },
+        "required": ["query"],
+    })
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
+        query = str(kwargs.get("query") or "").strip()
+        if not query:
+            return json.dumps({"error": "query 不能为空"}, ensure_ascii=False)
+        limit = int(kwargs.get("limit") or 6)
+        results = search_capabilities(query, limit=limit)
+        return json.dumps(
+            {
+                "query": query,
+                "results": results,
+                "guidance": (
+                    "Choose the capability that actually matches the user's intent, fill all required parameters/inputs, "
+                    "then call doge_capability with the documented command. Search again if these candidates are ambiguous."
+                ),
+            },
+            ensure_ascii=False,
+        )
 
 
 @dataclass

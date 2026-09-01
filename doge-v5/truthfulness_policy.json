@@ -2,28 +2,125 @@
   "version": 1,
   "rule": "Default plugins must never silently replace a claimed real result with fabricated/example data. Simulations and generative fiction are allowed only when the product surface explicitly says what they are.",
   "plugins": {
-    "doge_core": {"kind":"runtime-observed","source":"AstrBot runtime, OS, local aggregate counters","fallback":"explicit unavailable"},
-    "doge_admin": {"kind":"framework-delegated","source":"AstrBot builtin command helper classes","fallback":"framework error"},
-    "doge_math": {"kind":"deterministic+grounded","source":"local algorithms; OEIS/pi remote services where selected","fallback":"explicit error"},
-    "doge_misc": {"kind":"mixed-grounded","source":"local codec, Open-Meteo, NASA APOD/API page, Bing, OneBot action","fallback":"real alternate source or explicit error"},
-    "doge_typeset": {"kind":"renderer","source":"Typst/cmarker/MiTeX/Codly/UpMath","fallback":"alternate real renderer or explicit error"},
-    "doge_playground": {"kind":"explicit-simulation","source":"local numerical/visual algorithms","fallback":"explicit error"},
-    "doge_engineering": {"kind":"deterministic-simulation","source":"Schemdraw/python-control","fallback":"explicit dependency/error"},
-    "doge_papers": {"kind":"external-grounded","source":"OpenAlex/Crossref/DataCite/Europe PMC/arXiv/Unpaywall","fallback":"another real registry or explicit error"},
-    "doge_bio": {"kind":"external-grounded","source":"UniProt/InterPro/Ensembl/RCSB/Reactome/Open Targets/NCBI","fallback":"explicit error"},
-    "doge_chem": {"kind":"external-grounded","source":"PubChem/Open Targets/ChEMBL identifiers","fallback":"explicit error"},
-    "doge_materials": {"kind":"external-grounded+local-parser","source":"OPTIMADE/CIF/Dans_Diffraction","fallback":"explicit error"},
-    "doge_astro": {"kind":"external-grounded","source":"SIMBAD/NASA Exoplanet Archive/ADS when configured","fallback":"real mirror or explicit error"},
-    "doge_clinical": {"kind":"external-grounded","source":"ClinicalTrials.gov v2","fallback":"explicit error"},
-    "doge_games": {"kind":"deterministic-game","source":"local game engines; RNG is game state, not claimed real-world data","fallback":"explicit error"},
-    "doge_alchemy": {"kind":"generative-fiction-labeled","source":"configured chat provider","fallback":"no fabricated deterministic substitute"},
-    "doge_arena": {"kind":"preserved-corpus+generative-judge","source":"238 exact v4 /wp cards + explicit arena modifiers + configured chat provider for narration","fallback":"no replacement cards; provider failure is explicit"},
-    "doge_linguistics": {"kind":"grounded+provenance-labeled","source":"Tangut dictionary/Yindian/RRPL/pinned Cthuvian translator","fallback":"unknown/sealed/hybrid provenance exposed instead of pretending lexicon coverage"},
-    "doge_media": {"kind":"external-grounded+local-image","source":"AnimeTrace or pinned local mirage algorithm","fallback":"explicit recognition/API error"},
-    "doge_code": {"kind":"remote-execution","source":"Runoob compile service","fallback":"protocol change/error is explicit; never execute on host"},
-    "doge_lookup": {"kind":"external-grounded","source":"Wikipedia/Baidu Baike/Wikidata QLever/Wolfram when configured","fallback":"another labeled real source or explicit error"},
-    "doge_diagrams": {"kind":"renderer","source":"local Graphviz/local Vega-Lite/mermaid.ink","fallback":"explicit renderer/network error"},
-    "doge_ai": {"kind":"algorithmic-demo","source":"pinned micrograd/minBPE; user-input/local generated experiment data","fallback":"explicit error"},
-    "doge_cs": {"kind":"algorithmic-demo","source":"pinned pyformlang/NetworkX/Graphviz","fallback":"explicit error"}
+    "doge_core": {
+      "kind": "runtime-observed",
+      "source": "AstrBot runtime, OS, local aggregate counters",
+      "fallback": "explicit unavailable"
+    },
+    "doge_admin": {
+      "kind": "framework-delegated",
+      "source": "AstrBot builtin command helper classes",
+      "fallback": "framework error"
+    },
+    "doge_math": {
+      "kind": "deterministic+grounded",
+      "source": "local algorithms; OEIS/pi remote services where selected",
+      "fallback": "explicit error"
+    },
+    "doge_misc": {
+      "kind": "mixed-grounded",
+      "source": "local codec, Open-Meteo, NASA APOD/API page, Bing, OneBot action",
+      "fallback": "real alternate source or explicit error"
+    },
+    "doge_typeset": {
+      "kind": "renderer",
+      "source": "Typst/cmarker/MiTeX/Codly/UpMath",
+      "fallback": "alternate real renderer or explicit error"
+    },
+    "doge_playground": {
+      "kind": "explicit-simulation",
+      "source": "local numerical/visual algorithms",
+      "fallback": "explicit error"
+    },
+    "doge_engineering": {
+      "kind": "deterministic-simulation",
+      "source": "Schemdraw/python-control",
+      "fallback": "explicit dependency/error"
+    },
+    "doge_papers": {
+      "kind": "external-grounded",
+      "source": "OpenAlex/Crossref/DataCite/Europe PMC/arXiv/Unpaywall",
+      "fallback": "another real registry or explicit error"
+    },
+    "doge_bio": {
+      "kind": "external-grounded",
+      "source": "UniProt/InterPro/Ensembl/RCSB/Reactome/Open Targets/NCBI",
+      "fallback": "explicit error"
+    },
+    "doge_chem": {
+      "kind": "external-grounded",
+      "source": "PubChem/Open Targets/ChEMBL identifiers",
+      "fallback": "explicit error"
+    },
+    "doge_materials": {
+      "kind": "external-grounded+local-parser",
+      "source": "OPTIMADE/CIF/Dans_Diffraction",
+      "fallback": "explicit error"
+    },
+    "doge_astro": {
+      "kind": "external-grounded",
+      "source": "SIMBAD/NASA Exoplanet Archive/ADS when configured",
+      "fallback": "real mirror or explicit error"
+    },
+    "doge_clinical": {
+      "kind": "external-grounded",
+      "source": "ClinicalTrials.gov v2",
+      "fallback": "explicit error"
+    },
+    "doge_games": {
+      "kind": "deterministic-game",
+      "source": "local game engines; RNG is game state, not claimed real-world data",
+      "fallback": "explicit error"
+    },
+    "doge_alchemy": {
+      "kind": "generative-fiction-labeled",
+      "source": "configured chat provider",
+      "fallback": "no fabricated deterministic substitute"
+    },
+    "doge_arena": {
+      "kind": "preserved-corpus+generative-judge",
+      "source": "238 exact v4 /wp cards + explicit arena modifiers + configured chat provider for narration",
+      "fallback": "no replacement cards; provider failure is explicit"
+    },
+    "doge_linguistics": {
+      "kind": "grounded+provenance-labeled",
+      "source": "Tangut dictionary/Yindian/RRPL/pinned Cthuvian translator",
+      "fallback": "unknown/sealed/hybrid provenance exposed instead of pretending lexicon coverage"
+    },
+    "doge_media": {
+      "kind": "external-grounded+local-image",
+      "source": "AnimeTrace or pinned local mirage algorithm",
+      "fallback": "explicit recognition/API error"
+    },
+    "doge_code": {
+      "kind": "remote-execution",
+      "source": "Runoob compile service",
+      "fallback": "protocol change/error is explicit; never execute on host"
+    },
+    "doge_lookup": {
+      "kind": "external-grounded",
+      "source": "Wikipedia/Baidu Baike/Wikidata QLever/Wolfram when configured",
+      "fallback": "another labeled real source or explicit error"
+    },
+    "doge_diagrams": {
+      "kind": "renderer",
+      "source": "local Graphviz/local Vega-Lite/mermaid.ink",
+      "fallback": "explicit renderer/network error"
+    },
+    "doge_ai": {
+      "kind": "algorithmic-demo",
+      "source": "pinned micrograd/minBPE; user-input/local generated experiment data",
+      "fallback": "explicit error"
+    },
+    "doge_cs": {
+      "kind": "algorithmic-demo",
+      "source": "pinned pyformlang/NetworkX/Graphviz",
+      "fallback": "explicit error"
+    },
+    "doge_fourier": {
+      "kind": "deterministic-local-renderer",
+      "source": "user image/SVG/text -> local contour extraction -> complex DFT epicycles",
+      "fallback": "explicit error if no usable contour/material; never substitutes a generic FFT spectrum"
+    }
   }
 }

@@ -56,7 +56,8 @@
         "typst",
         "diagram",
         "eng",
-        "lab"
+        "lab",
+        "fourier"
       ]
     },
     {
@@ -211,6 +212,10 @@
     "admin": {
       "summary": "AstrBot 框架级指令命名空间；普通 Doge 功能不放这里。",
       "category": "admin"
+    },
+    "fourier": {
+      "title": "Fourier Epicycles",
+      "summary": "图片/SVG/文本轮廓的傅里叶旋转向量动画；延续 v4 Fourier，不是普通 FFT 频谱图。"
     }
   },
   "operations": [
@@ -2454,7 +2459,7 @@
       "inputs": [
         {
           "name": "<CIF/mCIF 文件附件>",
-          "description": "必须与命令放在同一条消息中；用于读取真实晶胞信息。",
+          "description": "CIF/mCIF 文件素材；支持当前消息、明确引用、同发送者最近文件，均无文件时等待补发。",
           "required": true
         }
       ]
@@ -2482,7 +2487,7 @@
       "inputs": [
         {
           "name": "<CIF/mCIF 文件附件>",
-          "description": "必须与命令放在同一条消息中；真实 powder XRD 从该结构计算。",
+          "description": "CIF/mCIF 文件素材；支持当前消息、明确引用、同发送者最近文件，均无文件时等待补发。",
           "required": true
         }
       ]
@@ -3001,7 +3006,7 @@
     {
       "id": "arena.fight",
       "path": "arena fight",
-      "summary": "原 /wp 风格直接对决",
+      "summary": "原 /wp 风格直接对决：Dedicated DeepSeek 两阶段战术推演 + 一本正经战斗实况。",
       "usage": "/arena fight <@对手或QQ号>",
       "aliases": [],
       "args": "required",
@@ -3011,12 +3016,13 @@
           "name": "<@对手或QQ号>",
           "description": "群聊中 @ 一名对手，或提供其 QQ 号。"
         }
-      ]
+      ],
+      "agent_notes": "该指令内部固定走 DeepSeek planner→narrator，不使用当前会话默认 Agent/provider。"
     },
     {
       "id": "arena.duel",
       "path": "arena duel",
-      "summary": "带战场目标的竞技场对决",
+      "summary": "带战场目标的竞技场对决：Dedicated DeepSeek 两阶段推演荒诞规则连锁。",
       "usage": "/arena duel <@对手或QQ号>",
       "aliases": [],
       "args": "required",
@@ -3026,7 +3032,8 @@
           "name": "<@对手或QQ号>",
           "description": "群聊中 @ 一名对手，或提供其 QQ 号。"
         }
-      ]
+      ],
+      "agent_notes": "场地/目标/异常规则与弱能力共同进入 DeepSeek planner→narrator 链。"
     },
     {
       "id": "arena.chaos",
@@ -3173,7 +3180,7 @@
     {
       "id": "lang.cthuvian.high",
       "path": "lang cthuvian high",
-      "summary": "English→Cthuvian 高语体。",
+      "summary": "English→Cthuvian 高语体：DeepSeek 仅做 English 语义规划，RC-1 确定性生成并 round-trip 校验。",
       "usage": "/lang cthuvian high <English>",
       "aliases": [
         "lang cthuvian chant",
@@ -3185,7 +3192,8 @@
         "lang rlyeh high"
       ],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "agent_notes": "不要让 Agent 自己生成表面 Cthuvian；该指令内部遵守 LLM proposes / rules decide / reverse validates。"
     },
     {
       "id": "lang.cthuvian.from",
@@ -3312,7 +3320,7 @@
       "inputs": [
         {
           "name": "<图片附件>",
-          "description": "必须附带待识别的动漫截图/图片。",
+          "description": "一张图片素材；支持当前消息、明确引用、同发送者最近图片，均无图时等待补发。",
           "required": true
         }
       ]
@@ -3328,7 +3336,7 @@
       "inputs": [
         {
           "name": "<图片附件>",
-          "description": "必须附带待识别的 Galgame 截图/图片。",
+          "description": "一张图片素材；支持当前消息、明确引用、同发送者最近图片，均无图时等待补发。",
           "required": true
         }
       ]
@@ -3346,7 +3354,7 @@
       "inputs": [
         {
           "name": "<两张图片附件>",
-          "description": "必须附带两张图片，按消息中的顺序参与灰度幻影坦克合成。",
+          "description": "两张图片素材；按当前消息→引用→同发送者最近素材补齐，不足时等待补发；解析后的顺序用于表图/里图。",
           "required": true
         }
       ]
@@ -3362,7 +3370,7 @@
       "inputs": [
         {
           "name": "<两张图片附件>",
-          "description": "必须附带两张图片，按消息中的顺序参与彩色幻影坦克合成。",
+          "description": "两张图片素材；按当前消息→引用→同发送者最近素材补齐，不足时等待补发；解析后的顺序用于表图/里图。",
           "required": true
         }
       ]
@@ -3500,6 +3508,81 @@
       ],
       "args": "required",
       "kind": "command"
+    },
+    {
+      "id": "fourier.mode",
+      "path": "fourier mode",
+      "summary": "查看或设置每用户 merge/separate 轮廓处理模式。",
+      "usage": "/fourier mode [{merge|separate}]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{merge|separate}]",
+          "description": "省略时查看当前模式；merge 连成一条路径，separate 保持多个轮廓各自描线及原始相对位置。"
+        }
+      ]
+    },
+    {
+      "id": "fourier.svg",
+      "path": "fourier svg",
+      "summary": "将 SVG 栅格化、提取轮廓并生成 DFT 旋转向量 GIF。",
+      "usage": "/fourier svg <SVG源码>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<SVG源码>",
+          "description": "完整 SVG 源码；延续 v4 /fourier svg。"
+        }
+      ]
+    },
+    {
+      "id": "fourier.text",
+      "path": "fourier text",
+      "summary": "将文本字形提取为轮廓并生成 DFT 旋转向量 GIF。",
+      "usage": "/fourier text <文本>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<文本>",
+          "description": "最多 10 个字符，延续 v4 限制。"
+        }
+      ]
+    },
+    {
+      "id": "fourier.image",
+      "path": "fourier image",
+      "summary": "从真实图片像素提取轮廓并用傅里叶旋转圆/向量逐帧描出 GIF。",
+      "usage": "/fourier image [vectors] [frames]",
+      "aliases": [
+        "fourier draw",
+        "fourier img"
+      ],
+      "args": "optional",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[vectors]",
+          "description": "可选旋转向量数量，默认 80。"
+        },
+        {
+          "name": "[frames]",
+          "description": "可选动画帧数，默认 220。"
+        }
+      ],
+      "inputs": [
+        {
+          "name": "<图片素材>",
+          "description": "智能取材：优先当前消息图片，其次明确引用消息图片，再次同一发送者当前会话最近图片；均没有时等待下一条补发。",
+          "required": true
+        }
+      ],
+      "agent_notes": "这是 v4 Fourier 轮廓动画的图片增强版；需要原始像素，不能用 vision caption 替代。"
     }
   ],
   "legacy": {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import re
 import unicodedata
 from pathlib import Path
@@ -11,6 +12,7 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, StarTools, register
 
 from data.plugins.doge_shared.presentation import image_result, long_result, text_result
+from data.plugins.doge_shared.provider_routes import dedicated_deepseek
 from data.plugins.doge_shared.raw_command import command_payload, split_head
 from data.plugins.doge_shared.help_service import format_cli_error
 
@@ -54,7 +56,36 @@ def _format_segments(segments, max_items: int = 14) -> str:
     return " ｜ ".join(parts)
 
 
-@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.7.0")
+_NEGATION_RE = re.compile(r"\b(?:not|no|never|without|nothing)\b", re.I)
+_CTH_SURFACE_LIKE_RE = re.compile(r"\b[a-z]{1,5}'[a-z]{2,}\b", re.I)
+
+
+def _safe_high_english_candidate(source: str, candidate: str) -> bool:
+    """Cheap semantic invariants before an LLM proposal can reach RC-1 rules."""
+    src = " ".join(str(source or "").strip().split())
+    cand = " ".join(str(candidate or "").strip().split())
+    if not src or not cand or len(cand) > max(240, int(len(src) * 2.2)):
+        return False
+    if _CTH_SURFACE_LIKE_RE.search(cand):
+        return False
+    # Preserve numeric facts and obvious named entities. Sentence-initial
+    # function words are excluded from the proper-name heuristic.
+    for number in re.findall(r"\b\d+(?:\.\d+)?\b", src):
+        if number not in cand:
+            return False
+    common = {"The", "A", "An", "I", "He", "She", "It", "We", "They", "You"}
+    names = [x for x in re.findall(r"\b[A-Z][A-Za-z0-9-]*\b", src) if x not in common]
+    lower_cand = cand.lower()
+    if any(name.lower() not in lower_cand for name in names):
+        return False
+    src_neg = bool(_NEGATION_RE.search(src))
+    cand_neg = bool(_NEGATION_RE.search(cand))
+    if src_neg != cand_neg:
+        return False
+    return True
+
+
+@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.8.0")
 class DogeLinguistics(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -260,6 +291,69 @@ class DogeLinguistics(Star):
                 return
         raise ValueError("未知 Tangut 子命令")
 
+    async def _cthuvian_high(self, text: str, adapter: CthuvianAdapter) -> tuple[dict, dict]:
+        """DeepSeek proposes English; the pinned RC-1 translator decides surface form."""
+        provider, provider_id = dedicated_deepseek(self.context)
+        base = await asyncio.to_thread(adapter.translate, text, "high")
+        vocab = " ".join(adapter.planner_vocabulary())
+        system = (
+            "You are the semantic planning layer for RC-1 high-register Cthuvian. "
+            "You MUST NOT output Cthuvian/R'lyehian surface text. Output JSON only. "
+            "Preserve the exact proposition, polarity, named entities, numbers, tense and participants. "
+            "Do not add mythos imagery, gods, ritual actions, emotions, facts or implications absent from the source. "
+            "Your only job is to restate the English as one compact clause that the deterministic RC-1 grammar can analyze. "
+            "Prefer words from the provided known vocabulary; articles and stylistic filler may be removed. "
+            "This follows the repository rule: LLM proposes; rules decide; reverse parser validates; surface generation by the LLM is forbidden."
+        )
+        prompt = (
+            "Return exactly this JSON shape: {\"candidate_english\": \"...\"}.\n"
+            f"SOURCE: {text}\n"
+            f"KNOWN ENGLISH VOCABULARY: {vocab}\n"
+            f"BASE DETERMINISTIC PROVENANCE: {base['provenance']}\n"
+            "If no safe equivalent clause can be formed, set candidate_english exactly equal to SOURCE."
+        )
+        candidate = text
+        planner_status = "unchanged"
+        try:
+            resp = await provider.text_chat(
+                prompt=prompt,
+                system_prompt=system,
+                temperature=0.0,
+                max_tokens=320,
+            )
+            raw = (resp.completion_text or "").strip()
+            if raw.startswith("```"):
+                raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.I | re.S).strip()
+            payload = json.loads(raw)
+            proposed = " ".join(str(payload.get("candidate_english") or "").split())
+            if _safe_high_english_candidate(text, proposed):
+                candidate = proposed
+                planner_status = "accepted" if candidate != text else "unchanged"
+            else:
+                planner_status = "rejected"
+        except Exception as exc:
+            planner_status = "skipped"
+            logger.info(f"Cthuvian high DeepSeek planner skipped ({provider_id}): {exc}")
+
+        chosen = base
+        if candidate != text:
+            proposed_result = await asyncio.to_thread(adapter.translate, candidate, "high")
+            rank = {"sealed": 0, "hybrid": 1, "lexicon": 2}
+            if (
+                proposed_result.get("roundtrip_ok")
+                and rank.get(proposed_result.get("provenance"), -1) >= rank.get(base.get("provenance"), -1)
+            ):
+                chosen = proposed_result
+            else:
+                planner_status = "rejected_by_rules"
+                candidate = text
+        return chosen, {
+            "provider_id": provider_id,
+            "planner_status": planner_status,
+            "candidate_english": candidate,
+            "source_english": text,
+        }
+
     async def _cthuvian_command(self, event: AstrMessageEvent, payload: str):
         parts = split_head(payload, 1)
         if not parts:
@@ -272,7 +366,11 @@ class DogeLinguistics(Star):
         adapter = self._cth()
         if action in {"to", "low", "translate", "high", "chant"}:
             register = "high" if action in {"high", "chant"} else "low"
-            result = await asyncio.to_thread(adapter.translate, text, register)
+            planner_meta = None
+            if register == "high":
+                result, planner_meta = await self._cthuvian_high(text, adapter)
+            else:
+                result = await asyncio.to_thread(adapter.translate, text, register)
             provenance = result["provenance"]
             if provenance == "sealed":
                 label = f"RC-1 · {register} · sealed fallback"
@@ -284,9 +382,17 @@ class DogeLinguistics(Star):
                 label = f"RC-1 · {register} · lexicon/grammar"
                 note = "由当前 RC-1 词典/语法路径生成。"
             warnings = ", ".join(result["warnings"]) if result["warnings"] else "none"
+            chain_note = ""
+            if planner_meta is not None:
+                chain_note = (
+                    f"\n高语体链：{planner_meta['provider_id']} English semantic plan → RC-1 deterministic high renderer → round-trip validation"
+                    f" · planner={planner_meta['planner_status']}"
+                )
+                if planner_meta["candidate_english"] != planner_meta["source_english"]:
+                    chain_note += f"\n规划 English：{planner_meta['candidate_english']}"
             yield text_result(
                 event,
-                f"{label}\n\n{result['cthuvian']}\n\n来源说明：{note}\nroundtrip: {result['roundtrip_ok']} · warnings: {warnings}",
+                f"{label}\n\n{result['cthuvian']}\n\n来源说明：{note}{chain_note}\nroundtrip: {result['roundtrip_ok']} · warnings: {warnings}",
                 markdown=False,
             )
             return

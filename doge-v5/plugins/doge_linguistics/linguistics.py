@@ -372,6 +372,15 @@ class CthuvianAdapter:
             "sealed_tokens": len(sealed_tokens),
         }
 
+    def planner_vocabulary(self) -> tuple[str, ...]:
+        """English words the pinned deterministic translator can currently analyze."""
+        translator = self._translator_cls()
+        words = set(translator._verb_index)
+        words.update(translator._terms)
+        words.update(translator._proper_names)
+        words.update(translator._pronouns)
+        return tuple(sorted(str(x) for x in words if str(x).strip()))
+
     def gloss(self, text: str) -> dict:
         result = self._reverse_cls().gloss(text)
         return {

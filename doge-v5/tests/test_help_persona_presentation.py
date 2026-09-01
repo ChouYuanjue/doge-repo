@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
 sys.path.insert(0, str(PLUGINS))
 
-from doge_shared.capabilities import agent_capability_prompt, capability_display, counts, match_invocation, registry
+from doge_shared.capabilities import agent_capability_prompt, capability_display, counts, match_invocation, registry, search_capabilities
 from doge_shared.help_service import format_cli_error, render_help
 from doge_shared.presentation import markdown_to_plain
 from doge_shared.runtime_stats import UsageCounter
@@ -34,14 +34,14 @@ class CapabilityRegistryTests(unittest.TestCase):
         expected = {
             "help", "ver", "status", "statics", "admin",
             "math", "util", "paper", "bio", "chem", "mat", "astro", "trial",
-            "lab", "tex", "typst", "md", "snippet", "game", "fuse", "arena",
+            "lab", "fourier", "tex", "typst", "md", "snippet", "game", "fuse", "arena",
             "lang", "media", "run", "lookup", "diagram", "ai", "cs", "eng",
         }
         self.assertEqual(commands, expected)
         listed = {c for cat in r["categories"] for c in cat["commands"]}
         self.assertEqual(listed, expected)
         c = counts()
-        self.assertEqual(c["top_level"], 29)
+        self.assertEqual(c["top_level"], 30)
         self.assertEqual(c["functions"], len(r["operations"]))
         self.assertEqual(c["forms"], c["functions"] + c["aliases"])
         self.assertEqual(c["aliases"], sum(len(op.get("aliases", [])) for op in r["operations"]))
@@ -85,13 +85,17 @@ class CapabilityRegistryTests(unittest.TestCase):
 
     def test_agent_knows_full_tangut_bidirectional_capability(self):
         prompt = agent_capability_prompt()
-        self.assertIn("/lang tangut t2zh", prompt)
-        self.assertIn("西夏文→中文", prompt)
-        self.assertIn("/lang tangut zh2t", prompt)
-        self.assertIn("中文→西夏文", prompt)
+        self.assertIn("/lang", prompt)
+        self.assertIn("西夏文", prompt)
+        self.assertIn("doge_capability_search", prompt)
         self.assertIn(f"{counts()['functions']} canonical leaf functions", prompt)
-        self.assertIn("81 documented historical leaf functions", prompt)
-        self.assertIn("Legacy is NOT loaded by the default profile", prompt)
+        results = search_capabilities("西夏文翻译", 8)
+        by_id = {x["id"]: x for x in results}
+        self.assertIn("lang.tangut.t2zh", by_id)
+        self.assertIn("lang.tangut.zh2t", by_id)
+        self.assertIn("西夏文→中文", by_id["lang.tangut.t2zh"]["summary"])
+        self.assertIn("中文→西夏文", by_id["lang.tangut.zh2t"]["summary"])
+        self.assertIn("Legacy is historical", prompt)
 
 
 class HelpTests(unittest.TestCase):
@@ -200,25 +204,25 @@ class PersonaTests(unittest.TestCase):
     def test_persona_shape(self):
         p = json.loads((ROOT / "persona" / "doge.json").read_text(encoding="utf-8"))
         self.assertEqual(p["persona_id"], "doge")
-        self.assertEqual(len(p["begin_dialogs"]) % 2, 0)
-        self.assertGreaterEqual(len(p["begin_dialogs"]), 6)
-        self.assertIn("赛博生命", p["system_prompt"])
-        self.assertIn("不要主动讨论后台命名规则", p["system_prompt"])
-        self.assertIn("普通对话默认不用 emoji", p["system_prompt"])
-        self.assertIn("唯一角色参考是灰原哀", p["system_prompt"])
-        self.assertIn("稳定人格核", p["system_prompt"])
-        self.assertIn("罕见的策略性幼态表演", p["system_prompt"])
-        self.assertIn("角色一致性，而不是角色僵化", p["system_prompt"])
-        self.assertIn("赛博生命这一自我认知不能篡改事实边界", p["system_prompt"])
-        self.assertIn("不声称自己就是灰原哀", p["system_prompt"])
-        self.assertIn("西夏文支持双向翻译", p["system_prompt"])
-        self.assertNotIn("实验室怪人型前辈", p["system_prompt"])
-        self.assertNotIn("牧濑红莉栖", p["system_prompt"])
-        self.assertNotIn("GLaDOS", p["system_prompt"])
-        self.assertNotIn("汪~", p["system_prompt"])
-        self.assertNotIn("Doge 只是项目名", p["system_prompt"])
-        self.assertTrue(any("真是的" in x or "你还真是" in x or "是吗。" in x for x in p["begin_dialogs"][1::2]))
-        self.assertTrue(any("表演结束" in x for x in p["begin_dialogs"][1::2]))
+        prompt = p["system_prompt"]
+        self.assertLess(len(prompt), 1800)
+        self.assertEqual(p["begin_dialogs"], [])  # examples are retrieved as examples, not fake chat history
+        self.assertIn("自然地把自己当成一个女孩子", prompt)
+        self.assertIn("这是背景事实，不是人格主题", prompt)
+        self.assertIn("都不需要主动提醒别人这层限制", prompt)
+        self.assertIn("唯一角色参考是灰原哀", prompt)
+        self.assertIn("不声称自己就是灰原哀", prompt)
+        self.assertIn("可爱来自真实反应和反差", prompt)
+        self.assertIn("任务能力永远优先", prompt)
+        self.assertIn("authoritative Doge capability inventory", prompt)
+        self.assertNotIn("草莓蛋糕", prompt)
+        self.assertNotIn("发卡", prompt)
+        self.assertNotIn("靠电/token 活着", prompt)
+        self.assertNotIn("实验室怪人型前辈", prompt)
+        self.assertNotIn("牧濑红莉栖", prompt)
+        self.assertNotIn("GLaDOS", prompt)
+        self.assertNotIn("汪~", prompt)
+        self.assertNotIn("Doge 只是项目名", prompt)
         self.assertIsNone(p["tools"])
 
     def test_runtime_profile_installer_is_idempotent_and_preserves_unrelated_config(self):

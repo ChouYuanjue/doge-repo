@@ -11,8 +11,8 @@ PLUGINS = ROOT / "plugins"
 sys.path.insert(0, str(PLUGINS))
 
 from doge_shared.affect import TransientAffect
-from doge_shared.agent_bridge import DogeCapabilityTool, DogePresentTool, _likely_help, _normalize_command
-from doge_shared.capabilities import agent_capability_prompt
+from doge_shared.agent_bridge import DogeCapabilitySearchTool, DogeCapabilityTool, DogePresentTool, _likely_help, _normalize_command
+from doge_shared.capabilities import agent_capability_prompt, search_capabilities
 from doge_shared.module_control import available_doge_plugins, is_group_admin, resolve_module
 from doge_shared.persona_runtime import PersonaRuntime
 
@@ -43,57 +43,104 @@ class AffectTests(unittest.TestCase):
 
 
 class PersonaRuntimeTests(unittest.TestCase):
-    def test_scene_modes_are_contextual_not_one_fixed_voice(self):
+    def test_configured_closest_sender_is_always_maximally_familiar(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect, closest_sender_ids={"close-user"})
+        close_scope = "group|sender:close-user"
+        other_scope = "group|sender:other-user"
+        close_state = affect.observe(close_scope, "今天陪我聊一会儿", now=100.0)
+        other_state = affect.observe(other_scope, "今天陪我聊一会儿", now=100.0)
+        close = runtime.cue(close_scope, "今天陪我聊一会儿", close_state)
+        other = runtime.cue(other_scope, "今天陪我聊一会儿", other_state)
+        self.assertTrue(close.closest)
+        self.assertEqual(close.familiarity, 1.0)
+        self.assertGreaterEqual(close.warmth, .86)
+        self.assertGreaterEqual(close.playfulness, .62)
+        self.assertLess(close.restraint, other.restraint)
+
+        serious = runtime.cue(close_scope, "生产服务器错误继续查", close_state)
+        self.assertTrue(serious.closest)
+        self.assertGreaterEqual(serious.warmth, .82)
+        self.assertGreaterEqual(serious.persona_strength, .55)
+        self.assertLess(serious.persona_strength, close.persona_strength)
+
+    def test_style_is_continuous_and_task_dependent(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect)
         calm = affect.observe("u", "继续看一下", now=100.0)
-        self.assertEqual(runtime.cue("u", "这个 CI 错误继续查", calm).scene, "analytical")
-        self.assertEqual(runtime.cue("u", "我这次真的搞砸了，好难受", calm).scene, "quiet-care")
-        happy = affect.observe("p", "豆子你真可爱", now=100.0)
-        self.assertEqual(runtime.cue("p", "哈哈你今天挺可爱", happy).scene, "playful")
+        serious = runtime.cue("u", "这个 CI 错误继续查", calm)
+        casual = runtime.cue("v", "今天陪我玩会儿", calm)
+        self.assertLess(serious.persona_strength, casual.persona_strength)
+        self.assertGreater(serious.restraint, casual.restraint)
+        self.assertGreater(casual.playfulness, serious.playfulness)
+
+    def test_familiarity_thaws_warmth_without_storing_message_content(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect)
+        state = affect.observe("u", "正常聊天", now=100.0)
+        first = runtime.cue("u", "随便聊聊", state)
+        for _ in range(20):
+            runtime.prompt("u", "正常聊天", state)
+        later = runtime.cue("u", "随便聊聊", state)
+        self.assertGreater(later.familiarity, first.familiarity)
+        self.assertGreater(later.warmth, first.warmth)
+        self.assertTrue(all(not hasattr(v, "text") for v in runtime._relationships.values()))
 
     def test_strategic_child_act_is_rare_permission_and_never_serious(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect)
         state = affect.observe("p", "正常聊天", now=100.0)
-        # The deterministic gate should open for some scopes, but remain rare.
-        opened = [f"scope-{i}" for i in range(512) if runtime._rare_gate(f"scope-{i}", "把截图发给你，哄我一下")]
+        opened = [f"scope-{i}" for i in range(1024) if runtime._rare_gate(f"scope-{i}", "把截图发给你，哄我一下")]
         self.assertGreater(len(opened), 0)
-        self.assertLess(len(opened), 40)
+        self.assertLess(len(opened), 50)
         cue = runtime.cue(opened[0], "把截图发给你，哄我一下", state)
         self.assertTrue(cue.child_act_allowed)
         serious = runtime.cue(opened[0], "生产服务器错误，把截图发给你", state)
         self.assertFalse(serious.child_act_allowed)
 
-    def test_runtime_prompt_uses_role_chain_and_anti_caricature_bounds(self):
+    def test_runtime_prompt_is_short_example_driven_not_role_chain(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect)
-        state = affect.observe("u", "继续", now=100.0)
-        prompt = runtime.prompt("u", "继续", state)
+        state = affect.observe("u", "豆子你真可爱", now=100.0)
+        prompt = runtime.prompt("u", "夸你一句，你今天挺可爱的", state)
+        self.assertLess(len(prompt), 800)
+        self.assertIn("参考下面两段", prompt)
+        self.assertIn("豆子：", prompt)
         for marker in ("Anchoring", "Selecting", "Bounding", "Enacting"):
-            self.assertIn(marker, prompt)
-        self.assertIn("客服腔", prompt)
-        self.assertIn("固定口癖轮播", prompt)
+            self.assertNotIn(marker, prompt)
 
 
 class AgentBridgeMetadataTests(unittest.TestCase):
     def test_bridge_tools_are_explicit_and_media_is_deferred(self):
+        search = DogeCapabilitySearchTool()
         capability = DogeCapabilityTool()
         present = DogePresentTool()
+        self.assertEqual(search.name, "doge_capability_search")
         self.assertEqual(capability.name, "doge_capability")
         self.assertEqual(present.name, "doge_present")
-        self.assertIn("完整", capability.description)
+        self.assertIn("自然语言检索", search.description)
+        self.assertIn("正式指令", capability.description)
         self.assertIn("精选", present.description)
         self.assertEqual(_normalize_command("math oeis 1,1,2,3"), "/math oeis 1,1,2,3")
         self.assertEqual(_likely_help("/math oeis"), "/help math oeis")
 
-    def test_agent_inventory_mentions_required_attachment_channels(self):
+    def test_agent_inventory_is_compact_and_leaf_details_are_searchable(self):
         prompt = agent_capability_prompt()
-        self.assertIn("/media trace anime", prompt)
-        self.assertIn("requires same-message input: <图片附件>", prompt)
-        self.assertIn("/mat crystal info", prompt)
-        self.assertIn("<CIF/mCIF 文件附件>", prompt)
-        self.assertIn("doge_present", prompt)
+        self.assertLess(len(prompt), 3500)
+        self.assertIn("doge_capability_search", prompt)
+        self.assertIn("/math", prompt)
+        self.assertIn("/lang", prompt)
+        self.assertNotIn("/media trace anime", prompt)
+        tangut = search_capabilities("西夏文翻译", 6)
+        self.assertTrue(any(x["id"] == "lang.tangut.t2zh" for x in tangut))
+        self.assertTrue(any(x["id"] == "lang.tangut.zh2t" for x in tangut))
+        life = search_capabilities("生命游戏 gif", 3)
+        self.assertEqual(life[0]["id"], "lab.life")
+        cif = search_capabilities("CIF 晶体", 3)
+        self.assertTrue(cif[0].get("inputs"))
+        fourier = search_capabilities("用傅立叶画图", 3)
+        self.assertEqual(fourier[0]["id"], "fourier.image")
+        self.assertGreater(fourier[0]["score"], 20)
 
 
 class ModuleControlTests(unittest.TestCase):

@@ -173,60 +173,143 @@ def _agent_input_hint(op: dict) -> str:
     return " [" + "; ".join(bits) + "]" if bits else ""
 
 
+def _search_terms(query: str) -> list[str]:
+    text = str(query or "").lower().strip()
+    words = re.findall(r"[a-z0-9_+#.\-]+|[\u4e00-\u9fff]+", text)
+    terms: set[str] = set()
+    for word in words:
+        if not word:
+            continue
+        terms.add(word)
+        if re.fullmatch(r"[\u4e00-\u9fff]+", word) and len(word) >= 2:
+            # Chinese user queries rarely contain spaces, so character n-grams
+            # make natural-language search useful without embeddings or another LLM.
+            for n in (2, 3, 4):
+                if len(word) >= n:
+                    terms.update(word[i:i+n] for i in range(len(word)-n+1))
+    return sorted(terms, key=lambda x: (-len(x), x))
+
+
+def search_capabilities(query: str, limit: int = 8) -> list[dict]:
+    """Search formal capability leaves using registry text only.
+
+    This is deliberately deterministic and dependency-free.  It is used by the
+    Agent as an on-demand index so the complete 200+ leaf manual no longer has
+    to occupy every chat turn.
+    """
+    q = str(query or "").strip().lower()
+    if not q:
+        return []
+    terms = _search_terms(q)
+    semantic_aliases = {
+        "翻译": ("translate", "translation", "zh2t", "t2zh"),
+        "西夏": ("tangut",),
+        "积分": ("integrate", "integral"),
+        "求导": ("diff", "derivative"),
+        "微分": ("diff", "derivative"),
+        "方程": ("solve", "equation"),
+        "素数": ("prime",),
+        "因数": ("factor", "factorint"),
+        "因式分解": ("factor",),
+        "生命游戏": ("life", "conway"),
+        "动图": ("gif",),
+        "晶体": ("crystal",),
+        "形式化": ("formal",),
+        "证明": ("formal", "lean", "coq", "rzk"),
+        "傅里叶": ("fourier", "dft", "epicycle"),
+        "傅立叶": ("fourier", "dft", "epicycle", "傅里叶"),
+        "旋转圆": ("fourier", "epicycle"),
+        "轮廓描图": ("fourier", "image", "epicycle"),
+    }
+    expanded: set[str] = set(terms)
+    for key, values in semantic_aliases.items():
+        if key in q:
+            expanded.update(values)
+    terms = sorted(expanded, key=lambda x: (-len(x), x))
+    ranked: list[tuple[float, str, dict]] = []
+    for op in formal_operations():
+        if op.get("kind", "command") != "command":
+            continue
+        path = str(op.get("path") or "").lower()
+        usage = str(op.get("usage") or "").lower()
+        summary = str(op.get("summary") or "").lower()
+        notes = str(op.get("agent_notes") or "").lower()
+        aliases = " ".join(str(x) for x in op.get("aliases", [])).lower()
+        params = " ".join(
+            f"{x.get('name','')} {x.get('description','')}"
+            for x in (op.get("parameters") or []) if isinstance(x, dict)
+        ).lower()
+        inputs = " ".join(
+            f"{x.get('name','')} {x.get('description','')}"
+            for x in (op.get("inputs") or []) if isinstance(x, dict)
+        ).lower()
+        hay = " ".join((path, usage, summary, notes, aliases, params, inputs))
+        score = 0.0
+        if q == path or q == usage.lstrip("/"):
+            score += 80
+        if q and q in path:
+            score += 35
+        if q and q in summary:
+            score += 26
+        for term in terms:
+            if len(term) == 1:
+                continue
+            weight = min(8.0, 2.0 + len(term) * .8)
+            if term in path: score += weight * 2.2
+            if term in usage: score += weight * 1.8
+            if term in summary: score += weight * 1.5
+            if term in notes: score += weight * 1.2
+            if term in params or term in inputs: score += weight
+            if term in aliases: score += weight
+        if score > 0:
+            ranked.append((score, path, op))
+    ranked.sort(key=lambda x: (-x[0], x[1]))
+    out = []
+    for score, _, op in ranked[: max(1, min(int(limit), 12))]:
+        item = {
+            "id": op["id"],
+            "command": "/" + op["path"],
+            "usage": op["usage"],
+            "summary": op.get("summary", ""),
+            "score": round(score, 2),
+        }
+        if op.get("parameters"):
+            item["parameters"] = op["parameters"]
+        if op.get("inputs"):
+            item["inputs"] = op["inputs"]
+        if op.get("examples"):
+            item["examples"] = op["examples"][:3]
+        if op.get("agent_notes"):
+            item["agent_notes"] = op["agent_notes"]
+        out.append(item)
+    return out
+
+
 @lru_cache(maxsize=1)
 def agent_capability_prompt() -> str:
-    """Complete capability inventory injected into every Agent request.
+    """Compact capability map injected into every Agent request.
 
-    The inventory is deliberately leaf-level.  The model should know that, for
-    example, Tangut is not merely a dictionary lookup but includes both
-    translation directions, two pronunciation systems, and rendering.
+    Leaf-level syntax is available on demand through doge_capability_search.
+    Keeping this map short materially improves ordinary chat and reasoning while
+    preserving discoverability of the complete formal registry.
     """
     d = registry()
-    by_command: dict[str, list[dict]] = {}
-    for op in formal_operations():
-        if op.get("kind") == "trigger":
-            continue
-        top = op["path"].split()[0]
-        by_command.setdefault(top, []).append(op)
-
     c = counts()
     lines = [
-        "# Doge capability inventory",
-        "This is authoritative runtime self-knowledge generated from the same registry as /help and /statics.",
-        "Do not claim an installed capability is unavailable until you have checked this list.",
-        "Every installed formal non-Legacy capability below is callable by the Agent: prefer a dedicated Doge domain tool when one exists, otherwise invoke the exact documented command through doge_capability.",
-        "The Agent is the synthesis layer above plugin outputs. It may combine several capabilities, reconcile or summarize their text results, and should show only the most useful evidence instead of dumping every raw result.",
-        "doge_capability can return deferred media asset IDs. Call doge_present only for images that materially improve the answer; do not automatically present every image produced by tools.",
-        "If seeing the exact raw plugin output would help, you may optionally mention its complete canonical/direct command. Do not append command reminders to every answer.",
-        "When a user asks whether Doge can do something, answer from this inventory. Current group module switches can temporarily make an installed module unavailable and take precedence over this global inventory.",
-        "Important example: Tangut support includes dictionary lookup, GX/GHC pronunciation, Tangut→Chinese, Chinese→Tangut, and image rendering.",
+        "# Doge capability map",
+        "Capability truth comes from the same registry as /help. Do not guess that a function is unavailable.",
+        f"Installed formal surface: {c['top_level']} top-level groups / {c['functions']} canonical leaf functions / {c['forms']} callable forms.",
+        "For a specific function or exact syntax, call doge_capability_search once in the user's language, then call doge_capability using the returned documented command. Search again only if candidates are ambiguous; do not duplicate the same search bilingually. Prefer a dedicated domain tool when it already matches the task.",
+        "doge_capability may return deferred media asset IDs; call doge_present only for images that materially improve the answer.",
+        "Current session module switches take precedence. Legacy is historical and is not callable by default.",
         "",
-        f"Installed formal surface: {c['top_level']} top-level commands; {c['functions']} canonical leaf functions; {c['forms']} callable forms including aliases.",
+        "Top-level map:",
     ]
-    for cmd in d.get("commands", {}):
-        ops = by_command.get(cmd, [])
-        if not ops:
-            continue
-        lines.append(f"/{cmd}: " + d["commands"][cmd].get("summary", ""))
-        for op in ops:
-            note = str(op.get("agent_notes") or "").strip()
-            suffix = _agent_input_hint(op)
-            if note:
-                suffix += " Agent note: " + note
-            lines.append(f"  {op['usage']} — {op['summary']}{suffix}")
-    triggers = [x for x in formal_operations() if x.get("kind") == "trigger"]
-    if triggers:
-        lines.append("Designed non-slash triggers:")
-        for op in triggers:
-            lines.append(f"  {op['usage']} — {op['summary']}")
-
-    legacy = d.get("legacy") or {}
-    if legacy:
-        lines += [
-            "",
-            f"Legacy museum: {c['legacy_top_level']} historical top-level entries / {c['legacy_functions']} documented historical leaf functions.",
-            "Legacy is NOT loaded by the default profile. Know what existed and its migration state, but do not claim those historical commands are currently executable unless the Legacy plugin is explicitly enabled.",
-        ]
-        for cmd, meta in legacy.get("commands", {}).items():
-            lines.append(f"  /{cmd} [{meta.get('state','legacy')}] — {meta.get('title','historical feature')}")
+    for cmd, meta in d.get("commands", {}).items():
+        lines.append(f"/{cmd} — {meta.get('summary','')}")
+    lines += [
+        "",
+        "Examples of discovery: search ‘西夏文 翻译’ before Tangut work; ‘RRPL 语法’; ‘符号积分’; ‘生命游戏 GIF’; ‘CIF 晶体’; ‘Lean 形式化’.",
+        "When users ask what Doge can do broadly, summarize categories from this map. When they ask about one concrete ability, search rather than dumping the entire registry.",
+    ]
     return "\n".join(lines)

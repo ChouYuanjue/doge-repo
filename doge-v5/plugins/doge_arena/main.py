@@ -6,14 +6,17 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, StarTools, register
 
 from data.plugins.doge_shared.presentation import mention_result, text_result
+from data.plugins.doge_shared.provider_routes import dedicated_deepseek
 from data.plugins.doge_shared.raw_command import command_payload, split_head
 from data.plugins.doge_shared.help_service import format_cli_error
 
 from .arena_engine import (
     ArenaCard,
     ArenaStore,
+    arena_plan_prompts,
     arena_judge_prompts,
     capacity,
+    classic_plan_prompts,
     classic_judge_prompts,
     draw_chaos,
     draw_legacy,
@@ -21,7 +24,7 @@ from .arena_engine import (
 )
 
 
-@register("doge_arena", "runnel", "Doge 荒诞弱能力与组合竞技场", "5.6.0")
+@register("doge_arena", "runnel", "Doge 荒诞弱能力与组合竞技场", "5.7.0")
 class DogeArena(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -40,11 +43,52 @@ class DogeArena(Star):
         token = (rest or "").strip().split()[0] if (rest or "").strip() else ""
         return (token, None) if token.isdigit() else (None, None)
 
-    async def _provider(self, scope: str):
-        provider = await self.context.get_using_provider_async(umo=scope)
-        if not provider:
-            raise ValueError("竞技场解说需要聊天模型 provider")
-        return provider
+    def _provider(self):
+        provider, provider_id = dedicated_deepseek(self.context)
+        return provider, provider_id
+
+    async def _deepseek_battle(
+        self,
+        a_name: str,
+        mine: ArenaCard,
+        b_name: str,
+        theirs: ArenaCard,
+        battlefield=None,
+    ) -> str:
+        """Two-stage deadpan battle chain: tactical causality, then narration."""
+        provider, provider_id = self._provider()
+        if battlefield is None:
+            plan_system, plan_prompt = classic_plan_prompts(a_name, mine, b_name, theirs)
+        else:
+            plan_system, plan_prompt = arena_plan_prompts(a_name, mine, b_name, theirs, battlefield)
+        tactical_plan = ""
+        try:
+            plan_resp = await provider.text_chat(
+                prompt=plan_prompt,
+                system_prompt=plan_system,
+                temperature=0.45,
+                max_tokens=900,
+            )
+            tactical_plan = (plan_resp.completion_text or "").strip()
+        except Exception as exc:
+            # The second stage still has the complete original rules and can
+            # produce a valid fight; never fall back to a different provider.
+            logger.info(f"Arena DeepSeek planning skipped ({provider_id}): {exc}")
+
+        if battlefield is None:
+            system, prompt = classic_judge_prompts(a_name, mine, b_name, theirs, tactical_plan)
+        else:
+            system, prompt = arena_judge_prompts(a_name, mine, b_name, theirs, battlefield, tactical_plan)
+        resp = await provider.text_chat(
+            prompt=prompt,
+            system_prompt=system,
+            temperature=0.72,
+            max_tokens=1200,
+        )
+        result = (resp.completion_text or "").strip()
+        if not result:
+            raise ValueError(f"DeepSeek 裁判（{provider_id}）没有给出结果")
+        return result
 
     @filter.command("arena")
     async def arena(self, event: AstrMessageEvent):
@@ -137,19 +181,13 @@ class DogeArena(Star):
 
             a = event.get_sender_name() or uid
             b = tname or f"玩家{target}"
-            provider = await self._provider(scope)
             if action == "fight":
-                system, prompt = classic_judge_prompts(a, mine, b, theirs)
                 heading = "⚔️ 弱能力直接对决"
+                result = await self._deepseek_battle(a, mine, b, theirs)
             else:
                 battlefield = scene()
-                system, prompt = arena_judge_prompts(a, mine, b, theirs, battlefield)
                 heading = "⚔️ 荒诞弱能力竞技场\n" + battlefield.render()
-
-            resp = await provider.text_chat(prompt=prompt, system_prompt=system)
-            result = (resp.completion_text or "").strip()
-            if not result:
-                raise ValueError("裁判没有给出结果")
+                result = await self._deepseek_battle(a, mine, b, theirs, battlefield)
             yield mention_result(event, target, heading + "\n\n" + result, target_label=f"对手：{b}")
         except Exception as exc:
             logger.warning(f"doge arena failed: {exc}")

@@ -1,0 +1,14 @@
+{
+  "closest_sender_ids": {
+    "description": "始终视为最高亲近度的发送者 ID（私有运行时配置）",
+    "type": "list",
+    "default": [],
+    "hint": "只影响 Persona 的熟悉度/亲近表达，不改变权限、事实标准或工具能力。不要把真实 ID 提交到仓库。"
+  },
+  "relationship_facts": {
+    "description": "豆子默认已知的少量私有关系事实（可选）",
+    "type": "list",
+    "default": [],
+    "hint": "作为普通背景认知，只在直接相关时自然使用；不会改变权限。具体人物关系仅建议写入生产私有配置。"
+  }
+}

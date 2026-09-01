@@ -17,7 +17,7 @@ GROUPS
              论文、知识检索，以及生化环材、天文和临床数据。
   compute     25  数学 / 计算机 / AI
              精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
-  create      69  排版 / 图形 / 工程
+  create      73  排版 / 图形 / 工程
              排版、结构图、工程系统，以及以图像/动画展示机制的科学实验。
   language    14  语言学
              西夏文、汉字历史音系、RRPL 与构造语言。
@@ -40,9 +40,9 @@ QUICK START
   /help legacy          历史功能状态
 
 SCALE
-  顶层指令       29
-  正式叶子功能   217
-  正式调用形式   476  （含 259 个兼容别名）
+  顶层指令       30
+  正式叶子功能   221
+  正式调用形式   482  （含 261 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -791,6 +791,29 @@ BACK
   /help lab
 ```
 
+### `/fourier`
+
+```text
+COMMAND  /fourier
+图片/SVG/文本轮廓的傅里叶旋转向量动画；延续 v4 Fourier，不是普通 FFT 频谱图。
+
+SUBCOMMANDS
+  mode             查看或设置每用户 merge/separate 轮廓处理模式。
+    /fourier mode [{merge|separate}]
+  svg              将 SVG 栅格化、提取轮廓并生成 DFT 旋转向量 GIF。
+    /fourier svg <SVG源码>
+  text             将文本字形提取为轮廓并生成 DFT 旋转向量 GIF。
+    /fourier text <文本>
+  image            从真实图片像素提取轮廓并用傅里叶旋转圆/向量逐帧描出 GIF。
+    /fourier image [vectors] [frames]
+
+NEXT
+  /help fourier mode
+
+BACK
+  /help
+```
+
 ## 语言学 (`language`)
 
 西夏文、汉字历史音系、RRPL 与构造语言。
@@ -850,7 +873,7 @@ R'lyehian / Cthuvian
 SUBCOMMANDS
   to               English→R’lyehian/Cthuvian 低语体翻译。
     /lang cthuvian to <English>
-  high             English→Cthuvian 高语体。
+  high             English→Cthuvian 高语体：DeepSeek 仅做 English 语义规划，RC-1 确定性生成并 round-trip 校验。
     /lang cthuvian high <English>
   from             R’lyehian/Cthuvian→English gloss。
     /lang cthuvian from <RC-1>
@@ -1091,7 +1114,7 @@ SUBCOMMANDS
     /arena show
   fight            原味弱能力直接对决
     /arena fight <@对手或QQ号>
-  duel             带战场目标的竞技场对决
+  duel             带战场目标的竞技场对决：Dedicated DeepSeek 两阶段推演荒诞规则连锁。
     /arena duel <@对手或QQ号>
   chaos            原 /wp 多能力组合
     /arena chaos [{2|3}]

@@ -37,8 +37,9 @@ No source is copied for these packages:
 - NetworkX + pydot + system Graphviz — PageRank and local graph/automata rendering;
 - `vl-convert-python` — local Vega-Lite rendering for `/diagram vegalite`;
 - `regex` + `tiktoken` — normal minBPE package imports.
+- OpenCV (`opencv-python-headless`) + CairoSVG — `/fourier`; local contour extraction and SVG rasterization before deterministic DFT epicycle rendering. No source is vendored.
 
-The production AstrBot Python 3.12 environment was validated with Typst 0.15.0, resvg_py 0.5.0, vl-convert-python 1.9.0.post1, NetworkX 3.6.1, pydot 4.0.1, Schemdraw 0.23, python-control 0.10.2, Dans_Diffraction 3.4.0, Matplotlib 3.11.1 and SciPy 1.18.1. Plugin requirements use compatible ranges except where an implementation detail is intentionally tied to a tested version.
+The production AstrBot Python 3.12 environment was validated with Typst 0.15.0, resvg_py 0.5.0, vl-convert-python 1.9.0.post1, NetworkX 3.6.1, pydot 4.0.1, Schemdraw 0.23, python-control 0.10.2, Dans_Diffraction 3.4.0, Matplotlib 3.11.1, SciPy 1.18.1, OpenCV 4.14.0 and CairoSVG 2.9.0. Plugin requirements use compatible ranges except where an implementation detail is intentionally tied to a tested version.
 
 ## External services
 

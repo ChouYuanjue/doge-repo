@@ -3,13 +3,13 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-import astrbot.api.message_components as Comp
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, StarTools, register
 
 from data.plugins.doge_shared.academic import MaterialService
 from data.plugins.doge_shared.agent_tools import DogeMaterialTool, register_domain_tools
 from data.plugins.doge_shared.presentation import image_result, long_result, text_result
+from data.plugins.doge_shared.materials import MATERIALS, wait_for_materials
 from data.plugins.doge_shared.raw_command import command_payload, split_head
 from data.plugins.doge_shared.help_service import format_cli_error
 from data.plugins.doge_shared.science_wrappers import (
@@ -23,8 +23,8 @@ HELP = (
     "Doge Materials /mat\n"
     "  /mat find <formula/filter>       OPTIMADE 跨材料数据库查询\n"
     "  /mat providers                   OPTIMADE provider 列表\n"
-    "  /mat crystal info                晶胞信息；同一条消息附带 CIF/mCIF 文件\n"
-    "  /mat crystal powder [energy_keV] [width]  真实 powder XRD；同一条消息附带 CIF/mCIF 文件\n"
+    "  /mat crystal info                晶胞信息；支持当前/引用/上一条同用户 CIF/mCIF，缺失时等待补发\n"
+    "  /mat crystal powder [energy_keV] [width]  真实 powder XRD；同样支持智能取材\n"
     "晶体文件计算使用 Dans_Diffraction；/lab xrd 是快速教学模型。"
 )
 
@@ -37,13 +37,11 @@ class DogeMaterials(Star):
         register_domain_tools(context, 'doge_materials', DogeMaterialTool())
 
     async def _crystal(self, event: AstrMessageEvent, payload: str):
-        file_seg = next((x for x in event.get_messages() if isinstance(x, Comp.File)), None)
-        if file_seg is None:
-            raise ScienceWrapperError('请在同一条消息附带 .cif / .mcif 文件')
-        input_path = await file_seg.get_file()
+        materials = await MATERIALS.resolve(event, "file", needed=1)
+        materials = await wait_for_materials(event, "file", 1, materials)
+        input_path = materials[0].path if materials else ""
         if not input_path:
             raise ScienceWrapperError('无法取得 CIF/mCIF 文件')
-        cleanup = bool(getattr(file_seg, 'url', '') and not getattr(file_seg, 'file_', ''))
         out_path: Path | None = None
         try:
             parts = payload.split()
@@ -57,8 +55,7 @@ class DogeMaterials(Star):
                 return image_result(event, out_path, caption), out_path
             raise ScienceWrapperError('crystal 支持 info / powder')
         finally:
-            if cleanup:
-                Path(input_path).unlink(missing_ok=True)
+            pass
 
     @filter.command('mat')
     async def command(self, event: AstrMessageEvent):
