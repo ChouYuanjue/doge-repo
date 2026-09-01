@@ -1,0 +1,5 @@
+name: doge_materials
+version: 5.4.0
+desc: OPTIMADE 材料数据库、真实 CIF 晶体结构与粉末衍射
+author: runnel
+repo: https://github.com/ChouYuanjue/doge-repo

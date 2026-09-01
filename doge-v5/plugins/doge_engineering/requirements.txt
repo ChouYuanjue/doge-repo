@@ -1,0 +1,4 @@
+matplotlib>=3.9,<4
+scipy>=1.12,<2
+schemdraw>=0.20,<1
+control>=0.10,<1
