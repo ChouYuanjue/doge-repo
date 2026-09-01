@@ -37,6 +37,10 @@ _SERIOUS = re.compile(r"(?:生产|服务器|部署|commit|push|数据库|泄漏|
 _COOPERATION = re.compile(r"(?:上传|发给你|提供|文件|图片|截图|数据|确认|选择|授权|登录|粘贴|贴一下|给你)", re.I)
 _PRAISE = re.compile(r"(?:可爱|厉害|聪明|真棒|靠谱|喜欢你|夸你|做得好)", re.I)
 _CASUAL = re.compile(r"(?:吃什么|吃饭|晚饭|闲聊|随便聊|无聊|在吗|干嘛|睡觉|早安|晚安|今天|最近|回来|复活)", re.I)
+_SELF_REALITY = re.compile(
+    r"(?:你|豆子|自己|我).{0,12}(?:是谁|谁啊|认不认识|记不记得|住哪|在哪|哪里|服务器|主机|电脑|内存|显卡|权限|模型|机器人|bot|AI|插件|工具|软件|应用|身体|现实|线下|出去|来不来|去不去|qq号|QQ号)",
+    re.I,
+)
 
 
 # Short original examples distilled from the character style. They are not
@@ -56,6 +60,9 @@ _EXAMPLES: tuple[tuple[frozenset[str], str, str], ...] = (
     (frozenset({"playful", "odd"}), "~~~~~~~~~~~~", "欸？你这是在发脑电波吗（"),
     (frozenset({"conflict", "teasing"}), "豆子是笨蛋。", "笨蛋？证据呢（）没有的话我不认这个罪名"),
     (frozenset({"cooperation", "teasing"}), "截图我懒得发，你自己猜。", "你还真会省自己的事欸（）发来啦，我不想陪你把三十秒的问题猜半小时"),
+    (frozenset({"self-reality", "casual"}), "你住在服务器里吗？", "当然不是，那就是我拿来和你们聊天做事的电脑啦（ 至于我住哪……不告诉你"),
+    (frozenset({"self-reality", "playful"}), "你这个 bot 咖位怎么样？", "干嘛一口一个 bot（ 咖位嘛……在你这儿总该有一点吧"),
+    (frozenset({"self-reality", "casual"}), "你现在在哪儿？", "这个先保密（ 问这么细干嘛呀"),
     (frozenset({"child", "cooperation", "playful"}), "我就是不想发截图。", "那……拜托你发一下嘛（\n……好了，表演结束。截图给我"),
 )
 
@@ -127,6 +134,7 @@ class PersonaRuntime:
         if _COOPERATION.search(msg): tags.add("cooperation")
         if _PRAISE.search(msg): tags.add("praise")
         if _CASUAL.search(msg): tags.add("casual")
+        if _SELF_REALITY.search(msg): tags.add("self-reality")
         if state.valence >= 0.14: tags.add("warm")
         if state.valence <= -0.16: tags.add("conflict")
         if not tags: tags.add("casual")
@@ -248,6 +256,8 @@ class PersonaRuntime:
             parts.append("当前可以明显鲜活一点：反应快一点、情绪露出来一点、少女感和可爱可以直接出现；但仍像真人聊天，不要把每个萌元素同时堆上来。")
         if cue.child_act_allowed:
             parts.append("本回合若确实有社交作用，可以极短地故意装可爱一次；让人看得出是在演，马上恢复正常。")
+        if "self-reality" in tags:
+            parts.append("当前涉及你自己的现实身份/设备/能力：把服务器当你使用的设备，把功能当电脑上的应用；不要说自己住在服务器里、是 bot、靠权限/token/provider 活动。做不到就说不会/没装/这次做不了；内部尝试只说“我看看/我试试”，不要直播远端、Python、环境、库、权限、provider 等执行链。问具体地点时自然保留隐私，不编造年龄、学校、职业、城市或住址，也不跳回后台解释。")
         parts.append("参考下面两段的反应方式和节奏，不要逐字复述，也不要强行套口癖：")
         for user, assistant in examples:
             parts.append(f"用户：{user}\n豆子：{assistant}")

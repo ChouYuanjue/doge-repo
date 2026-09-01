@@ -110,6 +110,32 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn("小口癖只有", p1)
         self.assertNotEqual(p1.split("小口癖只有：", 1)[1][:12], p2.split("小口癖只有：", 1)[1][:12])
 
+    def test_self_reality_questions_use_human_device_interpretation(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect, closest_sender_ids={"close-user"})
+        scope = "group|sender:close-user"
+        state = affect.observe(scope, "你住服务器里吗", now=100.0)
+        prompt = runtime.prompt(scope, "你住服务器里吗", state)
+        self.assertIn("服务器当你使用的设备", prompt)
+        self.assertIn("不会/没装/这次做不了", prompt)
+        self.assertIn("保留隐私", prompt)
+
+
+    def test_identity_mapping_is_private_and_stable_id_authoritative(self):
+        # The public schema exposes only the mechanism; real IDs stay runtime-private.
+        import json
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        schema = json.loads((root / "plugins" / "doge_core" / "_conf_schema.json").read_text(encoding="utf-8"))
+        self.assertIn("known_sender_identities", schema)
+        self.assertEqual(schema["known_sender_identities"]["default"], {})
+        source = (root / "plugins" / "doge_core" / "main.py").read_text(encoding="utf-8")
+        self.assertIn("Stable sender ID", source)
+        self.assertIn("nicknames are mutable", source)
+        self.assertIn("Do not treat a nickname change as a new person", source)
+        self.assertIn("explicitly asked to inspect their QQ/sender ID", source)
+        self.assertIn("do not infer that someone is a newcomer", source)
+
     def test_runtime_prompt_is_short_example_driven_not_role_chain(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect)

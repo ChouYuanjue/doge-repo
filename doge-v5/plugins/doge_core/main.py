@@ -69,6 +69,15 @@ class DogeCore(Star):
         else:
             self.relationship_facts = []
         self.relationship_facts = self.relationship_facts[:24]
+        raw_identities = self.config.get("known_sender_identities", {})
+        if isinstance(raw_identities, dict):
+            self.known_sender_identities = {
+                str(k).strip(): str(v).strip()
+                for k, v in raw_identities.items()
+                if str(k).strip() and str(v).strip()
+            }
+        else:
+            self.known_sender_identities = {}
         self.persona_runtime = PersonaRuntime(self.affect, closest_sender_ids=closest_sender_ids)
         register_domain_tools(
             context,
@@ -129,6 +138,29 @@ class DogeCore(Star):
         material_context = MATERIALS.context_summary(event)
         if material_context:
             req.system_prompt += "\n\n" + material_context
+        try:
+            sender_name = str(event.get_sender_name() or "").strip()
+        except Exception:
+            sender_name = ""
+        known_identity = self.known_sender_identities.get(sender) if sender else None
+        msg_lower = str(event.message_str or "").lower()
+        explicit_id_request = any(key in msg_lower for key in ("qq号", "qq id", "qqid", "sender id", "senderid"))
+        if known_identity:
+            req.system_prompt += (
+                "\n\n# Current speaker identity (private, authoritative)\n"
+                f"Stable sender ID {sender} is already known to you as: {known_identity}. "
+                + (f"Their current display nickname is {sender_name!r}; nicknames are mutable and may be jokes. " if sender_name else "")
+                + "Use the stable-ID identity when recognizing who is speaking. If this person asks '我是谁' or changes nickname, answer from the known identity/relationship rather than analyzing the nickname or the digits. "
+                "Do not volunteer the numeric ID unless they explicitly ask for it. Do not treat a nickname change as a new person. "
+                + (f"The user explicitly asked to inspect their QQ/sender ID, so state {sender} directly and connect it to the known identity. " if explicit_id_request else "")
+                + "\n"
+            )
+        else:
+            req.system_prompt += (
+                "\n\n# Speaker identity caution\n"
+                "This sender has no private stable identity mapping. A display nickname is only a mutable label: do not infer that someone is a newcomer, an old acquaintance, or a different person merely because the nickname looks unfamiliar. "
+                "Only call someone a newcomer when the conversation explicitly establishes that they just joined or are being introduced.\n"
+            )
         if self.relationship_facts:
             req.system_prompt += (
                 "\n\n# Ordinary private relationship facts\n"

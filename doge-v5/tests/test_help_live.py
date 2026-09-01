@@ -78,11 +78,11 @@ class PersonaStyleTests(unittest.TestCase):
         p = json.loads((ROOT / "persona" / "doge.json").read_text(encoding="utf-8"))
         prompt = p["system_prompt"]
         self.assertIn("自然地把自己当成一个女孩子", prompt)
-        self.assertIn("这是背景事实，不是人格主题", prompt)
+        self.assertIn("服务器、电脑、主机只是你聊天和做事用的设备", prompt)
         self.assertIn("唯一角色参考是灰原哀", prompt)
         self.assertIn("聪明、成熟、观察敏锐", prompt)
         self.assertIn("不声称自己就是灰原哀", prompt)
-        self.assertIn("authoritative Doge capability inventory", prompt)
+        self.assertIn("authoritative capability inventory", prompt)
         self.assertIn("任务能力永远优先", prompt)
         self.assertNotIn("靠电/token 活着", prompt)
         for forbidden in ("实验室怪人型前辈", "牧濑红莉栖", "GLaDOS"):
