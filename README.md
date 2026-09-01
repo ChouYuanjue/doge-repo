@@ -17,10 +17,10 @@ Doge v5 面向 **AstrBot 4.27.x / Python 3.12**，目前生产同时服务 QQ Of
 主要能力包括：
 
 - **检索与科研数据**：论文、PubMed/arXiv、UniProt、InterPro、PDB、AlphaFold、PubChem、ChEMBL、OPTIMADE、SIMBAD、NASA Exoplanet、ClinicalTrials.gov 等；
-- **数学 / CS / AI**：表达式计算、进制、π、OEIS、自动机、PageRank、micrograd、minBPE、远端受限代码执行；
+- **数学 / CS / AI**：基础与高精度数值、SymPy 符号代数/微积分、数论、统计、π、OEIS、Wolfram|Alpha、Lean/Coq(Rocq)/Rzk 轻量形式化入口，以及自动机、PageRank、micrograd、minBPE、远端受限代码执行；
 - **排版与图形**：TeX、Typst、Markdown 卡片/PDF、代码片段、Graphviz、Mermaid、Vega-Lite；
-- **科学与工程实验**：分形、混沌、元胞自动机、随机矩阵、量子/相对论教学图、晶格/XRD、电路、控制系统等；
-- **语言学**：西夏文双向词典 grounding 翻译、GX/GHC 拟音、汉字历史音系/方言、RRPL、R'lyehian/Cthuvian；
+- **科学与工程实验**：分形、混沌、生命游戏 GIF/元胞自动机、随机矩阵、量子/相对论教学图、晶格/XRD、电路、控制系统等；这里强调可视化、模拟和直觉，而 `/math` 负责精确/符号求解；
+- **语言学**：西夏文双向词典 grounding 翻译、GX/GHC 拟音、汉字历史音系/方言、带 `syntax/explain/render` 指引的 RRPL、R'lyehian/Cthuvian；
 - **群聊游戏与原生玩法**：24 点、九子棋、Signal、扫雷、数独、骰池、概念炼金，以及完整保留原 `/wp` 238 条弱能力的 Arena；
 - **媒体工具**：AnimeTrace、Galgame 识图、本地幻影坦克等；
 - **运行与管理**：版本、状态、统计、分层 Help，以及按群隔离的正式模块开关。
@@ -34,6 +34,7 @@ v5 有两种等价但用途不同的入口。
 **直接命令**适合需要完整原始输出、可重复调用或精确参数控制的场景，例如：
 
 ```text
+/math solve x^2-5*x+6=0 --var x
 /math oeis 1,1,2,3,5,8
 /lang tangut zh2t 我爱中国
 /lab ising 2.269 240

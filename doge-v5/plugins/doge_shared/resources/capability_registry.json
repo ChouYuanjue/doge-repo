@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "syntax": {
     "required": "<arg> 必填位置参数",
     "optional": "[arg] 可选位置参数；多个可选位置参数分别加方括号",
@@ -36,8 +36,8 @@
     },
     {
       "id": "compute",
-      "title": "计算机 / AI",
-      "summary": "数学、轻量 AI/CS 实验和远端代码执行。",
+      "title": "数学 / 计算机 / AI",
+      "summary": "精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。",
       "commands": [
         "math",
         "ai",
@@ -48,7 +48,7 @@
     {
       "id": "create",
       "title": "排版 / 图形 / 工程",
-      "summary": "把公式、Markdown、代码、图表和工程系统变成可分享的结果。",
+      "summary": "排版、结构图、工程系统，以及以图像/动画展示机制的科学实验。",
       "commands": [
         "md",
         "snippet",
@@ -141,7 +141,7 @@
       "category": "research"
     },
     "math": {
-      "summary": "数学计算、进制、π、OEIS 等轻量数学工具。",
+      "summary": "精确/符号计算、代数与微积分、数论、统计、OEIS、WA 和形式化数学入口；结果以计算/文本为主。",
       "category": "compute"
     },
     "ai": {
@@ -181,7 +181,7 @@
       "category": "create"
     },
     "lab": {
-      "summary": "数学、物理和复杂系统的直观科学实验。",
+      "summary": "可视化、模拟和直觉实验：用图像/动画观察数学、物理与复杂系统；不作为通用求解器。",
       "category": "create"
     },
     "lang": {
@@ -436,11 +436,12 @@
       "parameters": [
         {
           "name": "<表达式>",
-          "description": "数学表达式，例如 (2+3)*4、sqrt(2)；由安全数学解析器计算，不执行 Python 代码。"
+          "description": "基础实数算术与位运算，例如 (2+3)*4、2^10、7 xor 3；不调用 Python 函数。需要 sin/sqrt/高精度时用 /math numeric。"
         }
       ],
       "examples": [
-        "/math calc (2+3)*4"
+        "/math calc (2+3)*4",
+        "/math calc 2^20"
       ]
     },
     {
@@ -511,6 +512,337 @@
         "/math oeis 1,1,2,3,5,8",
         "/math oeis fibonacci"
       ]
+    },
+    {
+      "id": "math.numeric",
+      "path": "math numeric",
+      "summary": "数学函数与高精度数值求值（SymPy）。",
+      "usage": "/math numeric <表达式> [--digits <位数>]",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<表达式>",
+          "description": "支持 sin/cos/exp/log/sqrt、pi 等常见数学对象。"
+        },
+        {
+          "name": "[--digits <位数>]",
+          "description": "2–100 位有效数字，默认 15。"
+        }
+      ],
+      "examples": [
+        "/math numeric sqrt(2) --digits 50",
+        "/math numeric sin(pi/7) --digits 30"
+      ]
+    },
+    {
+      "id": "math.simplify",
+      "path": "math simplify",
+      "summary": "符号化简（SymPy）。",
+      "usage": "/math simplify <表达式>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<表达式>",
+          "description": "符号表达式；支持常见函数 sin/cos/exp/log/sqrt 等。"
+        }
+      ],
+      "examples": [
+        "/math simplify (x^2-1)/(x-1)"
+      ]
+    },
+    {
+      "id": "math.expand",
+      "path": "math expand",
+      "summary": "代数展开（SymPy）。",
+      "usage": "/math expand <表达式>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<表达式>",
+          "description": "待展开的符号表达式。"
+        }
+      ],
+      "examples": [
+        "/math expand (x+1)^5"
+      ]
+    },
+    {
+      "id": "math.factor",
+      "path": "math factor",
+      "summary": "符号因式分解（SymPy）。",
+      "usage": "/math factor <表达式>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<表达式>",
+          "description": "多项式/符号表达式；整数素因子分解请用 /math factorint。"
+        }
+      ],
+      "examples": [
+        "/math factor x^4-1"
+      ]
+    },
+    {
+      "id": "math.solve",
+      "path": "math solve",
+      "summary": "解方程或求表达式零点。",
+      "usage": "/math solve <方程/表达式> [--var <变量>]",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<方程/表达式>",
+          "description": "可写 x^2-5*x+6=0；不写 = 时按表达式=0 求解。"
+        },
+        {
+          "name": "[--var <变量>]",
+          "description": "求解变量，默认 x。"
+        }
+      ],
+      "examples": [
+        "/math solve x^2-5*x+6=0 --var x"
+      ]
+    },
+    {
+      "id": "math.diff",
+      "path": "math diff",
+      "summary": "符号求导。",
+      "usage": "/math diff <表达式> [--var <变量>] [--order <阶数>]",
+      "aliases": [
+        "math derive"
+      ],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<表达式>",
+          "description": "待求导表达式。"
+        },
+        {
+          "name": "[--var <变量>]",
+          "description": "变量，默认 x。"
+        },
+        {
+          "name": "[--order <阶数>]",
+          "description": "1–12 阶，默认 1。"
+        }
+      ],
+      "examples": [
+        "/math diff sin(x)*exp(x) --var x --order 2"
+      ]
+    },
+    {
+      "id": "math.integrate",
+      "path": "math integrate",
+      "summary": "不定积分或定积分。",
+      "usage": "/math integrate <表达式> [--var <变量>] [--from <下限> --to <上限>]",
+      "aliases": [
+        "math int"
+      ],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<表达式>",
+          "description": "被积函数。"
+        },
+        {
+          "name": "[--var <变量>]",
+          "description": "积分变量，默认 x。"
+        },
+        {
+          "name": "[--from <下限> --to <上限>]",
+          "description": "两者同时给出时计算定积分；支持 pi、oo。"
+        }
+      ],
+      "examples": [
+        "/math integrate sin(x) --var x --from 0 --to pi"
+      ]
+    },
+    {
+      "id": "math.limit",
+      "path": "math limit",
+      "summary": "符号极限。",
+      "usage": "/math limit <表达式> --to <趋近点> [--var <变量>] [--dir {+|-|+-}]",
+      "aliases": [
+        "math lim"
+      ],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<表达式>",
+          "description": "要求极限的表达式。"
+        },
+        {
+          "name": "--to <趋近点>",
+          "description": "必填；例如 0、oo、-oo。"
+        },
+        {
+          "name": "[--var <变量>]",
+          "description": "变量，默认 x。"
+        },
+        {
+          "name": "[--dir {+|-|+-}]",
+          "description": "右极限、左极限或双侧极限；默认 +-."
+        }
+      ],
+      "examples": [
+        "/math limit sin(x)/x --to 0 --var x"
+      ]
+    },
+    {
+      "id": "math.factorint",
+      "path": "math factorint",
+      "summary": "整数素因子分解。",
+      "usage": "/math factorint <整数>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<整数>",
+          "description": "轻量模式限制 |n| <= 10^30。"
+        }
+      ],
+      "examples": [
+        "/math factorint 1234567890"
+      ]
+    },
+    {
+      "id": "math.prime",
+      "path": "math prime",
+      "summary": "素性检查并给出相邻素数。",
+      "usage": "/math prime <整数>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<整数>",
+          "description": "检查是否为素数；合数同时给出相邻素数。"
+        }
+      ],
+      "examples": [
+        "/math prime 2147483647"
+      ]
+    },
+    {
+      "id": "math.stats",
+      "path": "math stats",
+      "summary": "一维描述统计。",
+      "usage": "/math stats <数> [数 ...]",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<数> [数 ...]",
+          "description": "1–5000 个实数，可用空格或逗号分隔；返回均值、中位数、总体/样本标准差和范围。"
+        }
+      ],
+      "examples": [
+        "/math stats 1 2 3 4 10"
+      ]
+    },
+    {
+      "id": "math.wa",
+      "path": "math wa",
+      "summary": "Wolfram|Alpha LLM API 计算/知识查询。",
+      "usage": "/math wa <query>",
+      "aliases": [
+        "math wolfram"
+      ],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<query>",
+          "description": "适合自然语言科学计算、单位/常数/实体和复杂计算；需要配置 Wolfram|Alpha AppID。"
+        }
+      ],
+      "examples": [
+        "/math wa integrate x^2 exp(-x) from 0 to infinity"
+      ],
+      "agent_notes": "WA 是外部计算知识引擎；本地可精确完成的代数/微积分优先用对应 /math 功能，跨领域计算或知识型问题再用 WA。"
+    },
+    {
+      "id": "math.formal.overview",
+      "path": "math formal",
+      "summary": "Lean / Coq(Rocq) / Rzk 轻量形式化入口概览。",
+      "usage": "/math formal",
+      "aliases": [],
+      "args": "none",
+      "kind": "command",
+      "agent_notes": "formal 当前是 playground/starter bridge，不代表 Doge 本机 proof kernel 已验证。"
+    },
+    {
+      "id": "math.formal.lean",
+      "path": "math formal lean",
+      "summary": "生成 Lean 4 / Mathlib starter，并把源码带入 Lean Web。",
+      "usage": "/math formal lean [Lean code]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[Lean code]",
+          "description": "可省略；省略时给一个 Mathlib/ring 示例。提供源码时生成带 code= 的 Lean Web URL。"
+        }
+      ],
+      "examples": [
+        "/math formal lean example (n : Nat) : n + 0 = n := by simp"
+      ],
+      "agent_notes": "Lean Web 适合小型片段；返回链接不等于证明已通过，必须以 Lean infoview/kernel 实际结果为准。"
+    },
+    {
+      "id": "math.formal.coq",
+      "path": "math formal coq",
+      "summary": "Coq/Rocq 的 jsCoq 浏览器入口与 starter。",
+      "usage": "/math formal coq [Coq code]",
+      "aliases": [
+        "math formal rocq"
+      ],
+      "args": "optional",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[Coq code]",
+          "description": "可省略；当前返回 jsCoq playground 和可复制源码，不声称服务器本地核验。"
+        }
+      ],
+      "examples": [
+        "/math formal coq"
+      ],
+      "agent_notes": "jsCoq 是浏览器 proof environment；Doge 当前只准备源码/入口，不伪造 kernel verification。"
+    },
+    {
+      "id": "math.formal.rzk",
+      "path": "math formal rzk",
+      "summary": "Rzk 单文件 playground 与 starter。",
+      "usage": "/math formal rzk [Rzk code]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[Rzk code]",
+          "description": "可省略；starter 使用 #lang rzk-1。"
+        }
+      ],
+      "examples": [
+        "/math formal rzk"
+      ],
+      "agent_notes": "Rzk 更专门面向 synthetic ∞-categories/HoTT；当前为在线 playground bridge，不是本地 checker。"
     },
     {
       "id": "util.encode",
@@ -1465,7 +1797,7 @@
     {
       "id": "lab.life",
       "path": "lab life",
-      "summary": "Conway Game of Life",
+      "summary": "Conway Game of Life 动态 GIF 模拟。",
       "usage": "/lab life [{glider|gun|acorn|random}] [steps]",
       "aliases": [
         "lab conway"
@@ -1479,8 +1811,12 @@
         },
         {
           "name": "[steps]",
-          "description": "可选演化代数，默认 120。"
+          "description": "可选演化代数，默认 120；长模拟最多采样 72 个 GIF 帧，不改变细胞演化。"
         }
+      ],
+      "examples": [
+        "/lab life glider 120",
+        "/lab life gun 240"
       ]
     },
     {
@@ -2918,11 +3254,50 @@
     {
       "id": "lang.rrpl",
       "path": "lang rrpl",
-      "summary": "RRPL 递归部件语言解析与渲染。",
+      "summary": "RRPL 递归部件语言渲染；支持 0–8 米格笔画、横/竖 packing、括号分组与汉字部件引用。",
       "usage": "/lang rrpl <RRPL/汉字引用表达式>",
       "aliases": [],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<RRPL/汉字引用表达式>",
+          "description": "0–8 为米格基础笔画；A-B 左右排，A|B 上下排，(...) 分组；已收录汉字/部件可直接引用并递归展开。"
+        }
+      ],
+      "examples": [
+        "/lang rrpl (48|37)-(25678|27)-(37|15)",
+        "/lang rrpl 廿|468|由|(八)"
+      ],
+      "agent_notes": "RRPL 核心语法：0–8 表示米格笔画（0 空）；- 是左右 packing，| 是上下 packing，括号控制递归分组；已知汉字/部件可直接引用。拿不准时先调用 /lang rrpl syntax 或 explain，不要凭空发明运算符。"
+    },
+    {
+      "id": "lang.rrpl.syntax",
+      "path": "lang rrpl syntax",
+      "summary": "查看 RRPL 完整核心语法与例子。",
+      "usage": "/lang rrpl syntax",
+      "aliases": [],
+      "args": "none",
+      "kind": "command",
+      "agent_notes": "Agent 在生成 RRPL 前若不确定结构，应优先读取此语法说明。"
+    },
+    {
+      "id": "lang.rrpl.explain",
+      "path": "lang rrpl explain",
+      "summary": "展开汉字引用并检查 RRPL packing/笔画结构。",
+      "usage": "/lang rrpl explain <RRPL/汉字引用表达式>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<RRPL/汉字引用表达式>",
+          "description": "返回递归展开后的纯 RRPL、叶子数量和笔画段数量，适合 render 前检查。"
+        }
+      ],
+      "examples": [
+        "/lang rrpl explain ((車|(山))-(殳))|(手)"
+      ]
     },
     {
       "id": "media.trace.anime",

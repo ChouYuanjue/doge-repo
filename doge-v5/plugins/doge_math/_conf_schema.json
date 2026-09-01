@@ -1,0 +1,8 @@
+{
+  "wolfram_appid": {
+    "description": "Wolfram|Alpha AppID（可选）",
+    "type": "string",
+    "default": "",
+    "hint": "用于 /math wa。留空时回退读取 WOLFRAM_ALPHA_APPID 环境变量；不要把 AppID 写进仓库。"
+  }
+}

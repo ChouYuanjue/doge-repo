@@ -1,1 +1,1 @@
-DOGE_VERSION = "5.8.0"
+DOGE_VERSION = "5.9.0"

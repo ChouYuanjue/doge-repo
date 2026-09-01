@@ -9,6 +9,7 @@ from urllib.parse import quote, urljoin
 import aiohttp
 
 from .logic import codec, convert_base, safe_calc
+from . import math_symbolic
 
 
 class ServiceError(RuntimeError):
@@ -74,6 +75,20 @@ class MathService:
             seq = item.get("data", "")
             out.append(f"A{number:06d} {name}\n{seq}")
         return "\n\n".join(out)
+
+    numeric = staticmethod(math_symbolic.numeric)
+    simplify = staticmethod(math_symbolic.simplify)
+    expand = staticmethod(math_symbolic.expand)
+    factor = staticmethod(math_symbolic.factor)
+    solve = staticmethod(math_symbolic.solve)
+    diff = staticmethod(math_symbolic.diff)
+    integrate = staticmethod(math_symbolic.integrate)
+    limit = staticmethod(math_symbolic.limit)
+    factorint = staticmethod(math_symbolic.factorint)
+    prime = staticmethod(math_symbolic.prime)
+    stats = staticmethod(math_symbolic.stats)
+    formal = staticmethod(math_symbolic.formal)
+    formal_overview = staticmethod(math_symbolic.formal_overview)
 
 
 class ChemService:

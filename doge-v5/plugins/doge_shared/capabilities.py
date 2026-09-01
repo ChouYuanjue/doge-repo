@@ -209,7 +209,11 @@ def agent_capability_prompt() -> str:
             continue
         lines.append(f"/{cmd}: " + d["commands"][cmd].get("summary", ""))
         for op in ops:
-            lines.append(f"  {op['usage']} — {op['summary']}{_agent_input_hint(op)}")
+            note = str(op.get("agent_notes") or "").strip()
+            suffix = _agent_input_hint(op)
+            if note:
+                suffix += " Agent note: " + note
+            lines.append(f"  {op['usage']} — {op['summary']}{suffix}")
     triggers = [x for x in formal_operations() if x.get("kind") == "trigger"]
     if triggers:
         lines.append("Designed non-slash triggers:")

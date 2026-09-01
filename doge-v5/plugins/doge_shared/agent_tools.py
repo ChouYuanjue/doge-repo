@@ -14,14 +14,48 @@ from .lookup import LookupService
 @dataclass
 class DogeMathTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_math"
-    description: str = "Doge 数学工具：安全算式、进制转换、π 数位和 OEIS 查询。"
-    parameters: dict = Field(default_factory=lambda: {"type":"object","properties":{"action":{"type":"string","enum":["calc","base","pi","oeis"]},"input":{"type":"string"},"source_base":{"type":"integer","minimum":2,"maximum":64},"target_base":{"type":"integer","minimum":2,"maximum":64},"start":{"type":"integer","minimum":0},"count":{"type":"integer","minimum":1,"maximum":1000}},"required":["action"]})
+    description: str = (
+        "Doge 数学计算工具：精确/符号代数、微积分、数论、统计、OEIS、Wolfram|Alpha。"
+        "数学可视化和模拟属于 /lab；形式化语言的 playground 链接也可由 formal 动作生成。"
+    )
+    wolfram_appid: str = ""
+    parameters: dict = Field(default_factory=lambda: {
+        "type":"object",
+        "properties":{
+            "action":{"type":"string","enum":["calc","base","pi","oeis","numeric","simplify","expand","factor","solve","diff","integrate","limit","factorint","prime","stats","wa","formal"]},
+            "input":{"type":"string","description":"表达式、方程、查询或整数；按 action 解释"},
+            "variable":{"type":"string","default":"x"},
+            "order":{"type":"integer","minimum":1,"maximum":12},
+            "digits":{"type":"integer","minimum":2,"maximum":100},
+            "lower":{"type":"string"},"upper":{"type":"string"},"point":{"type":"string"},
+            "direction":{"type":"string","enum":["+","-","+-"]},
+            "values":{"type":"array","items":{"type":"number"},"maxItems":5000},
+            "language":{"type":"string","enum":["lean","coq","rocq","rzk"]},
+            "code":{"type":"string"},
+            "source_base":{"type":"integer","minimum":2,"maximum":64},
+            "target_base":{"type":"integer","minimum":2,"maximum":64},
+            "start":{"type":"integer","minimum":0},
+            "count":{"type":"integer","minimum":1,"maximum":1000}
+        },
+        "required":["action"]
+    })
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
-        action=kwargs.get("action","")
-        if action=="calc": return MathService.calc(str(kwargs.get("input","")))
-        if action=="base": return MathService.base(str(kwargs.get("input","")),int(kwargs["source_base"]),int(kwargs["target_base"]))
-        if action=="pi": return await MathService.pi(int(kwargs.get("start",0)),int(kwargs.get("count",100)))
-        if action=="oeis": return await MathService.oeis(str(kwargs.get("input","")))
+        a=str(kwargs.get("action") or ""); q=str(kwargs.get("input") or "")
+        if a=="calc": return MathService.calc(q)
+        if a=="base": return MathService.base(q,int(kwargs["source_base"]),int(kwargs["target_base"]))
+        if a=="pi": return await MathService.pi(int(kwargs.get("start",0)),int(kwargs.get("count",100)))
+        if a=="oeis": return await MathService.oeis(q)
+        if a=="numeric": return MathService.numeric(q,int(kwargs.get("digits",15)))
+        if a in {"simplify","expand","factor"}: return getattr(MathService,a)(q)
+        if a=="solve": return MathService.solve(q,str(kwargs.get("variable") or "x"))
+        if a=="diff": return MathService.diff(q,str(kwargs.get("variable") or "x"),int(kwargs.get("order",1)))
+        if a=="integrate": return MathService.integrate(q,str(kwargs.get("variable") or "x"),kwargs.get("lower"),kwargs.get("upper"))
+        if a=="limit": return MathService.limit(q,str(kwargs.get("variable") or "x"),str(kwargs.get("point") or "0"),str(kwargs.get("direction") or "+-"))
+        if a=="factorint": return MathService.factorint(int(q))
+        if a=="prime": return MathService.prime(int(q))
+        if a=="stats": return MathService.stats(list(kwargs.get("values") or []))
+        if a=="wa": return await LookupService.wolfram(q,appid=self.wolfram_appid)
+        if a=="formal": return MathService.formal(str(kwargs.get("language") or "lean"),str(kwargs.get("code") or q))
         raise ValueError("unknown math action")
 
 @dataclass

@@ -14,6 +14,7 @@ from doge_shared.affect import TransientAffect
 from doge_shared.agent_bridge import DogeCapabilityTool, DogePresentTool, _likely_help, _normalize_command
 from doge_shared.capabilities import agent_capability_prompt
 from doge_shared.module_control import available_doge_plugins, is_group_admin, resolve_module
+from doge_shared.persona_runtime import PersonaRuntime
 
 
 class AffectTests(unittest.TestCase):
@@ -39,6 +40,40 @@ class AffectTests(unittest.TestCase):
         affect = TransientAffect()
         state = affect.observe("g", "这个垃圾数据和蠢算法得重做", now=100.0)
         self.assertGreater(state.valence, -0.05)
+
+
+class PersonaRuntimeTests(unittest.TestCase):
+    def test_scene_modes_are_contextual_not_one_fixed_voice(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect)
+        calm = affect.observe("u", "继续看一下", now=100.0)
+        self.assertEqual(runtime.cue("u", "这个 CI 错误继续查", calm).scene, "analytical")
+        self.assertEqual(runtime.cue("u", "我这次真的搞砸了，好难受", calm).scene, "quiet-care")
+        happy = affect.observe("p", "豆子你真可爱", now=100.0)
+        self.assertEqual(runtime.cue("p", "哈哈你今天挺可爱", happy).scene, "playful")
+
+    def test_strategic_child_act_is_rare_permission_and_never_serious(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect)
+        state = affect.observe("p", "正常聊天", now=100.0)
+        # The deterministic gate should open for some scopes, but remain rare.
+        opened = [f"scope-{i}" for i in range(512) if runtime._rare_gate(f"scope-{i}", "把截图发给你，哄我一下")]
+        self.assertGreater(len(opened), 0)
+        self.assertLess(len(opened), 40)
+        cue = runtime.cue(opened[0], "把截图发给你，哄我一下", state)
+        self.assertTrue(cue.child_act_allowed)
+        serious = runtime.cue(opened[0], "生产服务器错误，把截图发给你", state)
+        self.assertFalse(serious.child_act_allowed)
+
+    def test_runtime_prompt_uses_role_chain_and_anti_caricature_bounds(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect)
+        state = affect.observe("u", "继续", now=100.0)
+        prompt = runtime.prompt("u", "继续", state)
+        for marker in ("Anchoring", "Selecting", "Bounding", "Enacting"):
+            self.assertIn(marker, prompt)
+        self.assertIn("客服腔", prompt)
+        self.assertIn("固定口癖轮播", prompt)
 
 
 class AgentBridgeMetadataTests(unittest.TestCase):

@@ -1,5 +1,5 @@
 name: doge_math
-version: 5.3.0
-desc: Doge 数学计算、进制、π 与 OEIS
+version: 5.4.0
+desc: Doge 精确/符号数学、数论、统计、WA 与形式化入口
 author: runnel
 repo: https://github.com/ChouYuanjue/doge-repo

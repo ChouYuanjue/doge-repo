@@ -31,11 +31,11 @@ def _title(img: Image.Image, text: str) -> None:
     d.text((29, 25), text, fill=(22, 22, 26), font=_font(18))
 
 
-def _out(output_dir: Path, stem: str) -> Path:
+def _out(output_dir: Path, stem: str, suffix: str = ".png") -> Path:
     d = Path(output_dir) / "lab"
     d.mkdir(parents=True, exist_ok=True)
     token = hashlib.sha256(stem.encode()).hexdigest()[:12]
-    return d / f"{stem}-{token}.png"
+    return d / f"{stem}-{token}{suffix}"
 
 
 def _life_seed(kind: str, n: int, rng) -> np.ndarray:
@@ -80,37 +80,54 @@ def _life_step(a: np.ndarray) -> np.ndarray:
 
 
 def life(output_dir: Path, kind: str="glider", steps: int=120, size: int=121) -> tuple[Path,str]:
+    """Render Conway Life as a real animated GIF.
+
+    `steps` is the simulated generation count.  For long runs we sample at most
+    72 frames rather than allocating one full bitmap per generation; this keeps
+    QQ-sized GIFs useful without changing the cellular automaton itself.
+    """
     steps=max(3,min(int(steps),3500)); size=max(81,min(int(size)|1,241)); rng=np.random.default_rng(20260831)
     a=_life_seed(kind,size,rng)
-    marks=sorted(set([0,max(1,steps//3),max(2,2*steps//3),steps])); shots={0:a.copy()}
+    frame_count=min(72,max(12,min(steps+1,48 if steps<=120 else 72)))
+    marks=sorted(set(int(x) for x in np.linspace(0,steps,frame_count)))
+    shots={0:a.copy()}
+    wanted=set(marks)
     for t in range(1,steps+1):
         a=_life_step(a)
-        if t in marks: shots[t]=a.copy()
-    # Crop all four snapshots to one shared union box. This preserves spatial
-    # motion while making sparse patterns readable in a chat thumbnail.
+        if t in wanted: shots[t]=a.copy()
+
+    # One shared crop makes motion visible instead of re-centering each frame.
     coords=[]
     for arr in shots.values():
         yy,xx=np.nonzero(arr)
         if len(xx): coords.append((int(yy.min()),int(yy.max()),int(xx.min()),int(xx.max())))
     if coords:
-        y0=max(0,min(v[0] for v in coords)-8); y1=min(size,max(v[1] for v in coords)+9)
-        x0=max(0,min(v[2] for v in coords)-8); x1=min(size,max(v[3] for v in coords)+9)
+        y0=max(0,min(v[0] for v in coords)-7); y1=min(size,max(v[1] for v in coords)+8)
+        x0=max(0,min(v[2] for v in coords)-7); x1=min(size,max(v[3] for v in coords)+8)
     else:
         y0=x0=0; y1=x1=size
-    h=max(1,y1-y0); w=max(1,x1-x0); side=max(h,w)
+    h=max(1,y1-y0); w=max(1,x1-x0); side=max(h,w,18)
     cy=(y0+y1)//2; cx=(x0+x1)//2
-    y0=max(0,min(size-side,cy-side//2)); x0=max(0,min(size-side,cx-side//2)); y1=min(size,y0+side); x1=min(size,x0+side)
-    panel=360; canvas=Image.new("RGB",(2*panel+48,2*panel+86),(245,245,242)); draw=ImageDraw.Draw(canvas)
-    for idx,t in enumerate(marks[:4]):
+    y0=max(0,min(max(0,size-side),cy-side//2)); x0=max(0,min(max(0,size-side),cx-side//2))
+    y1=min(size,y0+side); x1=min(size,x0+side)
+
+    panel=480
+    frames=[]
+    for t in marks:
         arr=shots[t][y0:y1,x0:x1]
-        small=np.where(arr,25,246).astype(np.uint8)
+        small=np.where(arr,24,246).astype(np.uint8)
         rgb=np.stack([small,small,small],axis=-1)
-        im=Image.fromarray(rgb,"RGB").resize((panel,panel),Image.Resampling.NEAREST)
-        x=16+(idx%2)*(panel+16); y=72+(idx//2)*(panel+16)
-        canvas.paste(im,(x,y)); draw.text((x+8,y+8),f"t={t} · alive={int(shots[t].sum())}",fill=(190,60,45),font=_font(17))
-    _title(canvas,f"Conway's Game of Life · {kind} · {steps} generations")
-    path=_out(output_dir,f"life-{kind}-{steps}-{size}"); canvas.save(path)
-    return path,"Conway 生命游戏只有“邻居数决定生死”这一条局部机制。四幅图把同一个初态的时间演化直接并排展示。"
+        board=Image.fromarray(rgb,"RGB").resize((panel,panel),Image.Resampling.NEAREST)
+        canvas=Image.new("RGB",(panel+32,panel+92),(245,245,242))
+        canvas.paste(board,(16,68))
+        _title(canvas,f"Conway Life · {kind} · generation {t}/{steps}")
+        d=ImageDraw.Draw(canvas)
+        d.text((22,panel+72),f"alive = {int(shots[t].sum())} · sampled frame {marks.index(t)+1}/{len(marks)}",fill=(75,75,82),font=_font(15))
+        # A tiny palette keeps the animated result reasonably small on QQ.
+        frames.append(canvas.convert("P",palette=Image.Palette.ADAPTIVE,colors=16))
+    path=_out(output_dir,f"life-{kind}-{steps}-{size}",suffix=".gif")
+    frames[0].save(path,save_all=True,append_images=frames[1:],format="GIF",duration=120,loop=0,disposal=2,optimize=True)
+    return path,f"Conway 生命游戏 GIF：模拟 {steps} 代，采样 {len(frames)} 帧。每一帧都来自同一局部规则的真实演化；长模拟只降低动画采样频率，不改变演化过程。"
 
 
 def dla(output_dir: Path, particles: int=850, size: int=321) -> tuple[Path,str]:
@@ -172,7 +189,7 @@ def beats(output_dir: Path, f1: float=9.0, f2: float=10.0, seconds: float=3.0) -
 
 def help_text() -> str:
     return (
-        "  /lab life [{glider|gun|acorn|random}] [steps]\n"
+        "  /lab life [{glider|gun|acorn|random}] [steps]    # animated GIF\n"
         "  /lab dla [particles]\n"
         "  /lab beats [f1] [f2] [seconds]\n"
         + __import__("doge_v5.visual_lab_fun2", fromlist=["help_text"]).help_text()

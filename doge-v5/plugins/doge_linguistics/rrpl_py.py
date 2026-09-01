@@ -213,3 +213,47 @@ def render_png(code: str, refs_path: Path, output_path: Path, *, grid: bool = Tr
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_bytes(png)
     return output_path, expanded
+
+RRPL_SYNTAX_GUIDE = """RRPL syntax · Recursive Radical Packing Language
+
+BUILDING BLOCKS
+  0..8 describe strokes on a 米 grid; 0 means no stroke.
+     1 2 3
+      \\|/
+    8 -+- 4
+      /|\\
+     7 6 5
+  Examples: 48, 24578
+
+PACKING
+  A-B    horizontal / left-to-right packing
+  A|B    vertical / top-to-bottom packing
+  Chains split space equally: 27-26-26, 2468|24578
+
+GROUPING
+  (...) fixes recursive grouping when - and | are mixed.
+  Example: (48|37)-(25678|27)-(37|15)
+
+REFERENCES
+  Known Chinese characters/radicals may appear directly; their RRPL definition is recursively expanded.
+  Examples: 廿|468|由|(八)
+            ((車|(山))-(殳))|(手)
+
+RULE OF THUMB
+  First decide the outer structure (left/right uses -, top/bottom uses |), then recurse into each component.
+  Do not invent letters or operators outside 0-8, -, |, parentheses, and known character references."""
+
+
+def explain(code: str, refs_path: Path) -> str:
+    refs = load_reference_dict(refs_path)
+    expanded = expand_references(code, refs)
+    tree = parse(expanded)
+    rects = to_rects(tree)
+    lines = to_lines(rects)
+    preview = expanded if len(expanded) <= 1200 else expanded[:1200] + "…"
+    return (
+        f"source: {code.strip()}\n"
+        f"expanded: {preview}\n"
+        f"packing leaves: {len(rects)}\n"
+        f"stroke segments: {len(lines)}"
+    )

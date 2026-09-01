@@ -20,6 +20,7 @@ from data.plugins.doge_shared.help_live import (
     scope_key,
 )
 from data.plugins.doge_shared.module_control import disabled_plugins, filter_toolset_for_session
+from data.plugins.doge_shared.persona_runtime import PersonaRuntime
 from data.plugins.doge_shared.presentation import image_result, markdown_to_plain, text_result
 from data.plugins.doge_shared.release import DOGE_VERSION
 from data.plugins.doge_shared.raw_command import command_payload
@@ -50,6 +51,7 @@ class DogeCore(Star):
         )
         self.help_preferences = HelpPreferenceStore(self.core_data_dir / "help_preferences.json")
         self.affect = TransientAffect()
+        self.persona_runtime = PersonaRuntime(self.affect)
         register_domain_tools(
             context,
             "doge_core",
@@ -87,7 +89,14 @@ class DogeCore(Star):
         # Persona owns voice; the registry owns capability truth.  The generic
         # bridge makes every formal non-Legacy command reachable without adding
         # 199 near-duplicate tool schemas to each request.
-        mood = self.affect.observe(event.unified_msg_origin, event.message_str or "")
+        try:
+            sender = str(event.get_sender_id() or "")
+        except Exception:
+            sender = ""
+        # Affect is relationship-local rather than group-global: one person's
+        # bad turn should not make Doge inexplicably cold to everyone else.
+        affect_scope = event.unified_msg_origin + (f"|sender:{sender}" if sender else "")
+        mood = self.affect.observe(affect_scope, event.message_str or "")
         await filter_toolset_for_session(event.unified_msg_origin, req.func_tool)
         session_disabled = await disabled_plugins(event.unified_msg_origin)
         req.system_prompt = (
@@ -96,6 +105,8 @@ class DogeCore(Star):
             + agent_capability_prompt()
             + "\n\n"
             + self.affect.prompt(mood)
+            + "\n\n"
+            + self.persona_runtime.prompt(affect_scope, event.message_str or "", mood)
         )
         if session_disabled:
             req.system_prompt += (

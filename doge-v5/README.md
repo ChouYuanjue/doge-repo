@@ -97,6 +97,14 @@ AstrBot 原生 manager 会过滤普通 command handler；`doge_shared.module_con
 
 ## 7. 正式能力域
 
+### Math 与 Lab 的边界
+
+`/math` 是**计算/求解层**：基础算术、高精度数值、SymPy 符号化简/展开/因式分解、方程、微积分、数论、统计、OEIS、Wolfram|Alpha，以及 Lean / Coq(Rocq) / Rzk 的轻量 playground bridge。形式化入口只负责 starter/源码转交，不在没有真实 proof kernel 的情况下宣称证明通过。
+
+`/lab` 是**可视化/模拟层**：分形、动力系统、统计物理、元胞自动机、几何/物理教学图等。它的目标是让机制“看得见”，不是充当通用 CAS。Conway Life 保留历史功能语义，输出真实 GIF 演化动画。
+
+RRPL 也按同样原则从“一个 renderer”升级为可理解能力：`/lang rrpl syntax` 给出 0–8 米格笔画、`-` 左右 packing、`|` 上下 packing、括号和汉字引用规则；`/lang rrpl explain` 可在 render 前展开引用并检查结构。
+
 当前默认 profile 包括：
 
 - `doge_core`：Help、版本、状态、统计、Agent foundation；

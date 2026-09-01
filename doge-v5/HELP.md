@@ -15,11 +15,11 @@ GROUPS
              认识当前实例、查看运行状态与使用统计。
   research    47  检索 / 科研
              论文、知识检索，以及生化环材、天文和临床数据。
-  compute      9  计算机 / AI
-             数学、轻量 AI/CS 实验和远端代码执行。
+  compute     25  数学 / 计算机 / AI
+             精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
   create      69  排版 / 图形 / 工程
-             把公式、Markdown、代码、图表和工程系统变成可分享的结果。
-  language    12  语言学
+             排版、结构图、工程系统，以及以图像/动画展示机制的科学实验。
+  language    14  语言学
              西夏文、汉字历史音系、RRPL 与构造语言。
   play        33  游戏 / 群聊实验
              小游戏、解谜、概念炼金和荒诞竞技场。
@@ -41,8 +41,8 @@ QUICK START
 
 SCALE
   顶层指令       29
-  正式叶子功能   199
-  正式调用形式   453  （含 254 个兼容别名）
+  正式叶子功能   217
+  正式调用形式   476  （含 259 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -350,15 +350,15 @@ BACK
   /help
 ```
 
-## 计算机 / AI (`compute`)
+## 数学 / 计算机 / AI (`compute`)
 
-数学、轻量 AI/CS 实验和远端代码执行。
+精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
 
 ### `/math`
 
 ```text
 COMMAND  /math
-数学计算、进制、π、OEIS 等轻量数学工具。
+精确/符号计算、代数与微积分、数论、统计、OEIS、WA 和形式化数学入口；结果以计算/文本为主。
 
 SUBCOMMANDS
   calc             数学表达式计算。
@@ -369,12 +369,62 @@ SUBCOMMANDS
     /math pi <起点> <位数>
   oeis             查询 OEIS 数列/关键词。
     /math oeis <数列或关键词>
+  numeric          数学函数与高精度数值求值（SymPy）。
+    /math numeric <表达式> [--digits <位数>]
+  simplify         符号化简（SymPy）。
+    /math simplify <表达式>
+  expand           代数展开（SymPy）。
+    /math expand <表达式>
+  factor           符号因式分解（SymPy）。
+    /math factor <表达式>
+  solve            解方程或求表达式零点。
+    /math solve <方程/表达式> [--var <变量>]
+  diff             符号求导。
+    /math diff <表达式> [--var <变量>] [--order <阶数>]
+  integrate        不定积分或定积分。
+    /math integrate <表达式> [--var <变量>] [--from <下限> --to <上限>]
+  limit            符号极限。
+    /math limit <表达式> --to <趋近点> [--var <变量>] [--dir {+|-|+-}]
+  factorint        整数素因子分解。
+    /math factorint <整数>
+  prime            素性检查并给出相邻素数。
+    /math prime <整数>
+  stats            一维描述统计。
+    /math stats <数> [数 ...]
+  wa               Wolfram|Alpha LLM API 计算/知识查询。
+    /math wa <query>
+  formal            4 功能  Lean / Coq(Rocq) / Rzk 轻量形式化入口
 
 NEXT
   /help math calc
 
 BACK
   /help
+```
+
+#### `/help math formal`
+
+```text
+COMMAND  /math formal
+Lean / Coq(Rocq) / Rzk 轻量形式化入口
+
+DIRECT
+  /math formal
+    Lean / Coq(Rocq) / Rzk 轻量形式化入口概览。
+
+SUBCOMMANDS
+  lean             生成 Lean 4 / Mathlib starter，并把源码带入 Lean Web。
+    /math formal lean [Lean code]
+  coq              Coq/Rocq 的 jsCoq 浏览器入口与 starter。
+    /math formal coq [Coq code]
+  rzk              Rzk 单文件 playground 与 starter。
+    /math formal rzk [Rzk code]
+
+NEXT
+  /help math formal lean
+
+BACK
+  /help math
 ```
 
 ### `/ai`
@@ -433,7 +483,7 @@ BACK
 
 ## 排版 / 图形 / 工程 (`create`)
 
-把公式、Markdown、代码、图表和工程系统变成可分享的结果。
+排版、结构图、工程系统，以及以图像/动画展示机制的科学实验。
 
 ### `/md`
 
@@ -608,7 +658,7 @@ BACK
 
 ```text
 COMMAND  /lab
-数学、物理和复杂系统的直观科学实验。
+可视化、模拟和直觉实验：用图像/动画观察数学、物理与复杂系统；不作为通用求解器。
 
 SUBCOMMANDS
   fractal           2 功能  分形
@@ -681,7 +731,7 @@ SUBCOMMANDS
     /lab diffraction [slit_sep] [slit_width] [wavelength]
   replicator       复制子动力学/RPS
     /lab replicator [bias]
-  life             Conway Game of Life
+  life             Conway Game of Life 动态 GIF 模拟。
     /lab life [{glider|gun|acorn|random}] [steps]
   dla              Diffusion-limited aggregation
     /lab dla [particles]
@@ -755,8 +805,7 @@ SUBCOMMANDS
   tangut            6 功能  西夏文双向翻译 / 字典 / 拟音 / 渲染
   cthuvian          3 功能  R'lyehian / Cthuvian
   han               2 功能  汉字历史音系 / 方言
-  rrpl             RRPL
-    /lang rrpl <RRPL/汉字引用表达式>
+  rrpl              3 功能  RRPL · 递归部件语法 / 解释 / 渲染
 
 NEXT
   /help lang tangut
@@ -829,6 +878,29 @@ SUBCOMMANDS
 
 NEXT
   /help lang han find
+
+BACK
+  /help lang
+```
+
+#### `/help lang rrpl`
+
+```text
+COMMAND  /lang rrpl
+RRPL · 递归部件语法 / 解释 / 渲染
+
+DIRECT
+  /lang rrpl <RRPL/汉字引用表达式>
+    RRPL 递归部件语言渲染；支持 0–8 米格笔画、横/竖 packing、括号分组与汉字部件引用。
+
+SUBCOMMANDS
+  syntax           查看 RRPL 完整核心语法与例子。
+    /lang rrpl syntax
+  explain          展开汉字引用并检查 RRPL packing/笔画结构。
+    /lang rrpl explain <RRPL/汉字引用表达式>
+
+NEXT
+  /help lang rrpl syntax
 
 BACK
   /help lang

@@ -13,7 +13,7 @@ from data.plugins.doge_shared.visual_lab import LabError, help_text as lab_help_
 from data.plugins.doge_shared.help_service import format_cli_error
 
 
-@register('doge_playground','runnel','数学、物理与复杂系统的直观科学实验室','5.4.0')
+@register('doge_playground','runnel','数学、物理与复杂系统的直观科学实验室','5.5.0')
 class DogePlayground(Star):
     def __init__(self, context: Context):
         super().__init__(context)

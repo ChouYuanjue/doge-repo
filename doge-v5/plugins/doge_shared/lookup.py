@@ -241,18 +241,25 @@ SELECT ?p ?value ?valueLabel WHERE {{
         return "\n".join(lines)
 
     @staticmethod
-    async def wolfram(q, maxchars=3500):
+    async def wolfram(q, maxchars=3500, appid: str | None = None):
         q = (q or "").strip()
-        appid = os.getenv("WOLFRAM_ALPHA_APPID", "").strip()
+        appid = (appid or os.getenv("WOLFRAM_ALPHA_APPID", "")).strip()
         if not q or len(q) > 500:
             raise LookupError("Wolfram 查询需为 1-500 字符")
         if not appid:
-            raise LookupError("未配置 WOLFRAM_ALPHA_APPID；Wolfram 子功能保持关闭")
+            raise LookupError("未配置 Wolfram|Alpha AppID；可在 doge_math 插件配置中填写 wolfram_appid")
+        # The official LLM API accepts AppID as the `appid` query parameter.
+        # Keeping the credential out of headers/logging also makes this path easy
+        # to share with the direct /math command and the generic lookup service.
         return (
             await _text(
                 "https://www.wolframalpha.com/api/v1/llm-api",
-                {"input": q, "maxchars": max(400, min(int(maxchars), 6000))},
-                {"Authorization": f"Bearer {appid}"},
+                {
+                    "input": q,
+                    "appid": appid,
+                    "maxchars": max(400, min(int(maxchars), 6000)),
+                },
+                None,
                 25,
             )
         ).strip()

@@ -15,7 +15,7 @@ from data.plugins.doge_shared.raw_command import command_payload, split_head
 from data.plugins.doge_shared.help_service import format_cli_error
 
 from .linguistics import CthuvianAdapter, TangutDictionary, YindianService, render_tangut
-from .rrpl_py import RrplError, render_png as render_rrpl_png
+from .rrpl_py import RRPL_SYNTAX_GUIDE, RrplError, explain as explain_rrpl, render_png as render_rrpl_png
 
 
 PLUGIN_DIR = Path(__file__).resolve().parent
@@ -54,7 +54,7 @@ def _format_segments(segments, max_items: int = 14) -> str:
     return " ｜ ".join(parts)
 
 
-@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.6.0")
+@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.7.0")
 class DogeLinguistics(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -121,6 +121,8 @@ class DogeLinguistics(Star):
             "- `/lang han <汉字>` 跨时代/方言读音比较\n"
             "- `/lang han <汉字> @ 广州,上海,中古` 指定系统\n"
             "- `/lang han find <关键词>` 搜索音典语言变体\n"
+            "- `/lang rrpl syntax` RRPL 0–8 / 横竖 packing / 分组 / 汉字引用语法\n"
+            "- `/lang rrpl explain <RRPL>` 展开引用并检查结构\n"
             "- `/lang rrpl <RRPL>` 递归部件语言渲染"
         )
 
@@ -341,11 +343,18 @@ class DogeLinguistics(Star):
 
     async def _rrpl_command(self, event: AstrMessageEvent, payload: str):
         code = payload.strip()
-        if not code:
-            yield text_result(
-                event,
-                "用法：/lang rrpl <RRPL>\n例：`/lang rrpl (48|37)-(25678|27)-(37|15)`\n也可直接引用汉字部件。",
-            )
+        if not code or code.lower() in {"help", "syntax", "?"}:
+            yield text_result(event, RRPL_SYNTAX_GUIDE, markdown=False)
+            return
+        if code.lower().startswith("explain "):
+            source = code[8:].strip()
+            if not source:
+                raise ValueError("用法：/lang rrpl explain <RRPL/汉字引用表达式>")
+            try:
+                out = await asyncio.to_thread(explain_rrpl, source, ASSETS / "rrpl.json")
+                yield text_result(event, out, markdown=False)
+            except RrplError as exc:
+                yield text_result(event, f"RRPL：{exc}\n\n{RRPL_SYNTAX_GUIDE}", markdown=False)
             return
         token = hashlib.sha256(code.encode()).hexdigest()[:12]
         path = self.data_dir / "temp" / f"rrpl-{token}.png"
@@ -354,6 +363,6 @@ class DogeLinguistics(Star):
             caption = f"RRPL · Python renderer · expanded {len(expanded)} chars"
             yield image_result(event, path, caption)
         except RrplError as exc:
-            yield text_result(event, f"RRPL：{exc}", markdown=False)
+            yield text_result(event, f"RRPL：{exc}\n\n{RRPL_SYNTAX_GUIDE}", markdown=False)
         finally:
             path.unlink(missing_ok=True)
