@@ -37,7 +37,7 @@
     "lang":{"summary":"Language Lab：西夏文、汉字音系、RRPL 与 R'lyehian/Cthuvian。","usage":["/lang tangut ...","/lang han ...","/lang rrpl ...","/lang cthuvian ..."]},
     "game":{"summary":"群聊游戏与解谜统一入口。","usage":["/game 24 ...","/game nc ...","/game signal ...","/game mine ...","/game sudoku ...","/game dice ..."],"examples":["/game mine normal","/game sudoku hard","/game dice d20adv 察觉 15"]},
     "fuse":{"summary":"把两个概念炼成可持续复用的群聊物件。","usage":["/fuse <概念A> + <概念B>"]},
-    "arena":{"summary":"荒诞能力卡与约束条件驱动的竞技场。","usage":["/arena <子功能> ..."]},
+    "arena":{"summary":"完整保留原 /wp 238 条手写弱能力；支持原味直接对决与高组合竞技场。","usage":["/arena draw|get|reroll","/arena show","/arena fight @某人","/arena duel @某人","/arena chaos [2|3]","/arena deck"],"examples":["/arena draw","/arena fight @某人","/arena chaos 3","/arena deck"]},
     "media":{"summary":"视觉小实验：AnimeTrace 图片识别与本地幻影坦克。","usage":["/media trace anime|gal [图片]","/media mirage gray|color [两张图片]"]},
     "util":{"summary":"有用但不值得单独成域的小工具：codec、天气、APOD、Bing 等。","usage":["/util <子功能> ..."]},
     "admin":{"summary":"AstrBot 框架级指令命名空间；普通 Doge 功能不放这里。","usage":["/admin help","/admin sid","/admin reset|stop|new|stats","/admin set|unset ...","/admin name|provider|dashboard_update ..."],"notes":["部分子命令仅管理员可用。"]}
@@ -54,6 +54,8 @@
     "lang rrpl":{"summary":"RRPL 结构描述递归展开并本地渲染。","usage":["/lang rrpl <RRPL/汉字引用表达式>"]},
     "lang cthuvian":{"summary":"固定上游 R'lyehian/Cthuvian Translator 的正反向与高语体翻译。","usage":["/lang cthuvian to <文本>","/lang cthuvian high <文本>","/lang cthuvian from <文本>"]},
     "media trace":{"summary":"AnimeTrace 动漫/Gal 图片识别。","usage":["/media trace anime [图片]","/media trace gal [图片]"]},
-    "media mirage":{"summary":"本地 Pillow/NumPy 幻影坦克，不依赖付费 API。","usage":["/media mirage gray [两张图片]","/media mirage color [两张图片]"]}
+    "media mirage":{"summary":"本地 Pillow/NumPy 幻影坦克，不依赖付费 API。","usage":["/media mirage gray [两张图片]","/media mirage color [两张图片]"]},
+    "arena chaos":{"summary":"从 238 条原始弱能力中组合 2–3 条，并附加不会改写原文的竞技场结算条款。","usage":["/arena chaos 2","/arena chaos 3"]},
+    "arena fight":{"summary":"保留原 /wp fight 语义：双方直接拿当前弱能力进行严肃荒诞的对决解说，不额外强塞场景能力。","usage":["/arena fight @某人"]}
   }
 }

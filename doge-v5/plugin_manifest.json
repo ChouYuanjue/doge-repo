@@ -10,6 +10,11 @@
       "default": true
     },
     {
+      "name": "doge_admin",
+      "status": "core",
+      "default": true
+    },
+    {
       "name": "doge_math",
       "status": "formal",
       "default": true
@@ -103,8 +108,8 @@
     },
     {
       "name": "doge_media",
-      "status": "planned",
-      "default": false
+      "status": "formal",
+      "default": true
     },
     {
       "name": "doge_code",

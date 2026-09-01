@@ -61,3 +61,44 @@ class MorrisTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MarketGameTests(unittest.TestCase):
+    def test_minesweeper_first_click_safe_and_renders(self):
+        import asyncio
+        import tempfile
+        from doge_games.minesweeper_adapter import apply, new_game, render
+
+        game = asyncio.run(new_game("easy"))
+        apply(game, "open", ["A1"])
+        self.assertFalse(game.tiles[0][0].is_mine)
+        self.assertTrue(game.tiles[0][0].is_open)
+        with tempfile.TemporaryDirectory() as td:
+            path = render(game, Path(td), "test")
+            self.assertGreater(path.stat().st_size, 1000)
+            self.assertEqual(path.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
+
+    def test_sudoku_is_unique_solvable_and_renders(self):
+        import tempfile
+        from doge_games.sudoku_adapter import new_game, render
+
+        game = new_game("easy")
+        self.assertEqual(game.difficulty, "easy")
+        self.assertFalse(game.complete)
+        # The pinned generator marks multi-solution puzzles with difficulty=-3;
+        # adapter retries them, so every returned session has one accepted solution.
+        self.assertEqual(len(game.solution), 9)
+        self.assertTrue(all(len(row) == 9 for row in game.solution))
+        with tempfile.TemporaryDirectory() as td:
+            path = render(game, Path(td), "test")
+            self.assertGreater(path.stat().st_size, 1000)
+
+    def test_tabletop_dice_supports_roll20_modifiers(self):
+        from doge_games.dice_adapter import tabletop_roll
+
+        out = tabletop_roll("d20adv 察觉 15")
+        self.assertIn("察觉", out)
+        self.assertIn("2d20adv", out)
+        self.assertIn("/ 15", out)
+        out2 = tabletop_roll("4d6kh3")
+        self.assertIn("4d6kh3", out2)

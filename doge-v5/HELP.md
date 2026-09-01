@@ -288,11 +288,23 @@ Language Lab：西夏文、汉字音系、RRPL 与 R'lyehian/Cthuvian。
 
 ### `/arena`
 
-荒诞能力卡与约束条件驱动的竞技场。
+完整保留原 /wp 238 条手写弱能力；支持原味直接对决与高组合竞技场。
 
 用法：
 
-- `/arena <子功能> ...`
+- `/arena draw|get|reroll`
+- `/arena show`
+- `/arena fight @某人`
+- `/arena duel @某人`
+- `/arena chaos [2|3]`
+- `/arena deck`
+
+例子：
+
+- `/arena draw`
+- `/arena fight @某人`
+- `/arena chaos 3`
+- `/arena deck`
 
 ## 媒体 / 小工具 (`media`)
 
@@ -454,3 +466,20 @@ AnimeTrace 动漫/Gal 图片识别。
 
 - `/media mirage gray [两张图片]`
 - `/media mirage color [两张图片]`
+
+### `/help arena chaos`
+
+从 238 条原始弱能力中组合 2–3 条，并附加不会改写原文的竞技场结算条款。
+
+用法：
+
+- `/arena chaos 2`
+- `/arena chaos 3`
+
+### `/help arena fight`
+
+保留原 /wp fight 语义：双方直接拿当前弱能力进行严肃荒诞的对决解说，不额外强塞场景能力。
+
+用法：
+
+- `/arena fight @某人`
