@@ -350,12 +350,26 @@ class CthuvianAdapter:
 
     def translate(self, text: str, register: str = "low") -> dict:
         result = self._translator_cls().translate(text, register=register)
+        warnings = list(result.warnings)
+        surface = result.cthuvian
+        # Upstream deliberately supports reversible sealed tokens for material
+        # outside its lexicon. That is a useful encoding mechanism, but it must
+        # never be presented as if the lexicon/grammar translated the token.
+        sealed_tokens = re.findall(r"zha'[^\s]*?'zhro(?:-[A-Za-z]+)?", surface)
+        if "sealed_fallback" in warnings or (surface.startswith("zha'") and surface.endswith("'zhro")):
+            provenance = "sealed"
+        elif sealed_tokens:
+            provenance = "hybrid"
+        else:
+            provenance = "lexicon"
         return {
             "source": result.source,
-            "cthuvian": result.cthuvian,
+            "cthuvian": surface,
             "register": result.register,
             "roundtrip_ok": bool(result.roundtrip_ok),
-            "warnings": list(result.warnings),
+            "warnings": warnings,
+            "provenance": provenance,
+            "sealed_tokens": len(sealed_tokens),
         }
 
     def gloss(self, text: str) -> dict:

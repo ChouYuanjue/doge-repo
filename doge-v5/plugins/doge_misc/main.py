@@ -11,7 +11,7 @@ from data.plugins.doge_shared.services import BingService, CodecService, NasaSer
 from data.plugins.doge_shared.weather import WeatherService
 
 
-@register("doge_misc", "runnel", "Doge 有用但不值得独立成域的小工具与轻彩蛋", "5.4.0")
+@register("doge_misc", "runnel", "Doge 有用但不值得独立成域的小工具与轻彩蛋", "5.6.0")
 class DogeMisc(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -79,7 +79,7 @@ class DogeMisc(Star):
 
             if action == "apod":
                 data = await NasaService.apod(rest or None)
-                caption = f"{data['date']} · {data['title']}\n\n{data['explanation'][:1600]}"
+                caption = f"{data['date']} · {data['title']} · {data.get('source','NASA APOD')}\n\n{data['explanation'][:1600]}"
                 if data["media_type"] == "image" and data["url"]:
                     yield image_result(event, data["url"], caption, remote=True)
                 else:

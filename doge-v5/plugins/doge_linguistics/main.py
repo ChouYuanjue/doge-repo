@@ -53,7 +53,7 @@ def _format_segments(segments, max_items: int = 14) -> str:
     return " ｜ ".join(parts)
 
 
-@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.2.0")
+@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.6.0")
 class DogeLinguistics(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -267,14 +267,25 @@ class DogeLinguistics(Star):
         if not text:
             raise ValueError("缺少要翻译/释读的文本")
         adapter = self._cth()
-        if action in {"to", "low", "translate"}:
-            result = await asyncio.to_thread(adapter.translate, text, "low")
+        if action in {"to", "low", "translate", "high", "chant"}:
+            register = "high" if action in {"high", "chant"} else "low"
+            result = await asyncio.to_thread(adapter.translate, text, register)
+            provenance = result["provenance"]
+            if provenance == "sealed":
+                label = f"RC-1 · {register} · sealed fallback"
+                note = "可逆 sealed 编码；原句未被 RC-1 词典/语法可靠分析，因此这不是词典翻译。"
+            elif provenance == "hybrid":
+                label = f"RC-1 · {register} · hybrid"
+                note = f"语法骨架可分析，但包含 {result['sealed_tokens']} 个 sealed 未收录片段；这些片段是可逆编码，不是词典词。"
+            else:
+                label = f"RC-1 · {register} · lexicon/grammar"
+                note = "由当前 RC-1 词典/语法路径生成。"
             warnings = ", ".join(result["warnings"]) if result["warnings"] else "none"
-            yield text_result(event, f"**RC-1 · low**\n\n{result['cthuvian']}\n\nroundtrip: `{result['roundtrip_ok']}` · warnings: `{warnings}`")
-            return
-        if action in {"high", "chant"}:
-            result = await asyncio.to_thread(adapter.translate, text, "high")
-            yield text_result(event, f"**RC-1 · high register**\n\n{result['cthuvian']}")
+            yield text_result(
+                event,
+                f"{label}\n\n{result['cthuvian']}\n\n来源说明：{note}\nroundtrip: {result['roundtrip_ok']} · warnings: {warnings}",
+                markdown=False,
+            )
             return
         if action in {"from", "gloss", "reverse"}:
             result = await asyncio.to_thread(adapter.gloss, text)

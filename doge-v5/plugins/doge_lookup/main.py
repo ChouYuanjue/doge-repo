@@ -12,16 +12,16 @@ from data.plugins.doge_shared.raw_command import command_payload, split_head
 
 HELP = (
     "Doge Lookup /lookup\n"
-    "  /lookup <query>                 Wikipedia + Wikidata 双来源\n"
-    "  /lookup wiki <query>            Wikipedia 摘要\n"
-    "  /lookup entity <query>          Wikidata 结构化实体事实\n"
+    "  /lookup <query>                 可达百科 + Wikidata/QLever 双来源\n"
+    "  /lookup wiki <query>            Wikipedia；不可达时明确切到真实百科后端\n"
+    "  /lookup entity <query>          Wikidata 结构化事实（QLever 镜像）\n"
     "  /lookup wa <query>              Wolfram|Alpha LLM API（需 AppID）\n"
-    "  /lookup en <query>              英文 Wikipedia + Wikidata\n"
+    "  /lookup en <query>              英文百科 + Wikidata/QLever\n"
     "输出保留来源链接；旧 DeepWiki 非正式接口不进入正式模块。"
 )
 
 
-@register('doge_lookup','runnel','Doge grounded 通用知识与计算查询','5.4.0')
+@register('doge_lookup','runnel','Doge grounded 通用知识与计算查询','5.6.0')
 class DogeLookup(Star):
     def __init__(self, context: Context):
         super().__init__(context)

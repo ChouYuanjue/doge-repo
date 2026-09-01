@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
-from urllib.parse import quote
+import re
+from datetime import date as date_type
+from urllib.parse import quote, urljoin
 
 import aiohttp
 
@@ -102,18 +104,81 @@ class CodecService:
 
 class NasaService:
     @staticmethod
-    async def apod(date: str | None = None) -> dict:
+    def _clean_html(value: str) -> str:
+        import html as _html
+        value = re.sub(r"<[^>]+>", " ", value or "")
+        return re.sub(r"\s+", " ", _html.unescape(value)).strip()
+
+    @classmethod
+    async def _apod_page(cls, requested: str | None = None) -> dict:
+        if requested:
+            try:
+                parsed = date_type.fromisoformat(requested.strip())
+            except ValueError as exc:
+                raise ValueError("APOD 日期使用 YYYY-MM-DD") from exc
+            page_url = f"https://apod.nasa.gov/apod/ap{parsed.strftime('%y%m%d')}.html"
+        else:
+            page_url = "https://apod.nasa.gov/apod/astropix.html"
+        body = await _text_get(page_url, timeout=12)
+        date_match = re.search(
+            r"\b(20\d{2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\b",
+            body,
+            re.I,
+        )
+        if date_match:
+            import datetime as _dt
+            parsed_date = _dt.datetime.strptime(" ".join(date_match.groups()), "%Y %B %d").date().isoformat()
+        else:
+            parsed_date = requested or ""
+        title_match = re.search(r"<center>\s*<b>\s*(.*?)\s*</b>\s*<br", body, re.I | re.S)
+        title = cls._clean_html(title_match.group(1)) if title_match else "Astronomy Picture of the Day"
+        explanation_match = re.search(
+            r"<b>\s*Explanation:\s*</b>(.*?)(?:<p>\s*<center>|<b>\s*Tomorrow|<p>\s*<hr)",
+            body,
+            re.I | re.S,
+        )
+        explanation = cls._clean_html(explanation_match.group(1)) if explanation_match else ""
+        image_match = re.search(r'<a\s+href=["\']([^"\']+)["\'][^>]*>\s*<img', body, re.I | re.S)
+        if image_match:
+            media_type = "image"
+            media_url = urljoin(page_url, image_match.group(1))
+        else:
+            frame = re.search(r'<iframe[^>]+src=["\']([^"\']+)', body, re.I | re.S)
+            media_type = "video" if frame else ""
+            media_url = urljoin(page_url, frame.group(1)) if frame else page_url
+        if not explanation and not media_url:
+            raise ServiceError("NASA APOD 页面结构无法识别")
+        return {
+            "date": parsed_date,
+            "title": title,
+            "explanation": explanation,
+            "media_type": media_type,
+            "url": media_url,
+            "source": "NASA APOD page",
+        }
+
+    @classmethod
+    async def apod(cls, date: str | None = None) -> dict:
         params = {"api_key": os.getenv("NASA_API_KEY", "DEMO_KEY")}
         if date:
+            # Validate before sending the request so the fallback uses the same semantics.
+            try:
+                date_type.fromisoformat(date.strip())
+            except ValueError as exc:
+                raise ValueError("APOD 日期使用 YYYY-MM-DD") from exc
             params["date"] = date.strip()
-        data = await _json_get("https://api.nasa.gov/planetary/apod", params=params)
-        return {
-            "date": data.get("date", ""),
-            "title": data.get("title", ""),
-            "explanation": data.get("explanation", ""),
-            "media_type": data.get("media_type", ""),
-            "url": data.get("hdurl") or data.get("url") or "",
-        }
+        try:
+            data = await _json_get("https://api.nasa.gov/planetary/apod", params=params, timeout=10)
+            return {
+                "date": data.get("date", ""),
+                "title": data.get("title", ""),
+                "explanation": data.get("explanation", ""),
+                "media_type": data.get("media_type", ""),
+                "url": data.get("hdurl") or data.get("url") or "",
+                "source": "NASA APOD API",
+            }
+        except (ServiceError, aiohttp.ClientError, TimeoutError):
+            return await cls._apod_page(date)
 
 
 class BingService:

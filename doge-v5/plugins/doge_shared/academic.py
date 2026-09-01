@@ -156,24 +156,37 @@ class PaperService:
         if not query:
             raise ValueError("检索词不能为空")
         limit = max(1, min(int(limit), 10))
+        # Ask OpenAlex for a slightly wider real candidate set, then only
+        # re-rank those returned records. Exact title matches should not lose
+        # to a newer similarly named work just because the remote search score
+        # prefers recency/citation features.
+        candidate_n = max(10, min(30, limit * 4))
         data = await _request_json(
             "GET",
             "https://api.openalex.org/works",
-            params=cls._oa_params({"search": query, "per-page": limit}),
+            params=cls._oa_params({"search": query, "per-page": candidate_n}),
         )
         rows = data.get("results", [])
         if not rows:
             return "OpenAlex 未找到论文"
+        def norm(v: str) -> str:
+            return re.sub(r"[^0-9a-z\u4e00-\u9fff]+", "", (v or "").casefold())
+        nq = norm(query)
+        def rank(item: dict):
+            title = str(item.get("display_name") or item.get("title") or "")
+            nt = norm(title)
+            exact = int(bool(nq) and nt == nq)
+            starts = int(bool(nq) and (nt.startswith(nq) or nq.startswith(nt)))
+            cited = int(item.get("cited_by_count") or 0)
+            year = int(item.get("publication_year") or 0)
+            return (exact, starts, cited, -abs(year - 2000))
+        rows = sorted(rows, key=rank, reverse=True)[:limit]
         return "OpenAlex 文献检索\n" + "\n".join(cls._format_oa(x, i + 1) for i, x in enumerate(rows))
 
-    @staticmethod
-    async def lookup(value: str) -> str:
+    @classmethod
+    async def lookup(cls, value: str) -> str:
         value = value.strip()
-        if _is_doi(value):
-            doi = _doi(value)
-            data = await _request_json("GET", f"https://api.crossref.org/works/{quote(doi, safe='')}")
-            item = data.get("message", {})
-        else:
+        if not _is_doi(value):
             data = await _request_json(
                 "GET",
                 "https://api.crossref.org/works",
@@ -183,15 +196,51 @@ class PaperService:
             if not items:
                 return "Crossref 未找到结果"
             item = items[0]
-        title = (item.get("title") or ["(untitled)"])[0]
-        authors = _names_crossref(item.get("author") or [])
-        published = (item.get("published-print") or item.get("published-online") or item.get("issued") or {}).get("date-parts", [["?"]])[0]
-        year = published[0] if published else "?"
-        venue = (item.get("container-title") or [""])[0]
-        doi = item.get("DOI", "")
-        cited = item.get("is-referenced-by-count", 0)
-        typ = item.get("type", "")
-        return f"{title}\n{authors or '作者未知'}\n{venue} · {year} · {typ} · cited {cited}\nDOI {doi}"
+            title = (item.get("title") or ["(untitled)"])[0]
+            authors = _names_crossref(item.get("author") or [])
+            published = (item.get("published-print") or item.get("published-online") or item.get("issued") or {}).get("date-parts", [["?"]])[0]
+            year = published[0] if published else "?"
+            venue = (item.get("container-title") or [""])[0]
+            doi = item.get("DOI", "")
+            cited = item.get("is-referenced-by-count", 0)
+            typ = item.get("type", "")
+            return f"Crossref\n{title}\n{authors or '作者未知'}\n{venue} · {year} · {typ} · cited {cited}\nDOI {doi}"
+
+        doi = _doi(value)
+        # Crossref does not index every registered DOI (notably some DataCite/arXiv
+        # records). Use real registries in sequence instead of inventing metadata.
+        try:
+            data = await _request_json("GET", f"https://api.crossref.org/works/{quote(doi, safe='')}", timeout=10)
+            item = data.get("message", {})
+            title = (item.get("title") or ["(untitled)"])[0]
+            authors = _names_crossref(item.get("author") or [])
+            published = (item.get("published-print") or item.get("published-online") or item.get("issued") or {}).get("date-parts", [["?"]])[0]
+            year = published[0] if published else "?"
+            venue = (item.get("container-title") or [""])[0]
+            return f"Crossref\n{title}\n{authors or '作者未知'}\n{venue} · {year} · {item.get('type','')} · cited {item.get('is-referenced-by-count',0)}\nDOI {item.get('DOI',doi)}"
+        except AcademicError as exc:
+            if "HTTP 404" not in str(exc):
+                raise
+
+        try:
+            dc = await _request_json("GET", f"https://api.datacite.org/dois/{quote(doi, safe='/')}", timeout=12)
+            a = ((dc.get("data") or {}).get("attributes") or {})
+            titles = a.get("titles") or []
+            title = (titles[0].get("title") if titles else "") or "(untitled)"
+            creators = a.get("creators") or []
+            authors = ", ".join((x.get("name") or "") for x in creators[:5] if x.get("name"))
+            if len(creators) > 5:
+                authors += ", et al."
+            publisher = a.get("publisher") or ""
+            year = a.get("publicationYear") or "?"
+            types = a.get("types") or {}
+            typ = types.get("resourceTypeGeneral") or types.get("resourceType") or ""
+            return f"DataCite\n{title}\n{authors or '作者未知'}\n{publisher} · {year} · {typ}\nDOI {a.get('doi') or doi}"
+        except AcademicError:
+            pass
+
+        work = await cls._openalex_work(doi)
+        return "OpenAlex\n" + cls._format_oa(work)
 
     @classmethod
     async def cited(cls, doi: str, limit: int = 5) -> str:
@@ -625,25 +674,39 @@ class ResearchChemService:
 
     @staticmethod
     async def drug(query: str) -> str:
-        x = await _request_json(
-            "GET",
-            "https://www.ebi.ac.uk/chembl/api/data/molecule/search.json",
-            params={"q": query, "limit": 3},
+        # ChEMBL's EBI molecule-search endpoint is repeatedly unreachable from
+        # the production Alibaba route. Open Targets exposes the same ChEMBL IDs
+        # as first-class drug entities plus grounded mechanism-of-action rows.
+        search_q = "query Q($q:String!){ search(queryString:$q, entityNames:[\"drug\"]){ hits { id name entity description } } }"
+        found = await _request_json(
+            "POST",
+            "https://api.platform.opentargets.org/api/v4/graphql",
+            payload={"query": search_q, "variables": {"q": query}},
+            timeout=12,
         )
-        rows = x.get("molecules", [])
-        if not rows:
-            return "ChEMBL 未找到分子"
-        m = rows[0]
-        cid = m.get("molecule_chembl_id", "")
-        mech = await _request_json(
-            "GET",
-            "https://www.ebi.ac.uk/chembl/api/data/mechanism.json",
-            params={"molecule_chembl_id": cid, "limit": 8},
+        hits = ((found.get("data") or {}).get("search") or {}).get("hits") or []
+        drug = next((h for h in hits if h.get("entity") == "drug" and str(h.get("id", "")).startswith("CHEMBL")), None)
+        if not drug:
+            return "Open Targets/ChEMBL 未找到药物"
+        detail_q = "query D($id:String!){ drug(chemblId:$id){ id name description drugType maximumClinicalStage mechanismsOfAction { rows { actionType mechanismOfAction targetName targets { id approvedSymbol } references { source ids } } } } }"
+        data = await _request_json(
+            "POST",
+            "https://api.platform.opentargets.org/api/v4/graphql",
+            payload={"query": detail_q, "variables": {"id": drug["id"]}},
+            timeout=12,
         )
-        props = m.get("molecule_properties") or {}
-        out = [f"{m.get('pref_name') or query} · {cid} · max phase {m.get('max_phase','?')} · MW {props.get('full_mwt','?')}"]
-        for row in (mech.get("mechanisms") or [])[:8]:
-            out.append(f"- {row.get('mechanism_of_action') or row.get('action_type') or 'mechanism'} · {row.get('target_chembl_id','')} {row.get('target_name','')}")
+        d = (data.get("data") or {}).get("drug") or {}
+        if not d:
+            return "Open Targets 找到 ChEMBL ID，但药物详情为空"
+        out = [
+            f"Open Targets / ChEMBL · {d.get('name') or query} · {d.get('id')}",
+            f"{d.get('drugType') or '?'} · clinical stage {d.get('maximumClinicalStage') or '?'}",
+        ]
+        if d.get("description"):
+            out.append(_clean(d["description"], 500))
+        for row in ((d.get("mechanismsOfAction") or {}).get("rows") or [])[:8]:
+            targets = ", ".join(x.get("approvedSymbol") or x.get("id", "") for x in (row.get("targets") or [])[:6])
+            out.append(f"- {row.get('mechanismOfAction') or row.get('actionType') or 'mechanism'} · {row.get('targetName') or targets or '?'}{f' [{targets}]' if targets and targets != row.get('targetName') else ''}")
         return "\n".join(out)
 
     @staticmethod
@@ -669,6 +732,10 @@ class MaterialService:
     async def providers(limit: int = 30) -> str:
         x = await _request_json("GET", "https://providers.optimade.org/v1/links")
         rows = x.get("data", [])
+        # The official registry intentionally contains `exmpl`, a specification
+        # example provider. It is real registry data but not a usable database,
+        # so do not present it as a production material source.
+        rows = [r for r in rows if str(r.get("id") or "").lower() not in {"exmpl", "example"}]
         out = ["OPTIMADE providers"]
         for r in rows[: max(1, min(limit, 50))]:
             a = r.get("attributes", {})
@@ -716,11 +783,11 @@ class AstroService:
     async def object(cls, identifier: str) -> str:
         ident = identifier.strip().replace("'", "''")
         query = f"SELECT TOP 5 b.main_id,b.ra,b.dec,b.otype FROM basic AS b JOIN ident AS i ON b.oid=i.oidref WHERE i.id='{ident}'"
-        x = await _request_json(
-            "GET",
-            "https://simbad.cds.unistra.fr/simbad/sim-tap/sync",
-            params={"request": "doQuery", "lang": "adql", "format": "json", "query": query},
-        )
+        params = {"request": "doQuery", "lang": "adql", "format": "json", "query": query}
+        try:
+            x = await _request_json("GET", "https://simbad.cds.unistra.fr/simbad/sim-tap/sync", params=params, timeout=10)
+        except (AcademicError, aiohttp.ClientError, asyncio.TimeoutError):
+            x = await _request_json("GET", "https://simbad.u-strasbg.fr/simbad/sim-tap/sync", params=params, timeout=12)
         rows = cls._tap_rows(x)
         if not rows:
             return "SIMBAD 未找到对象；请尝试标准天体标识，例如 M 31 / Betelgeuse"
