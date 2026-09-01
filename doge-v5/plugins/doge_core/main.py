@@ -2,15 +2,22 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.api.provider import LLMResponse, ProviderRequest
+from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 from data.plugins.doge_shared.agent_tools import DogeWeatherTool, register_domain_tools
 from data.plugins.doge_shared.capabilities import agent_capability_prompt, capability_display
-from data.plugins.doge_shared.help_service import render_help
-from data.plugins.doge_shared.presentation import markdown_to_plain, text_result
+from data.plugins.doge_shared.help_live import (
+    HelpPreferenceStore,
+    normalize_help_style_topic,
+    render_help_card,
+    render_help_live,
+    scope_key,
+)
+from data.plugins.doge_shared.presentation import image_result, markdown_to_plain, text_result
 from data.plugins.doge_shared.raw_command import command_payload
 from data.plugins.doge_shared.runtime_stats import (
     UsageCounter,
@@ -32,10 +39,12 @@ class DogeCore(Star):
         self.v5_root = Path(__file__).resolve().parents[2]
         self.repo_root = self.v5_root.parent
         self.data_root = Path(get_astrbot_data_path())
+        self.core_data_dir = Path(StarTools.get_data_dir("doge_core"))
         self.counter = UsageCounter(
-            Path(StarTools.get_data_dir("doge_core")) / "usage.json",
+            self.core_data_dir / "usage.json",
             self.data_root / "logs",
         )
+        self.help_preferences = HelpPreferenceStore(self.core_data_dir / "help_preferences.json")
         register_domain_tools(context, "doge_core", DogeWeatherTool())
 
     def _product(self) -> tuple[dict[str, int], int]:
@@ -46,6 +55,16 @@ class DogeCore(Star):
             tools = 0
         return counts, tools
 
+    def _help_scope(self, event: AstrMessageEvent) -> tuple[str, str]:
+        try:
+            group_id = event.get_group_id()
+        except Exception:
+            group_id = None
+        try:
+            platform = event.get_platform_name()
+        except Exception:
+            platform = "unknown"
+        return scope_key(str(platform or "unknown"), str(group_id) if group_id else None, event.unified_msg_origin)
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=10000)
     async def count_usage(self, event: AstrMessageEvent):
@@ -55,8 +74,7 @@ class DogeCore(Star):
     @filter.on_llm_request(priority=100)
     async def enrich_llm_request(self, event: AstrMessageEvent, req: ProviderRequest) -> None:
         # Capability knowledge is generated from the same leaf-level registry as
-        # /help and /statics, so the persona cannot drift into "I cannot do X"
-        # while X is actually installed.
+        # /help and /statics, so style changes never alter runtime self-knowledge.
         req.system_prompt = (req.system_prompt or "") + "\n\n" + agent_capability_prompt()
         if str(event.get_platform_name() or "").lower() != "aiocqhttp":
             return
@@ -79,8 +97,50 @@ class DogeCore(Star):
     @filter.command("help")
     async def help(self, event: AstrMessageEvent):
         topic = command_payload(event.message_str, "help")
-        text, markdown = render_help(topic)
-        yield text_result(event, text, markdown=markdown)
+        pref_action = normalize_help_style_topic(topic)
+        pref_key, pref_label = self._help_scope(event)
+        if pref_action is not None:
+            action, value = pref_action
+            if action == "query":
+                current = self.help_preferences.get(pref_key)
+                yield text_result(
+                    event,
+                    f"Help 显示：{'图片' if current == 'image' else '文字'}（{pref_label}）\n"
+                    "/help style image\n/help style text",
+                    markdown=False,
+                )
+                return
+            if action == "invalid":
+                yield text_result(
+                    event,
+                    "Help 样式只支持 image / text。\n/help style image\n/help style text",
+                    markdown=False,
+                )
+                return
+            assert value is not None
+            mode = self.help_preferences.set(pref_key, value)
+            yield text_result(
+                event,
+                f"Help 已切换为{'图片' if mode == 'image' else '文字'}显示（{pref_label}）。",
+                markdown=False,
+            )
+            return
+
+        text, markdown = render_help_live(topic)
+        if self.help_preferences.get(pref_key) == "text":
+            yield text_result(event, text, markdown=markdown)
+            return
+
+        path: Path | None = None
+        try:
+            path = render_help_card(self.core_data_dir, text)
+            yield image_result(event, path)
+        except Exception as exc:
+            logger.warning(f"doge help card render failed; falling back to text: {exc}")
+            yield text_result(event, text + "\n\n[图片排版失败，本次已回退到文字。]", markdown=False)
+        finally:
+            if path is not None:
+                path.unlink(missing_ok=True)
 
     @filter.command("ver")
     async def version(self, event: AstrMessageEvent):
