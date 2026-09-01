@@ -82,7 +82,7 @@ class DogeAdmin(Star):
         if not await is_group_admin(event):
             raise PermissionError("只有当前群的群主或群管理员可以修改模块")
 
-    @admin.command_group("modules")
+    @admin.group("modules")
     def modules(self):
         """AstrBot native per-session plugin switches for the current group."""
 
