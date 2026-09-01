@@ -12,7 +12,7 @@
 | `chart` | v3/chart | native | yes | QuickChart 仍可用；与 Mermaid 的流程图/关系图用途不同。 |
 | `mermaid` | v4/mermaid | reuse | yes | 现实现成熟且已经接入 LLM Tool，直接复用。 |
 | `complex` | v4/complex | optional | later | 价值明确，但依赖浏览器/Selenium/Playwright 和第三方网页，运行成本及脆弱性较高，默认不启用。 |
-| `fourier` | v4/fourier | native-v5 | yes | 忠实保留轮廓→复路径→DFT→旋转向量 GIF；修复 separate 相对位置并新增真实图片智能取材。 |
+| `fourier` | v4/fourier | native-v5-merged | yes | 忠实保留轮廓→复路径→DFT→旋转向量 GIF；实现并入 `doge_playground`，同时保留独立 `/fourier` 命令面。 |
 | `lab` | new Scientific Playground | native-v5 | no | NumPy/Pillow 本地科学可视化与小实验；优先直观、可参数化和群聊缩略图可读，CPU 图像生成不默认暴露给 Agent。 |
 | `circuit` | new/Schemdraw | optional-wrapper | no | 用短 DSL 薄封装 Schemdraw；重依赖惰性导入。 |
 | `control` | new/python-control | optional-wrapper | no | 直接复用标准 Bode/Nyquist/root-locus/step/impulse 计算；SciPy/Matplotlib 按需安装。 |

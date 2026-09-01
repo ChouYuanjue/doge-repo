@@ -42,8 +42,9 @@
     },
     {
       "name": "doge_fourier",
-      "status": "formal",
-      "default": true
+      "status": "merged",
+      "default": false,
+      "merged_into": "doge_playground"
     },
     {
       "name": "doge_engineering",

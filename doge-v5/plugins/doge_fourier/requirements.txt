@@ -1,2 +1,0 @@
-opencv-python-headless>=4.10,<5
-CairoSVG>=2.7,<3

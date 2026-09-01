@@ -1,2 +1,4 @@
 numpy>=1.26,<3
 Pillow>=10,<13
+opencv-python-headless>=4.10,<5
+CairoSVG>=2.7,<3

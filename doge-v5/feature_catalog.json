@@ -148,13 +148,13 @@
       "from": [
         "v4/fourier"
       ],
-      "decision": "native-v5",
+      "decision": "native-v5-merged",
       "agent": "yes",
-      "reason": "保留 v4 的轮廓→复路径→DFT→旋转向量 GIF 语义；v5 修复 separate 布局并新增真实图片智能取材。",
+      "reason": "保留 v4 轮廓→复路径→DFT→旋转向量 GIF 语义；实现并入 doge_playground，避免为同一数学可视化域单独维护插件。",
       "deploy": [
         {
           "source": "plugin",
-          "name": "doge_fourier"
+          "name": "doge_playground"
         }
       ]
     },

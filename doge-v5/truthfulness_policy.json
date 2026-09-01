@@ -28,9 +28,9 @@
       "fallback": "alternate real renderer or explicit error"
     },
     "doge_playground": {
-      "kind": "explicit-simulation",
-      "source": "local numerical/visual algorithms",
-      "fallback": "explicit error"
+      "kind": "explicit-simulation+deterministic-local-renderer",
+      "source": "local numerical/visual algorithms; /fourier uses user image/SVG/text -> contour extraction -> complex DFT epicycles",
+      "fallback": "explicit error; /fourier never substitutes a generic FFT spectrum"
     },
     "doge_engineering": {
       "kind": "deterministic-simulation",
@@ -116,11 +116,6 @@
       "kind": "algorithmic-demo",
       "source": "pinned pyformlang/NetworkX/Graphviz",
       "fallback": "explicit error"
-    },
-    "doge_fourier": {
-      "kind": "deterministic-local-renderer",
-      "source": "user image/SVG/text -> local contour extraction -> complex DFT epicycles",
-      "fallback": "explicit error if no usable contour/material; never substitutes a generic FFT spectrum"
     }
   }
 }
