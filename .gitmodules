@@ -13,3 +13,15 @@
 [submodule "doge-v5/plugins/doge_cs/vendor/pyformlang"]
 	path = doge-v5/plugins/doge_cs/vendor/pyformlang
 	url = https://github.com/Aunsiels/pyformlang.git
+[submodule "doge-v5/plugins/doge_games/vendor/minesweeper_upstream"]
+	path = doge-v5/plugins/doge_games/vendor/minesweeper_upstream
+	url = git@github.com:Zhalslar/astrbot_plugin_minesweeper.git
+[submodule "doge-v5/plugins/doge_games/vendor/dnddice_upstream"]
+	path = doge-v5/plugins/doge_games/vendor/dnddice_upstream
+	url = git@github.com:Dracowyn/astrbot_plugin_dnd_dice.git
+[submodule "doge-v5/plugins/doge_games/vendor/pysudoku_upstream"]
+	path = doge-v5/plugins/doge_games/vendor/pysudoku_upstream
+	url = git@github.com:jeffsieu/py-sudoku.git
+[submodule "doge-v5/plugins/doge_media/vendor/mirage_upstream"]
+	path = doge-v5/plugins/doge_media/vendor/mirage_upstream
+	url = git@github.com:Yuzi-Liang/astrbot_plugin_mirage_tank.git

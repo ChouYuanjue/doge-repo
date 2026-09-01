@@ -9,6 +9,10 @@ Doge distinguishes **runtime dependency**, **pinned upstream submodule**, **vend
 - `Aunsiels/pyformlang` — MIT — `8ecb156f662609c56bb3ee7a7e5151bf77c10e16`; `/cs regex`.
 - `ChouYuanjue/Rlyehian-Cthuvian-Translator` — MIT — `0a62c9490c92d035fa09aaadaa156de86cab5cda`; `/lang cthuvian`. Doge uses the source checkout because the current upstream wheel assumes repository-relative data files.
 - `Dherse/codly` — MIT — `93bf59d43deff1431df889995b1427350eeb1499` (release 1.3.0); `/snippet`.
+- `Zhalslar/astrbot_plugin_minesweeper` — GPL-3.0 — `66c510abee2cf29ba00fd727e4a7202a41c7c21c`; reused game engine/skin renderer under `/game mine`.
+- `Dracowyn/astrbot_plugin_dnd_dice` — MIT — `636174a5129d42015ec9f522dae32a75d812319c`; Roll20-style parser/roller/formatter under `/game dice`.
+- `jeffsieu/py-sudoku` — MIT — `2fddfbf85090f320873d6af371f866d091af3096`; solver and uniqueness checks under `/game sudoku`. The unlicensed AstrBot market Sudoku source was deliberately not copied.
+- `Yuzi-Liang/astrbot_plugin_mirage_tank` — MIT — `125e8c06d8b520a60399b0e67756f0076af6b9bd`; local Pillow/NumPy mirage algorithm under `/media mirage`.
 
 Their license files remain in each submodule.
 
@@ -41,6 +45,7 @@ The production AstrBot Python 3.12 environment was validated with Typst 0.15.0, 
 - `/diagram mermaid` sends source to `mermaid.ink`; the caption/help makes this explicit.
 - `/run` uses the Runoob remote compiler; user code is never executed on the Doge host.
 - MCPDict is not cloned. `/lang han` calls the Yindian Web backend and only keeps light in-memory caches.
+- `/media trace` uses AnimeTrace; the service is treated as an external best-effort recognition source and has explicit timeouts.
 
 ## Audited implementation references only
 
