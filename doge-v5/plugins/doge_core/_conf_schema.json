@@ -19,8 +19,8 @@
   },
   "known_sender_identities": {
     "description": "按稳定发送者 ID 绑定的已知人物身份（私有运行时配置）",
-    "type": "object",
-    "default": {},
-    "hint": "昵称可以变化；当 ID 命中时，模型应按这里的身份认人。只向当前会话注入当前 sender 对应项，不公开整张映射。真实 ID/关系不要提交仓库。"
+    "type": "list",
+    "default": [],
+    "hint": "每项格式：发送者ID=身份说明。昵称可以变化；命中 ID 时按这里认人。真实 ID/关系不要提交仓库。"
   }
 }

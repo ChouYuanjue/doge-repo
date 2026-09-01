@@ -128,7 +128,7 @@ class PersonaRuntimeTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         schema = json.loads((root / "plugins" / "doge_core" / "_conf_schema.json").read_text(encoding="utf-8"))
         self.assertIn("known_sender_identities", schema)
-        self.assertEqual(schema["known_sender_identities"]["default"], {})
+        self.assertEqual(schema["known_sender_identities"]["default"], [])
         source = (root / "plugins" / "doge_core" / "main.py").read_text(encoding="utf-8")
         self.assertIn("Stable sender ID", source)
         self.assertIn("nicknames are mutable", source)

@@ -69,15 +69,23 @@ class DogeCore(Star):
         else:
             self.relationship_facts = []
         self.relationship_facts = self.relationship_facts[:24]
-        raw_identities = self.config.get("known_sender_identities", {})
+        raw_identities = self.config.get("known_sender_identities", [])
+        self.known_sender_identities = {}
         if isinstance(raw_identities, dict):
-            self.known_sender_identities = {
+            self.known_sender_identities.update({
                 str(k).strip(): str(v).strip()
                 for k, v in raw_identities.items()
                 if str(k).strip() and str(v).strip()
-            }
-        else:
-            self.known_sender_identities = {}
+            })
+        elif isinstance(raw_identities, (list, tuple, set)):
+            for item in raw_identities:
+                text = str(item).strip()
+                if "=" not in text:
+                    continue
+                sender_id, identity = text.split("=", 1)
+                sender_id, identity = sender_id.strip(), identity.strip()
+                if sender_id and identity:
+                    self.known_sender_identities[sender_id] = identity
         self.persona_runtime = PersonaRuntime(self.affect, closest_sender_ids=closest_sender_ids)
         register_domain_tools(
             context,
