@@ -1,4 +1,10 @@
 {
+  "absolute_admin_ids": {
+    "description": "始终拥有 AstrBot 框架级管理员权限的发送者 ID（私有运行时配置）",
+    "type": "list",
+    "default": [],
+    "hint": "部署脚本会将这些 ID 并入 cmd_config.json 的 admins_id，从而对 /reset、ADMIN permission filter 等框架级检查生效。真实 ID 不应提交到仓库。"
+  },
   "closest_sender_ids": {
     "description": "始终视为最高亲近度的发送者 ID（私有运行时配置）",
     "type": "list",

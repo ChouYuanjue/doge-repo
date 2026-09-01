@@ -36,6 +36,8 @@ v5.9 初版曾在每轮同时注入较长静态 Persona、transient affect 说�
 
 生产可以在 `doge_core` 私有配置里设置 `closest_sender_ids` 与少量 `relationship_facts`。它们只作为自然社交背景，不改变权限，也不应写进公开仓库；关系事实只有直接相关时才使用，不能反复自我介绍式强调。
 
+`absolute_admin_ids` 是独立的权限配置：部署脚本会把它并入 AstrBot 全局 `admins_id`，因此它作用于 `/reset` 等框架级管理员检查；它不由亲近度或关系事实推导。具体 ID 同样只放生产私有配置。
+
 需要图片/文件的能力共享 `materials.py`：当前消息附件 > 明确引用附件 > 同发送者同会话最近素材 > 短暂等待下一条补发。Agent 因此可以使用真实像素/文件，而不是把 vision caption 当成唯一素材通道。
 
 ## 短期情绪

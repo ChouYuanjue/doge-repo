@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PERSONA = ROOT / "persona" / "doge.json"
+CORE_CONFIG_NAME = "doge_core_config.json"
 
 
 def load_json_bom(path: Path) -> dict:
@@ -35,6 +36,22 @@ def install(runtime: Path, *, backup: bool = True) -> None:
         shutil.copy2(db_path, db_path.with_name(f"data_v4.db.pre-v55-{stamp}"))
 
     cfg = load_json_bom(config_path)
+
+    # Runtime-private absolute admins are promoted into AstrBot's framework-level
+    # admins_id list.  This makes builtin/admin permission checks (including
+    # /reset in shared group sessions) authoritative without committing personal
+    # IDs to the public repository. Existing framework admins are preserved.
+    core_config_path = runtime / "data" / "config" / CORE_CONFIG_NAME
+    private_core = {}
+    if core_config_path.exists():
+        private_core = load_json_bom(core_config_path)
+    absolute_admin_ids = [
+        str(x).strip() for x in (private_core.get("absolute_admin_ids") or [])
+        if str(x).strip()
+    ]
+    current_admins = [str(x).strip() for x in (cfg.get("admins_id") or []) if str(x).strip()]
+    cfg["admins_id"] = list(dict.fromkeys(current_admins + absolute_admin_ids))
+
     cfg.setdefault("provider_settings", {})["default_personality"] = persona["persona_id"]
     cfg["provider_settings"].setdefault("persona_pool", ["*"])
     cfg["disable_builtin_commands"] = True
@@ -61,6 +78,7 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     print(f"persona={persona['persona_id']}")
     print("default_personality=" + cfg["provider_settings"]["default_personality"])
     print("disable_builtin_commands=" + str(cfg["disable_builtin_commands"]).lower())
+    print("absolute_admins_applied=" + str(len(absolute_admin_ids)))
 
 
 if __name__ == "__main__":

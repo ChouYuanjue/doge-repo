@@ -232,6 +232,7 @@ class PersonaTests(unittest.TestCase):
             cfg = {
                 "provider_settings": {"default_personality": "default", "persona_pool": ["*"], "default_provider_id": "keep-me"},
                 "platform": [{"id": "napcat", "secret": "DO_NOT_TOUCH"}],
+                "admins_id": ["existing-admin"],
                 "disable_builtin_commands": False,
             }
             (data / "cmd_config.json").write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8-sig")
@@ -240,11 +241,16 @@ class PersonaTests(unittest.TestCase):
                 "CREATE TABLE personas (created_at TEXT NOT NULL, updated_at TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT, persona_id TEXT UNIQUE NOT NULL, system_prompt TEXT NOT NULL, begin_dialogs JSON, tools JSON, skills JSON, custom_error_message TEXT, folder_id TEXT, sort_order INTEGER DEFAULT 0)"
             )
             conn.commit(); conn.close()
+            (data / "config").mkdir()
+            (data / "config" / "doge_core_config.json").write_text(
+                json.dumps({"absolute_admin_ids": ["2700074128", "existing-admin"]}), encoding="utf-8"
+            )
             installer.install(runtime, backup=False); installer.install(runtime, backup=False)
             out = json.loads((data / "cmd_config.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(out["provider_settings"]["default_personality"], "doge")
             self.assertEqual(out["provider_settings"]["default_provider_id"], "keep-me")
             self.assertEqual(out["platform"][0]["secret"], "DO_NOT_TOUCH")
+            self.assertEqual(out["admins_id"], ["existing-admin", "2700074128"])
             self.assertTrue(out["disable_builtin_commands"])
             conn = sqlite3.connect(data / "data_v4.db")
             rows = conn.execute("SELECT persona_id,system_prompt,begin_dialogs FROM personas").fetchall(); conn.close()
