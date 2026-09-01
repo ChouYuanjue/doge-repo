@@ -223,15 +223,20 @@ def help_to_markdown(text: str) -> str:
             out.extend(["", f"## {stripped}"])
             continue
         if line.startswith("  "):
-            # Keep command-shaped tokens visually distinct while allowing CJK descriptions to wrap.
+            indent = len(line) - len(line.lstrip(" "))
+            # Two-space rows are primary card items. Deeper rows are descriptions
+            # or concrete usage examples nested under the preceding item.
             if stripped.startswith("/"):
                 parts = re.split(r"\s{2,}", stripped, maxsplit=1)
                 cmd = parts[0]
                 desc = parts[1] if len(parts) > 1 else ""
-                out.append(f"- `{cmd}`" + (f" — {desc}" if desc else ""))
-            elif re.match(r"^[a-z][a-z0-9_-]*\s+\d+\s+", stripped):
+                prefix = "  - " if indent >= 4 else "- "
+                out.append(prefix + f"`{cmd}`" + (f" — {desc}" if desc else ""))
+            elif indent <= 2 and re.match(r"^[a-z][a-z0-9_-]*\s+\d+\s+", stripped):
                 parts = re.split(r"\s{2,}", stripped, maxsplit=2)
                 out.append("- " + " · ".join(parts))
+            elif indent <= 2:
+                out.append(f"- {stripped}")
             else:
                 out.append(f"  {stripped}")
             continue
