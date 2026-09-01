@@ -12,8 +12,16 @@ for p in (ROOT / "vendor" / "micrograd", ROOT / "vendor" / "minbpe"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from micrograd.engine import Value  # type: ignore
-from minbpe.basic import BasicTokenizer  # type: ignore
+# These are pinned source submodules, not writable runtime caches.  Import them
+# without creating __pycache__ entries inside the vendor checkouts; otherwise a
+# normal plugin load makes the superproject appear dirty.
+_prev_dont_write_bytecode = sys.dont_write_bytecode
+try:
+    sys.dont_write_bytecode = True
+    from micrograd.engine import Value  # type: ignore
+    from minbpe.basic import BasicTokenizer  # type: ignore
+finally:
+    sys.dont_write_bytecode = _prev_dont_write_bytecode
 
 
 class AILabError(ValueError):
