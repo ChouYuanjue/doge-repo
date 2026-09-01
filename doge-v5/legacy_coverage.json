@@ -1,0 +1,619 @@
+{
+  "schema": 1,
+  "policy": "Every historical user-facing capability maps to current formal/core/misc or legacy; pure EPK state/plumbing may be internal-drop.",
+  "v3": {
+    "docs": "doge_core:/ver/help",
+    "ask": "doge_core:Agent chat",
+    "chat": "doge_core:Agent chat",
+    "run": "doge_code:/run",
+    "wa": "doge_lookup:/lookup wa",
+    "tex": "doge_typeset:/tex",
+    "siku": "legacy:/siku",
+    "poem": "legacy:/poem",
+    "yg": "legacy:/yg",
+    "gpt": "legacy:/gpt",
+    "dream": "legacy:/dream",
+    "style": "legacy:/style",
+    "toonify": "legacy:/toonify",
+    "gen": "legacy:/gen",
+    "insult": "legacy:/insult",
+    "phil": "legacy:/phil",
+    "chem": "doge_chem:/chem",
+    "chart": "legacy:/chart -> doge_diagrams",
+    "perc": "legacy:/perc",
+    "fru": "legacy:/fru",
+    "rua": "legacy:/rua",
+    "meme": "legacy:/meme",
+    "genshin": "legacy:/genshin",
+    "amuse": "doge_misc:/util/history",
+    "cotool": "doge_misc:/util",
+    "netool": "legacy:/netool",
+    "game": "doge_games:/game",
+    "math": "doge_math:/math",
+    "px": "legacy:/px",
+    "jeffjoke": "legacy:/jeffjoke",
+    "gan": "legacy:/gan",
+    "yan": "legacy:/yan",
+    "se": "legacy:/se",
+    "other": "doge_misc + doge_lookup + legacy"
+  },
+  "v4": {
+    "apis": "legacy:/api",
+    "complex": "doge_playground:/lab complex",
+    "cube": "doge_games:/game",
+    "doubao": "legacy:/doubao",
+    "emojimix": "legacy:/emojimix",
+    "fourier": "doge_playground:/lab",
+    "genshin": "legacy:/genshin",
+    "gol": "doge_playground:/lab life",
+    "gomoku": "doge_games:/game",
+    "honkai": "legacy:/honkai",
+    "latex": "doge_typeset:/tex",
+    "liblibapi": "legacy:/lcha,/ltran,/lsd,/lflux,/lcon,/limg",
+    "lyrics": "legacy:/lyrics",
+    "mc": "legacy:/mc",
+    "meme": "legacy:/meme",
+    "mermaid": "doge_diagrams:/diagram mermaid",
+    "mirage": "legacy:/mirage",
+    "music": "legacy:/music",
+    "pack": "legacy:/pack",
+    "pjsk": "doge_games:/game",
+    "pokemon": "doge_games:/game",
+    "poker": "doge_games:/game",
+    "rrpl": "doge_linguistics:/lang rrpl",
+    "run": "doge_code:/run",
+    "soup": "doge_games:/game",
+    "st": "legacy:/st",
+    "tangut": "doge_linguistics:/lang tangut",
+    "trace": "legacy:/trace",
+    "typst": "doge_typeset:/typst",
+    "utex": "doge_typeset:/tex",
+    "vv": "legacy:/vv",
+    "wa": "doge_lookup:/lookup wa",
+    "wiki": "doge_lookup:/lookup",
+    "wordle": "doge_games:/game",
+    "wp": "doge_arena:/arena"
+  },
+  "v2_rules": [
+    {
+      "id": 0,
+      "keyword": "[.*给我(.*)光明.*]",
+      "destination": "doge_misc:self-ban/event-history"
+    },
+    {
+      "id": 1,
+      "keyword": "[.*给我(.*)电疗.*]",
+      "destination": "doge_misc:self-ban/event-history"
+    },
+    {
+      "id": 2,
+      "keyword": "[.*(.*)谁(.*)最(.*)可爱(.*).*]",
+      "destination": "legacy:v2-misc"
+    },
+    {
+      "id": 3,
+      "keyword": "[.*CalculatePi start(.*) for(.*)digits.*]",
+      "destination": "doge_math:/math"
+    },
+    {
+      "id": 4,
+      "keyword": "[.*随机数(.*)-(.*).*]",
+      "destination": "doge_math:/math"
+    },
+    {
+      "id": 5,
+      "keyword": "[help]",
+      "destination": "doge_core:help/history"
+    },
+    {
+      "id": 6,
+      "keyword": "[jianh:]",
+      "destination": "legacy:v2-misc"
+    },
+    {
+      "id": 7,
+      "keyword": "[logic:]",
+      "destination": "doge_math:/math"
+    },
+    {
+      "id": 8,
+      "keyword": "[say]",
+      "destination": "legacy:say"
+    },
+    {
+      "id": 9,
+      "keyword": "[pixivid=]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 10,
+      "keyword": "[epk run ]",
+      "destination": "internal-drop:EPK administration"
+    },
+    {
+      "id": 11,
+      "keyword": "[&#91;多条&#93;&#91;群员离群&#93;|&#91;群员被踢&#93;]",
+      "destination": "legacy:group-event-history"
+    },
+    {
+      "id": 12,
+      "keyword": "[&#91;禁言事件&#93;]",
+      "destination": "doge_misc:self-ban/event-history"
+    },
+    {
+      "id": 13,
+      "keyword": "[毒TA]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 14,
+      "keyword": "[【前提QQ以图搜瓶】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 15,
+      "keyword": "[【前提取码】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 16,
+      "keyword": "[【前提QQ以图搜番】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 17,
+      "keyword": "[【群员入群】]",
+      "destination": "legacy:group-event-history"
+    },
+    {
+      "id": 18,
+      "keyword": "[浮力豆]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 19,
+      "keyword": "[花样清屏]",
+      "destination": "legacy:v2-misc"
+    },
+    {
+      "id": 20,
+      "keyword": "[猫狗]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 21,
+      "keyword": "[夸TA]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 22,
+      "keyword": "[来点百合]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 23,
+      "keyword": "[来点乱码]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 24,
+      "keyword": "[来份狗粮]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 25,
+      "keyword": "[毒我]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 26,
+      "keyword": "[取码]",
+      "destination": "legacy:v2-misc"
+    },
+    {
+      "id": 27,
+      "keyword": "[来神]",
+      "destination": "legacy:v2-misc"
+    },
+    {
+      "id": 28,
+      "keyword": "[骂TA]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 29,
+      "keyword": "[来只猫娘]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 30,
+      "keyword": "[来只老婆~]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 31,
+      "keyword": "[来只插画]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 32,
+      "keyword": "[来只童年猫狗]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 33,
+      "keyword": "[来只w哥]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 34,
+      "keyword": "[来只狗]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 35,
+      "keyword": "[来只豆力浮]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 36,
+      "keyword": "[来只浮力姬]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 37,
+      "keyword": "[来只碱基]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 38,
+      "keyword": "[来只老婆]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 39,
+      "keyword": "[费马]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 40,
+      "keyword": "[强基计划]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 41,
+      "keyword": "[狠狠毒TA]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 42,
+      "keyword": "[狠狠毒我]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 43,
+      "keyword": "[狠狠骂TA]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 44,
+      "keyword": "[狠狠骂我]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 45,
+      "keyword": "[迫害czl]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 46,
+      "keyword": "[迫害LZY]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 47,
+      "keyword": "[舔TA]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 48,
+      "keyword": "[截图]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 49,
+      "keyword": "[redive帮助]",
+      "destination": "legacy:v2-misc"
+    },
+    {
+      "id": 50,
+      "keyword": "[夸我]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 51,
+      "keyword": "[更换接口]",
+      "destination": "internal-drop:EPK administration"
+    },
+    {
+      "id": 52,
+      "keyword": "[文章]",
+      "destination": "legacy:text-law-history"
+    },
+    {
+      "id": 53,
+      "keyword": "[今日刑法]",
+      "destination": "legacy:text-law-history"
+    },
+    {
+      "id": 54,
+      "keyword": "[今日说法]",
+      "destination": "legacy:text-law-history"
+    },
+    {
+      "id": 55,
+      "keyword": "[请百合]",
+      "destination": "legacy:v2-misc"
+    },
+    {
+      "id": 56,
+      "keyword": "[骂我]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 57,
+      "keyword": "[以图搜瓶]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 58,
+      "keyword": "[以图搜番]",
+      "destination": "legacy:media-history"
+    },
+    {
+      "id": 59,
+      "keyword": "[治愈我]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 60,
+      "keyword": "[治愈TA]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 61,
+      "keyword": "[舔我]",
+      "destination": "legacy:amuse-history"
+    },
+    {
+      "id": 62,
+      "keyword": "[.* 被管理员禁言.*]",
+      "destination": "doge_misc:self-ban/event-history"
+    },
+    {
+      "id": 63,
+      "keyword": "[cmd ping]",
+      "destination": "legacy:netool"
+    },
+    {
+      "id": 64,
+      "keyword": "[开启寻访]",
+      "destination": "legacy:arknights-gacha"
+    },
+    {
+      "id": 65,
+      "keyword": "[仓库]",
+      "destination": "legacy:v2-misc"
+    },
+    {
+      "id": 66,
+      "keyword": "[仓库6]",
+      "destination": "legacy:v2-misc"
+    },
+    {
+      "id": 67,
+      "keyword": "[仓库5]",
+      "destination": "legacy:v2-misc"
+    },
+    {
+      "id": 68,
+      "keyword": "[关闭寻访]",
+      "destination": "legacy:arknights-gacha"
+    },
+    {
+      "id": 69,
+      "keyword": "[寻访初始化]",
+      "destination": "legacy:arknights-gacha"
+    },
+    {
+      "id": 70,
+      "keyword": "[寻访十次]",
+      "destination": "legacy:arknights-gacha"
+    },
+    {
+      "id": 71,
+      "keyword": "[寻访一次]",
+      "destination": "legacy:arknights-gacha"
+    },
+    {
+      "id": 72,
+      "keyword": "[抽完]",
+      "destination": "legacy:v2-misc"
+    },
+    {
+      "id": 73,
+      "keyword": "[库存]",
+      "destination": "legacy:arknights-gacha"
+    },
+    {
+      "id": 74,
+      "keyword": "[库存6]",
+      "destination": "legacy:arknights-gacha"
+    },
+    {
+      "id": 75,
+      "keyword": "[库存5]",
+      "destination": "legacy:arknights-gacha"
+    },
+    {
+      "id": 76,
+      "keyword": "[更新寻访变量]",
+      "destination": "legacy:arknights-gacha"
+    },
+    {
+      "id": 77,
+      "keyword": "[明日方舟up]",
+      "destination": "legacy:arknights-gacha"
+    },
+    {
+      "id": 78,
+      "keyword": "[重置次数]",
+      "destination": "legacy:arknights-gacha"
+    },
+    {
+      "id": 79,
+      "keyword": "[【变量没抽到六星】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 80,
+      "keyword": "[【变量库存】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 81,
+      "keyword": "[【变量库存6】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 82,
+      "keyword": "[【变量库存5】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 83,
+      "keyword": "[【变量当期up4】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 84,
+      "keyword": "[【变量当期up5】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 85,
+      "keyword": "[【变量当期up6】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 86,
+      "keyword": "[【变量十连寻访】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 87,
+      "keyword": "[【变量干员】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 88,
+      "keyword": "[【变量寻访随机数】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 89,
+      "keyword": "[【变量寻访】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 90,
+      "keyword": "[【变量干员3】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 91,
+      "keyword": "[【变量干员4】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 92,
+      "keyword": "[【变量干员5】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 93,
+      "keyword": "[【变量干员6】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 94,
+      "keyword": "[【变量全部干员3】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 95,
+      "keyword": "[【变量全部干员4】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 96,
+      "keyword": "[【变量全部干员5】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 97,
+      "keyword": "[【变量全部干员6】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 98,
+      "keyword": "[【变量当期up4概率】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 99,
+      "keyword": "[【变量当期up5概率】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 100,
+      "keyword": "[【变量当期up6概率】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 101,
+      "keyword": "[【变量存库存】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 102,
+      "keyword": "[【变量抽到六星】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 103,
+      "keyword": "[【变量没抽到六星数】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 104,
+      "keyword": "[【变量增加概率】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 105,
+      "keyword": "[【变量次数减一】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 106,
+      "keyword": "[【变量剩余次数】]",
+      "destination": "internal-drop:EPK state/plumbing"
+    },
+    {
+      "id": 107,
+      "keyword": "[新的一天]",
+      "destination": "legacy:arknights-gacha"
+    }
+  ]
+}

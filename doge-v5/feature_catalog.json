@@ -1,0 +1,1022 @@
+{
+  "schema": 1,
+  "runtime": {
+    "astrbot": "4.27.x",
+    "python": ">=3.12",
+    "qq_adapter": "NapCat/OneBot via AstrBot aiocqhttp",
+    "agent_harness": "AstrBot built-in Agent Runner + FunctionTool/add_llm_tools",
+    "computer_use": "sandbox preferred; never local for ordinary users"
+  },
+  "features": [
+    {
+      "name": "apis",
+      "purpose": "杂项外部 API 的统一注册、匹配与调用",
+      "from": [
+        "v4/apis"
+      ],
+      "decision": "rework",
+      "agent": "later",
+      "reason": "保留统一入口的价值，但当前允许任意 URL 且删除配置无权限保护，存在 SSRF/误删风险；还有 data.plugins 硬编码导入。",
+      "deploy": []
+    },
+    {
+      "name": "math",
+      "purpose": "轻量数学计算、进制转换、π、OEIS 与科学计算入口",
+      "from": [
+        "v2/random/pi/logic",
+        "v3/math",
+        "v3/wa",
+        "v4/wa"
+      ],
+      "decision": "native+reuse",
+      "agent": "yes",
+      "reason": "本地计算可无依赖实现；pi.delivery/OEIS/WolframAlpha 仍可用。将 /wa 保留为兼容后端而不是独立产品概念。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        },
+        {
+          "source": "../doge-v4/wa",
+          "name": "doge_wa",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "chem",
+      "purpose": "化学结构、PubChem 分子信息与 ChEMBL 药物/靶点查询",
+      "from": [
+        "v3/chem"
+      ],
+      "decision": "native+official-api",
+      "agent": "yes",
+      "reason": "NCI Cactus 保留快速结构转换；新增 PubChem 与 ChEMBL 官方 REST，避免安装数据库专用 SDK。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "tex",
+      "purpose": "TeX/数学公式渲染，兼顾快速公式与完整宏支持",
+      "from": [
+        "v3/tex",
+        "v4/latex",
+        "v4/utex"
+      ],
+      "decision": "native-v5",
+      "agent": "yes",
+      "reason": "v5 统一重写命令/service 层：保留原始多行 payload，不再按逗号拆分；默认压缩 UpMath 原生 TeX（align/matrix/TikZ）并异步超时/重试，本地 MathText 提供隐私/断网 fallback；旧 latex/utex 不再默认部署。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "typst",
+      "purpose": "Typst 公式、完整文档及聊天记录排版",
+      "from": [
+        "v4/typst"
+      ],
+      "decision": "native-v5",
+      "agent": "yes",
+      "reason": "v5 基于 typst-py 0.15 统一 math/card/doc/chat，支持原始多行输入、多页 PNG、编译错误、包缓存与显式 CJK font_paths；去掉旧 OurChat preview 依赖，旧 doge_typst 不再默认部署。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "chart",
+      "purpose": "结构化数据/Chart.js 图表渲染",
+      "from": [
+        "v3/chart"
+      ],
+      "decision": "native",
+      "agent": "yes",
+      "reason": "QuickChart 仍可用；与 Mermaid 的流程图/关系图用途不同。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "mermaid",
+      "purpose": "流程图、时序图、类图等语义图表",
+      "from": [
+        "v4/mermaid"
+      ],
+      "decision": "reuse",
+      "agent": "yes",
+      "reason": "现实现成熟且已经接入 LLM Tool，直接复用。",
+      "deploy": [
+        {
+          "source": "../doge-v4/mermaid",
+          "name": "doge_mermaid"
+        }
+      ]
+    },
+    {
+      "name": "complex",
+      "purpose": "复函数可视化",
+      "from": [
+        "v4/complex"
+      ],
+      "decision": "optional",
+      "agent": "later",
+      "reason": "价值明确，但依赖浏览器/Selenium/Playwright 和第三方网页，运行成本及脆弱性较高，默认不启用。",
+      "deploy": [
+        {
+          "source": "../doge-v4/complex",
+          "name": "doge_complex",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "fourier",
+      "purpose": "SVG/文本的傅里叶旋转向量动画",
+      "from": [
+        "v4/fourier"
+      ],
+      "decision": "reuse",
+      "agent": "yes",
+      "reason": "本地计算为主，依赖可控。",
+      "deploy": [
+        {
+          "source": "../doge-v4/fourier",
+          "name": "doge_fourier"
+        }
+      ]
+    },
+    {
+      "name": "run",
+      "purpose": "多语言代码执行",
+      "from": [
+        "v3/run",
+        "v4/run"
+      ],
+      "decision": "reuse-then-sandbox",
+      "agent": "no-direct",
+      "reason": "菜鸟教程当前实测 print(1) 可执行；保留兼容指令，但 Agent 执行代码长期切 AstrBot Sandbox。",
+      "deploy": [
+        {
+          "source": "../doge-v4/run",
+          "name": "doge_run"
+        }
+      ]
+    },
+    {
+      "name": "aigen",
+      "purpose": "文本/图片/视频生成与编辑",
+      "from": [
+        "v3/yg",
+        "v3/gpt",
+        "v3/dream",
+        "v3/style",
+        "v3/toonify",
+        "v3/gan",
+        "v4/doubao",
+        "v4/liblibapi"
+      ],
+      "decision": "merge+reuse",
+      "agent": "yes",
+      "reason": "旧 DeepAI/GAN 专项入口已被现代多模态模型覆盖；统一为 aigen，底层先复用 doubao/liblibapi 和旧别名。",
+      "deploy": [
+        {
+          "source": "../doge-v4/doubao",
+          "name": "doge_doubao",
+          "optional": true
+        },
+        {
+          "source": "../doge-v4/liblibapi",
+          "name": "doge_liblibapi",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "trace",
+      "purpose": "动漫/游戏角色与来源识别、以图搜源",
+      "from": [
+        "v2/以图搜番/瓶",
+        "v3/px search",
+        "v4/trace"
+      ],
+      "decision": "merge+reuse",
+      "agent": "yes",
+      "reason": "保留“识图找来源”的目的；AnimeTrace、trace.moe/SauceNAO 都有可用路径，删除直接 Pixiv 抓取和 R18/setu。",
+      "deploy": [
+        {
+          "source": "../doge-v4/trace",
+          "name": "doge_trace"
+        }
+      ]
+    },
+    {
+      "name": "st",
+      "purpose": "安全图库标签搜索/随机图",
+      "from": [
+        "v4/st"
+      ],
+      "decision": "reuse",
+      "agent": "yes",
+      "reason": "Safebooru DAPI 当前可用，定位比旧随机图接口更清晰。",
+      "deploy": [
+        {
+          "source": "../doge-v4/st",
+          "name": "doge_st"
+        }
+      ]
+    },
+    {
+      "name": "music",
+      "purpose": "点歌、歌词检索与歌词接龙",
+      "from": [
+        "v4/music",
+        "v4/lyrics"
+      ],
+      "decision": "merge+reuse",
+      "agent": "yes",
+      "reason": "用户目的高度相同；实现先保持两个插件。网易云/酷狗当前仍可访问，QQ 音乐接口需继续防脆弱。",
+      "deploy": [
+        {
+          "source": "../doge-v4/music",
+          "name": "astrbot_plugin_music",
+          "optional": true
+        },
+        {
+          "source": "../doge-v4/lyrics",
+          "name": "doge_lyrics",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "meme",
+      "purpose": "模板表情包/人物表情搜索生成",
+      "from": [
+        "v3/rua",
+        "v3/meme",
+        "v4/meme",
+        "v4/vv"
+      ],
+      "decision": "merge+reuse",
+      "agent": "yes",
+      "reason": "旧 rua 与固定图包被现代 meme_generator 覆盖；vv 作为搜索后端保留在同一功能域。",
+      "deploy": [
+        {
+          "source": "../doge-v4/meme",
+          "name": "doge_meme"
+        },
+        {
+          "source": "../doge-v4/vv",
+          "name": "doge_vv",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "emojimix",
+      "purpose": "Emoji Kitchen 表情混合",
+      "from": [
+        "v4/emojimix"
+      ],
+      "decision": "reuse",
+      "agent": "yes",
+      "reason": "自动触发行为独特，不与 meme 强行合并。",
+      "deploy": [
+        {
+          "source": "../doge-v4/emojimix",
+          "name": "doge_emojimix"
+        }
+      ]
+    },
+    {
+      "name": "mirage",
+      "purpose": "幻影坦克双层图生成",
+      "from": [
+        "v3/mirage",
+        "v4/mirage"
+      ],
+      "decision": "reuse",
+      "agent": "yes",
+      "reason": "v4 已有纯 Python/Pillow 实现。",
+      "deploy": [
+        {
+          "source": "../doge-v4/mirage",
+          "name": "doge_mirage"
+        }
+      ]
+    },
+    {
+      "name": "pokemon",
+      "purpose": "宝可梦融合图生成",
+      "from": [
+        "v4/pokemon"
+      ],
+      "decision": "reuse",
+      "agent": "yes",
+      "reason": "FusionCalc/GitLab 数据源当前实测可访问。",
+      "deploy": [
+        {
+          "source": "../doge-v4/pokemon",
+          "name": "doge_pokemon"
+        }
+      ]
+    },
+    {
+      "name": "mihoyo",
+      "purpose": "米哈游游戏角色/武器攻略查询",
+      "from": [
+        "v3/genshin gacha",
+        "v4/genshin",
+        "v4/honkai"
+      ],
+      "decision": "rework",
+      "agent": "yes-after-fix",
+      "reason": "攻略目的可合并，但当前两个 v4 插件都写死 your-key；honkai 还引用未定义 session/Path/uuid。旧原神抽卡不恢复。",
+      "deploy": []
+    },
+    {
+      "name": "nasa",
+      "purpose": "NASA APOD/天文图片与任务数据查询",
+      "from": [
+        "v3/mirai-jvm/nasa"
+      ],
+      "decision": "native-restore",
+      "agent": "yes",
+      "reason": "v3 源码存在但非 Python；NASA 官方 API 当前仍可用，适合小型 Python service 恢复。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "bing",
+      "purpose": "Bing 每日壁纸",
+      "from": [
+        "v3/bing"
+      ],
+      "decision": "native-restore",
+      "agent": "yes",
+      "reason": "Bing HPImageArchive 当前可访问；旧功能小而稳定。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "mc",
+      "purpose": "Minecraft 服务器状态与列表管理",
+      "from": [
+        "v4/mc"
+      ],
+      "decision": "reuse",
+      "agent": "yes",
+      "reason": "现实现完整，mcstatus 仍维护。",
+      "deploy": [
+        {
+          "source": "../doge-v4/mc",
+          "name": "doge_mc"
+        }
+      ]
+    },
+    {
+      "name": "wiki",
+      "purpose": "GitHub 仓库知识问答",
+      "from": [
+        "v3/repo",
+        "v4/wiki"
+      ],
+      "decision": "reuse",
+      "agent": "yes",
+      "reason": "DeepWiki/Devin API 入口仍在线；尤其适合 Agent 工具。",
+      "deploy": [
+        {
+          "source": "../doge-v4/wiki",
+          "name": "doge_wiki"
+        }
+      ]
+    },
+    {
+      "name": "tangut",
+      "purpose": "西夏文渲染、拟音与实验性互译",
+      "from": [
+        "v4/tangut"
+      ],
+      "decision": "reuse",
+      "agent": "yes",
+      "reason": "本地数据驱动，领域特色明显。",
+      "deploy": [
+        {
+          "source": "../doge-v4/tangut",
+          "name": "doge_tangut"
+        }
+      ]
+    },
+    {
+      "name": "rrpl",
+      "purpose": "RRPL 汉字结构渲染",
+      "from": [
+        "v4/rrpl"
+      ],
+      "decision": "rework",
+      "agent": "yes-after-fix",
+      "reason": "当前写死 /root/AstrBot/data/plugins/rrpl/rrpl，且依赖 Node/fontforge；先修路径再启用。",
+      "deploy": []
+    },
+    {
+      "name": "cotool",
+      "purpose": "URL/Unicode/Hex/Base64 等编码转换",
+      "from": [
+        "v3/cotool"
+      ],
+      "decision": "native-restore",
+      "agent": "yes",
+      "reason": "完全可本地实现；旧加密格式不明确且不应自创密码学，encrypt/decrypt 不恢复。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "amuse",
+      "purpose": "轻量文本娱乐与本地梗生成",
+      "from": [
+        "v2/夸骂毒舔/乱码",
+        "v3/amuse",
+        "v3/insult",
+        "v3/jeffjoke",
+        "v3/fru",
+        "v3/poem",
+        "v3/phil"
+      ],
+      "decision": "trim",
+      "agent": "later",
+      "reason": "保留适合本地实现且有辨识度的 fru/jeffjoke；夸骂诗歌哲学无需再依赖碎片 API，可交给 LLM；旧 philosophy API 已不可用。",
+      "deploy": []
+    },
+    {
+      "name": "shock",
+      "purpose": "用户自助禁言/“电疗”互动",
+      "from": [
+        "v2/给我光明/电疗"
+      ],
+      "decision": "native-restore",
+      "agent": "no",
+      "reason": "v2 很有辨识度且依赖 NapCat/OneBot 原生群禁言；只允许禁言自己，不暴露为 Agent Tool。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "cube",
+      "purpose": "魔方模拟与公式存储",
+      "from": [
+        "v4/cube"
+      ],
+      "decision": "reuse",
+      "agent": "no",
+      "reason": "现实现本地化且成熟。",
+      "deploy": [
+        {
+          "source": "../doge-v4/cube",
+          "name": "doge_cube"
+        }
+      ]
+    },
+    {
+      "name": "gol",
+      "purpose": "生命游戏模拟/动画",
+      "from": [
+        "v4/gol"
+      ],
+      "decision": "reuse",
+      "agent": "yes",
+      "reason": "本地化、无外部服务依赖。",
+      "deploy": [
+        {
+          "source": "../doge-v4/gol",
+          "name": "doge_gol"
+        }
+      ]
+    },
+    {
+      "name": "gomoku",
+      "purpose": "群聊五子棋",
+      "from": [
+        "v4/gomoku"
+      ],
+      "decision": "reuse",
+      "agent": "no",
+      "reason": "状态型游戏，现实现完整。",
+      "deploy": [
+        {
+          "source": "../doge-v4/gomoku",
+          "name": "doge_gomoku"
+        }
+      ]
+    },
+    {
+      "name": "poker",
+      "purpose": "群聊德州扑克",
+      "from": [
+        "v4/poker"
+      ],
+      "decision": "reuse",
+      "agent": "no",
+      "reason": "状态型游戏，现实现完整；不应交给 Agent 自主下注。",
+      "deploy": [
+        {
+          "source": "../doge-v4/poker",
+          "name": "doge_poker"
+        }
+      ]
+    },
+    {
+      "name": "wordle",
+      "purpose": "Wordle 猜词",
+      "from": [
+        "v4/wordle"
+      ],
+      "decision": "reuse",
+      "agent": "no",
+      "reason": "本地状态型游戏。",
+      "deploy": [
+        {
+          "source": "../doge-v4/wordle",
+          "name": "doge_wordle"
+        }
+      ]
+    },
+    {
+      "name": "soup",
+      "purpose": "AI 海龟汤生成与推理游戏",
+      "from": [
+        "v4/soup"
+      ],
+      "decision": "reuse",
+      "agent": "internal",
+      "reason": "已经天然是 LLM 驱动会话型游戏，继续作为独立应用而不是普通工具。",
+      "deploy": [
+        {
+          "source": "../doge-v4/soup",
+          "name": "doge_soup"
+        }
+      ]
+    },
+    {
+      "name": "pjsk",
+      "purpose": "Project Sekai 猜歌/音轨/排行",
+      "from": [
+        "v4/pjsk"
+      ],
+      "decision": "optional-reuse",
+      "agent": "no",
+      "reason": "功能完整但资源与依赖较重，默认按需部署。",
+      "deploy": [
+        {
+          "source": "../doge-v4/pjsk",
+          "name": "doge_pjsk",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "arena",
+      "purpose": "荒诞能力卡与条件/代价/战场/目标组合竞技场",
+      "from": [
+        "v4/wp",
+        "new/arena"
+      ],
+      "decision": "native-v5",
+      "agent": "no",
+      "reason": "v4 wp 的随机弱能力核心被保留并扩展；/wp 只作为 /arena 兼容入口。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "paper",
+      "purpose": "文献发现、DOI 元数据、引用链、开放全文、撤稿检查、数据集、作者与机构",
+      "from": [
+        "v4/arxiv-market-research",
+        "new/Crossref",
+        "new/OpenAlex",
+        "new/DataCite",
+        "new/EuropePMC",
+        "new/ROR"
+      ],
+      "decision": "native+official-api",
+      "agent": "yes",
+      "reason": "学术主干；将多个基础设施按科研工作流统一，而不是暴露数据库品牌级命令。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "bio",
+      "purpose": "蛋白、结构域、基因、变异、结构、通路、靶点、ID mapping 与 BLAST",
+      "from": [
+        "new/UniProt",
+        "new/InterPro",
+        "new/Ensembl",
+        "new/RCSB",
+        "new/AlphaFoldDB",
+        "new/Reactome",
+        "new/OpenTargets",
+        "new/NCBI-BLAST"
+      ],
+      "decision": "native+official-api",
+      "agent": "yes",
+      "reason": "直接封装官方 REST/GraphQL/URL API，把需要脚本的生信链路变成群聊工具。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "mat",
+      "purpose": "通过 OPTIMADE 统一查询材料结构数据库",
+      "from": [
+        "new/OPTIMADE",
+        "new/MaterialsCloud"
+      ],
+      "decision": "native+standard-api",
+      "agent": "yes",
+      "reason": "用跨数据库标准协议取代 Materials Project 等单一 SDK 绑定。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "astro",
+      "purpose": "天体、系外行星和专业天文文献查询",
+      "from": [
+        "new/SIMBAD-TAP",
+        "new/NASA-Exoplanet-TAP",
+        "new/NASA-ADS"
+      ],
+      "decision": "native+official-api",
+      "agent": "yes",
+      "reason": "把 ADQL/TAP 和 token API 封装成群聊短命令。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "trial",
+      "purpose": "ClinicalTrials.gov 临床试验搜索与 NCT 详情",
+      "from": [
+        "new/ClinicalTrials.gov-v2"
+      ],
+      "decision": "native+official-api",
+      "agent": "yes",
+      "reason": "直接使用现代 v2 REST，后续与 drug/target 工作流联动。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "lab",
+      "purpose": "群聊科学可视化与可参数化小实验",
+      "from": [
+        "v4/fourier",
+        "new/Scientific-Playground"
+      ],
+      "decision": "native-v5",
+      "agent": "no",
+      "reason": "NumPy/Pillow 本地无 GUI renderer；强调直观、可改参数和有限资源上限。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "circuit",
+      "purpose": "短 DSL 电路图",
+      "from": [
+        "new/Schemdraw"
+      ],
+      "decision": "optional-wrapper",
+      "agent": "no",
+      "reason": "薄封装 Schemdraw；不 eager import 重依赖。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "control",
+      "purpose": "Bode/Nyquist/root-locus/step/impulse 可视化",
+      "from": [
+        "new/python-control"
+      ],
+      "decision": "optional-wrapper",
+      "agent": "no",
+      "reason": "直接复用 python-control；SciPy/Matplotlib 为 optional extra。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "crystal",
+      "purpose": "上传 CIF/mCIF 后解析晶胞并计算真实粉末 XRD",
+      "from": [
+        "new/Dans_Diffraction"
+      ],
+      "decision": "optional-wrapper",
+      "agent": "no",
+      "reason": "教学 /lab xrd 与真实 CIF 结构因子计算分层。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "game",
+      "purpose": "24 点与标准 Nine Men’s Morris；统一轻量多人游戏入口",
+      "from": [
+        "v3/game/24p",
+        "v3/game/nc"
+      ],
+      "decision": "native-v5",
+      "agent": "no",
+      "reason": "Python 重写旧 Kotlin/Java；24 点精确 Fraction 校验，九子棋补齐磨坊吃子/移动/三子飞行。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "fuse",
+      "purpose": "群共享概念炼金与发现图鉴",
+      "from": [
+        "new/alchemy"
+      ],
+      "decision": "native-v5",
+      "agent": "no",
+      "reason": "原创持久玩法；同一配方稳定复现，生成物可继续作为素材。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    },
+    {
+      "name": "signal",
+      "purpose": "程序化多层可逆编码解密接力",
+      "from": [
+        "new/signal"
+      ],
+      "decision": "native-v5",
+      "agent": "no",
+      "reason": "原创群协作谜题；不依赖固定题库。",
+      "deploy": [
+        {
+          "source": "plugin",
+          "name": "doge_v5"
+        }
+      ]
+    }
+  ],
+  "removed_or_archived": [
+    {
+      "old": "v3/siku",
+      "reason": "siku.guoxuedashi.net 与 skqs.guoxuedashi.net 当前 DNS 失效；不为了复刻而换一套来源。"
+    },
+    {
+      "old": "v3/perc",
+      "reason": "自建 Glitch bridge 当前 HTTP 410；Perchance 本身无稳定官方 API。"
+    },
+    {
+      "old": "v3/netool (web/nmap/gfw)",
+      "reason": "公共聊天机器人暴露扫描/任意网页请求收益低、SSRF/滥用面大；Agent 如需网络能力应走受控 Web/MCP。"
+    },
+    {
+      "old": "v3/px 直接 Pixiv/keyword/setu",
+      "reason": "接口和代理链陈旧，且内容治理/封号风险高；只保留 trace 的识图找来源目的。"
+    },
+    {
+      "old": "v3/yan",
+      "reason": "无差别语录记录有隐私与同意成本；除非未来做显式 opt-in，不默认恢复。"
+    },
+    {
+      "old": "v3/se",
+      "reason": "原文已封印且主要是成人/挑衅性入口，无恢复价值。"
+    },
+    {
+      "old": "v2 明日方舟寻访",
+      "reason": "大量规则只是旧卡池状态机，维护成本高且数据语义过时。"
+    },
+    {
+      "old": "v2 随机老婆/猫娘/狗粮/旧本地梗图",
+      "reason": "依赖已失效随机图 API 或缺失素材；由 st/meme/aigen 覆盖用户目的。"
+    },
+    {
+      "old": "v3 gen(Mathgen/Scigen)",
+      "reason": "趣味性可由 Agent/LLM 直接生成，不值得保留网页截图式专用依赖。"
+    },
+    {
+      "old": "v4/pack",
+      "reason": "Magdeburg hydra CGI 从服务器实测超时；暂不为它重写圆堆积求解器。"
+    },
+    {
+      "old": "v4/ise（仅文档）",
+      "reason": "v4_docs 有条目但仓库没有对应源码目录，无法诚实迁移；等找到源文件再评估。"
+    }
+  ],
+  "current_v5_domains": [
+    {
+      "plugin": "doge_core",
+      "status": "core",
+      "default": true
+    },
+    {
+      "plugin": "doge_math",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_misc",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_daily",
+      "status": "merged",
+      "default": false,
+      "merged_into": "doge_misc"
+    },
+    {
+      "plugin": "doge_typeset",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_playground",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_engineering",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_papers",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_bio",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_chem",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_materials",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_astro",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_clinical",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_games",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_alchemy",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_arena",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_social",
+      "status": "merged",
+      "default": false,
+      "merged_into": "doge_misc"
+    },
+    {
+      "plugin": "doge_linguistics",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_legacy",
+      "status": "legacy",
+      "default": false
+    },
+    {
+      "plugin": "doge_media",
+      "status": "planned",
+      "default": false
+    },
+    {
+      "plugin": "doge_code",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_lookup",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_diagrams",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_memes",
+      "status": "planned",
+      "default": false
+    },
+    {
+      "plugin": "doge_music",
+      "status": "planned",
+      "default": false
+    },
+    {
+      "plugin": "doge_minecraft",
+      "status": "planned",
+      "default": false
+    },
+    {
+      "plugin": "doge_ai",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "plugin": "doge_cs",
+      "status": "formal",
+      "default": true
+    }
+  ],
+  "catalog_note": "features is the historical v2-v4 migration audit; plugin_manifest.json is current deployment truth and legacy_coverage.json enforces complete historical containment."
+}

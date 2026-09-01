@@ -150,3 +150,6 @@ nv/
 !.env.example
 *.local.json
 *.local.epk
+
+# Local AstrBot runtime state
+/data/

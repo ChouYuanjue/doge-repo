@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "shared": [
+    "doge_shared"
+  ],
+  "plugins": [
+    {
+      "name": "doge_core",
+      "status": "core",
+      "default": true
+    },
+    {
+      "name": "doge_math",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_misc",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_daily",
+      "status": "merged",
+      "default": false,
+      "merged_into": "doge_misc"
+    },
+    {
+      "name": "doge_typeset",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_playground",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_engineering",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_papers",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_bio",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_chem",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_materials",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_astro",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_clinical",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_games",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_alchemy",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_arena",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_social",
+      "status": "merged",
+      "default": false,
+      "merged_into": "doge_misc"
+    },
+    {
+      "name": "doge_linguistics",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_legacy",
+      "status": "legacy",
+      "default": false
+    },
+    {
+      "name": "doge_media",
+      "status": "planned",
+      "default": false
+    },
+    {
+      "name": "doge_code",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_lookup",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_diagrams",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_memes",
+      "status": "planned",
+      "default": false
+    },
+    {
+      "name": "doge_music",
+      "status": "planned",
+      "default": false
+    },
+    {
+      "name": "doge_minecraft",
+      "status": "planned",
+      "default": false
+    },
+    {
+      "name": "doge_ai",
+      "status": "formal",
+      "default": true
+    },
+    {
+      "name": "doge_cs",
+      "status": "formal",
+      "default": true
+    }
+  ]
+}
