@@ -610,13 +610,15 @@
       ],
       "decision": "native-v5",
       "agent": "no",
-      "reason": "v4 wp 的随机弱能力核心被保留并扩展；/wp 只作为 /arena 兼容入口。",
+      "reason": "v4 /wp 的 238 条手写弱能力与直接 fight 语义逐条保留在 /arena draw|fight；/arena duel|chaos 只在原卡文本之外增加场景、目标、异常与组合结算，不改写原始能力。",
       "deploy": [
         {
           "source": "plugin",
           "name": "doge_v5"
         }
-      ]
+      ],
+      "implementation": "doge_arena:/arena",
+      "status": "native-v5"
     },
     {
       "name": "paper",

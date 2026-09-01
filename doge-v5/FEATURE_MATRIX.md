@@ -46,7 +46,7 @@
 | `game` | v3/game 24p、nine chess | native-v5 | no | 旧 Kotlin/Java 已 Python 重写；24 点用 Fraction 精确求解/校验，九子棋补齐磨坊吃子、移动和三子飞行的标准规则。 |
 | `soup` | v4/soup | reuse | internal | 已经天然是 LLM 驱动会话型游戏，继续作为独立应用而不是普通工具。 |
 | `pjsk` | v4/pjsk | optional-reuse | no | 功能完整但资源与依赖较重，默认按需部署。 |
-| `arena` | v4/wp、new/arena | native-v5 | no | 旧弱能力随机核心升级为能力+条件+代价+战场+目标的组合竞技场；`/wp` 只保留兼容入口。 |
+| `arena` | v4/wp、new/arena | native-v5 | no | v4 `/wp` 238 条手写弱能力与直接对决语义完整保留；`draw/fight` 为原味路径，`duel/chaos` 只叠加场景和组合条款，能力卡组合空间 >3727 亿。 |
 
 ## 删除或仅归档
 
