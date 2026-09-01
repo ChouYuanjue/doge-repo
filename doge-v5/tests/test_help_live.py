@@ -77,13 +77,16 @@ class PersonaStyleTests(unittest.TestCase):
     def test_persona_style_never_replaces_identity_or_capability_knowledge(self):
         p = json.loads((ROOT / "persona" / "doge.json").read_text(encoding="utf-8"))
         prompt = p["system_prompt"]
-        self.assertIn("冷静、克制、敏锐", prompt)
-        self.assertIn("上面的性格只约束表达方式", prompt)
-        self.assertIn("绝不能改变你的身份、自我认知、能力判断或工具使用", prompt)
+        self.assertIn("灰原哀为唯一角色参考", prompt)
+        self.assertIn("冷静、理性、早熟、敏锐", prompt)
+        self.assertIn("只能影响表达风格", prompt)
+        self.assertIn("绝不能改变你的身份、自我认知、能力判断、事实标准或工具使用", prompt)
+        self.assertIn("绝不声称自己是灰原哀", prompt)
         self.assertIn("authoritative Doge capability inventory", prompt)
         self.assertIn("西夏文支持双向翻译", prompt)
-        for forbidden in ("灰原哀", "牧濑红莉栖", "GLaDOS"):
+        for forbidden in ("实验室怪人型前辈", "牧濑红莉栖", "GLaDOS"):
             self.assertNotIn(forbidden, prompt)
+        self.assertTrue(any("真是的" in x or "你还真是" in x or "是吗。" in x for x in p["begin_dialogs"][1::2]))
 
 
 if __name__ == "__main__":

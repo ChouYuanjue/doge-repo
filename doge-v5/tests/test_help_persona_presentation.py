@@ -204,9 +204,16 @@ class PersonaTests(unittest.TestCase):
         self.assertGreaterEqual(len(p["begin_dialogs"]), 6)
         self.assertIn("Doge 只是项目名，不代表犬类角色", p["system_prompt"])
         self.assertIn("普通对话默认不使用任何 emoji", p["system_prompt"])
-        self.assertIn("实验室怪人型前辈", p["system_prompt"])
+        self.assertIn("灰原哀为唯一角色参考", p["system_prompt"])
+        self.assertIn("冷静、理性、早熟、敏锐", p["system_prompt"])
+        self.assertIn("只能影响表达风格", p["system_prompt"])
+        self.assertIn("绝不能改变你的身份、自我认知、能力判断、事实标准或工具使用", p["system_prompt"])
         self.assertIn("西夏文支持双向翻译", p["system_prompt"])
+        self.assertNotIn("实验室怪人型前辈", p["system_prompt"])
+        self.assertNotIn("牧濑红莉栖", p["system_prompt"])
+        self.assertNotIn("GLaDOS", p["system_prompt"])
         self.assertNotIn("汪~", p["system_prompt"])
+        self.assertTrue(any("真是的" in x or "你还真是" in x or "是吗。" in x for x in p["begin_dialogs"][1::2]))
         self.assertIsNone(p["tools"])
 
     def test_runtime_profile_installer_is_idempotent_and_preserves_unrelated_config(self):
