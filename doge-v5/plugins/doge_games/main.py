@@ -1,22 +1,34 @@
 from __future__ import annotations
 
+import asyncio
+
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context, Star, StarTools, register
 
 from data.plugins.doge_shared.game24 import check as check_24, new_round as new_24_round
 from data.plugins.doge_shared.morris import MorrisGame
-from data.plugins.doge_shared.presentation import text_result
+from data.plugins.doge_shared.presentation import image_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
 from data.plugins.doge_shared.signal import new_game as new_signal_game
 
+from .dice_adapter import tabletop_roll
+from .minesweeper_adapter import apply as mine_apply
+from .minesweeper_adapter import new_game as new_mine_game
+from .minesweeper_adapter import render as render_mine
+from .sudoku_adapter import new_game as new_sudoku
+from .sudoku_adapter import render as render_sudoku
 
-@register("doge_games", "runnel", "Doge v5 群聊小游戏与解密接力", "5.2.0")
+
+@register("doge_games", "runnel", "Doge 群聊游戏、解谜与桌面骰池", "5.5.0")
 class DogeGames(Star):
     def __init__(self, context: Context):
         super().__init__(context)
+        self.data_dir = StarTools.get_data_dir("doge_games")
         self._round24: dict[str, dict] = {}
         self._morris: dict[str, MorrisGame] = {}
         self._signals = {}
+        self._mines = {}
+        self._sudoku = {}
 
     @filter.command("game")
     async def game_command(self, event: AstrMessageEvent):
@@ -29,7 +41,10 @@ class DogeGames(Star):
                     "**Doge Game**\n\n"
                     "- `/game 24 [new|wild|reveal|<expression>]`\n"
                     "- `/game nc start|join|board|end|A1|A1-A2|x A1`\n"
-                    "- `/game signal new [easy|normal|hard]` · `hint` · `show` · `solve <答案>`",
+                    "- `/game signal new [easy|normal|hard]` · `hint` · `show` · `solve <答案>`\n"
+                    "- `/game mine [easy|normal|hard]` · `open A1` · `mark A1` · `sweep A1` · `board|end`\n"
+                    "- `/game sudoku [easy|normal|hard]` · `A1 5` · `show|reveal|end`\n"
+                    "- `/game dice <Roll20 风格骰池>`，如 `d20adv`、`4d6kh3`、`d6!`",
                 )
                 return
             kind = parts[0].lower()
@@ -37,6 +52,89 @@ class DogeGames(Star):
             scope = event.unified_msg_origin
             uid = str(event.get_sender_id())
             name = event.get_sender_name() or uid
+
+            if kind in {"dice", "roll"}:
+                yield text_result(event, tabletop_roll(rest), markdown=False)
+                return
+
+            if kind in {"mine", "minesweeper"}:
+                tokens = rest.split()
+                action = tokens[0].lower() if tokens else "normal"
+                if action in {"easy", "normal", "hard", "new", "start"}:
+                    level = action if action in {"easy", "normal", "hard"} else (tokens[1].lower() if len(tokens) > 1 else "normal")
+                    game = await new_mine_game(level)
+                    self._mines[scope] = game
+                    path = render_mine(game, self.data_dir, scope)
+                    yield image_result(event, path, f"扫雷 {level} · 首次落点保证安全 · /game mine open A1")
+                    return
+                game = self._mines.get(scope)
+                if not game:
+                    raise ValueError("当前没有扫雷。用 /game mine easy|normal|hard 开局")
+                if action in {"board", "show", "status"}:
+                    path = render_mine(game, self.data_dir, scope)
+                    yield image_result(event, path, "扫雷当前棋盘")
+                    return
+                if action in {"end", "stop", "quit"}:
+                    self._mines.pop(scope, None)
+                    yield text_result(event, "扫雷已结束。", markdown=False)
+                    return
+                coords = tokens[1:]
+                if action not in {"open", "mark", "sweep"}:
+                    # 允许 /game mine A1 B2 作为 open 的短写。
+                    coords = tokens
+                    action = "open"
+                message = mine_apply(game, action, coords)
+                path = render_mine(game, self.data_dir, scope)
+                if game.is_over:
+                    self._mines.pop(scope, None)
+                yield image_result(event, path, message)
+                return
+
+            if kind in {"sudoku", "sdk"}:
+                tokens = rest.split()
+                action = tokens[0].lower() if tokens else "normal"
+                if action in {"easy", "normal", "hard", "new", "start"}:
+                    level = action if action in {"easy", "normal", "hard"} else (tokens[1].lower() if len(tokens) > 1 else "normal")
+                    game = await asyncio.to_thread(new_sudoku, level)
+                    self._sudoku[scope] = game
+                    path = render_sudoku(game, self.data_dir, scope)
+                    yield image_result(event, path, f"唯一解数独 {level} · 3 lives · /game sudoku A1 5")
+                    return
+                game = self._sudoku.get(scope)
+                if not game:
+                    raise ValueError("当前没有数独。用 /game sudoku easy|normal|hard 开局")
+                if action in {"show", "board", "status"}:
+                    path = render_sudoku(game, self.data_dir, scope)
+                    yield image_result(event, path, f"数独 {game.difficulty} · lives={game.lives}")
+                    return
+                if action in {"reveal", "answer"}:
+                    path = render_sudoku(game, self.data_dir, scope, reveal=True)
+                    self._sudoku.pop(scope, None)
+                    yield image_result(event, path, "数独答案，本局结束。")
+                    return
+                if action in {"end", "stop", "quit"}:
+                    self._sudoku.pop(scope, None)
+                    yield text_result(event, "数独已结束。", markdown=False)
+                    return
+                if action in {"set", "fill"}:
+                    if len(tokens) < 3:
+                        raise ValueError("用法：/game sudoku set A1 5")
+                    coord, raw_value = tokens[1], tokens[2]
+                else:
+                    if len(tokens) < 2:
+                        raise ValueError("用法：/game sudoku A1 5")
+                    coord, raw_value = tokens[0], tokens[1]
+                message = game.set_cell(coord, int(raw_value))
+                reveal = game.lives <= 0
+                if game.complete:
+                    message += " · 完成！"
+                elif reveal:
+                    message += " · 机会用尽，显示答案。"
+                path = render_sudoku(game, self.data_dir, scope, reveal=reveal)
+                if game.complete or reveal:
+                    self._sudoku.pop(scope, None)
+                yield image_result(event, path, message)
+                return
 
             if kind in {"24", "24p", "point24"}:
                 action = rest.lower()
@@ -154,6 +252,6 @@ class DogeGames(Star):
                     return
                 raise ValueError("用法：/game signal new|hint|show|solve")
 
-            raise ValueError(f"未知 game 类型：{kind}。支持 24 / nc / signal")
+            raise ValueError(f"未知 game 类型：{kind}。支持 24 / nc / signal / mine / sudoku / dice")
         except Exception as exc:
             yield text_result(event, f"game 失败：{exc}", markdown=False)
