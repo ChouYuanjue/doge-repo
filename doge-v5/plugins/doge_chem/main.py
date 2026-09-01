@@ -5,6 +5,7 @@ from data.plugins.doge_shared.academic import ResearchChemService
 from data.plugins.doge_shared.services import ChemService
 from data.plugins.doge_shared.presentation import image_result,long_result,text_result
 from data.plugins.doge_shared.raw_command import command_payload,split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 
 @register('doge_chem','runnel','化学结构、PubChem 与 ChEMBL','5.3.0')
 class DogeChem(Star):
@@ -21,4 +22,4 @@ class DogeChem(Star):
    elif a=='target': r=await ResearchChemService.target(q)
    else: r=await ChemService.query(q,a)
    yield image_result(event,r,q,remote=True) if a=='image' else long_result(event,'Chem',r,fold_threshold=1400)
-  except Exception as e: yield text_result(event,f'chem 失败：{e}',markdown=False)
+  except Exception as e: yield text_result(event,format_cli_error('chem', e),markdown=False)

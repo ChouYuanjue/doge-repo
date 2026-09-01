@@ -7,6 +7,7 @@ from astrbot.api.star import Context, Star, StarTools, register
 
 from data.plugins.doge_shared.presentation import mention_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 
 from .arena_engine import (
     ArenaCard,
@@ -152,4 +153,4 @@ class DogeArena(Star):
             yield mention_result(event, target, heading + "\n\n" + result, target_label=f"对手：{b}")
         except Exception as exc:
             logger.warning(f"doge arena failed: {exc}")
-            yield text_result(event, f"arena 失败：{exc}", markdown=False)
+            yield text_result(event, format_cli_error('arena', exc), markdown=False)

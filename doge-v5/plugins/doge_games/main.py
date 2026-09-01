@@ -10,6 +10,7 @@ from data.plugins.doge_shared.morris import MorrisGame
 from data.plugins.doge_shared.presentation import image_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
 from data.plugins.doge_shared.signal import new_game as new_signal_game
+from data.plugins.doge_shared.help_service import format_cli_error
 
 from .dice_adapter import tabletop_roll
 from .minesweeper_adapter import apply as mine_apply
@@ -254,4 +255,4 @@ class DogeGames(Star):
 
             raise ValueError(f"未知 game 类型：{kind}。支持 24 / nc / signal / mine / sudoku / dice")
         except Exception as exc:
-            yield text_result(event, f"game 失败：{exc}", markdown=False)
+            yield text_result(event, format_cli_error('game', exc), markdown=False)

@@ -8,6 +8,7 @@ from data.plugins.doge_shared.agent_tools import DogeLookupTool, register_domain
 from data.plugins.doge_shared.lookup import LookupError, LookupService
 from data.plugins.doge_shared.presentation import long_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 
 
 HELP = (
@@ -52,7 +53,7 @@ class DogeLookup(Star):
                 out = await LookupService.auto(payload)
             yield long_result(event, 'Lookup', out, fold_threshold=1800)
         except (LookupError, ValueError) as exc:
-            yield text_result(event, f'lookup 失败：{exc}', markdown=False)
+            yield text_result(event, format_cli_error('lookup', exc), markdown=False)
         except Exception as exc:
             logger.warning(f'doge lookup failed: {exc}')
-            yield text_result(event, f'lookup 失败：{exc}', markdown=False)
+            yield text_result(event, format_cli_error('lookup', exc), markdown=False)

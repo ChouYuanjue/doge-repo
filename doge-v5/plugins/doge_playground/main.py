@@ -10,6 +10,7 @@ from astrbot.api.star import Context, Star, StarTools, register
 from data.plugins.doge_shared.presentation import image_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload
 from data.plugins.doge_shared.visual_lab import LabError, help_text as lab_help_text, render as lab_render
+from data.plugins.doge_shared.help_service import format_cli_error
 
 
 @register('doge_playground','runnel','数学、物理与复杂系统的直观科学实验室','5.4.0')
@@ -29,10 +30,10 @@ class DogePlayground(Star):
             path, caption = await asyncio.to_thread(lab_render, self.data_dir, payload)
             yield image_result(event, path, caption)
         except (LabError, ValueError) as exc:
-            yield text_result(event, f'lab 失败：{exc}', markdown=False)
+            yield text_result(event, format_cli_error('lab', exc), markdown=False)
         except Exception as exc:
             logger.warning(f'doge lab failed: {exc}')
-            yield text_result(event, f'lab 失败：{exc}', markdown=False)
+            yield text_result(event, format_cli_error('lab', exc), markdown=False)
         finally:
             if path is not None:
                 path.unlink(missing_ok=True)

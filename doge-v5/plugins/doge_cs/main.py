@@ -8,6 +8,7 @@ from astrbot.api.star import Context, Star, StarTools, register
 
 from data.plugins.doge_shared.presentation import image_result, images_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 from .cs_lab import CSLabError, render_pagerank, render_regex
 
 HELP = (
@@ -53,7 +54,7 @@ class DogeCS(Star):
                 return
             raise CSLabError("未知 CS 子命令。\n" + HELP)
         except CSLabError as exc:
-            yield text_result(event, f"cs 失败：{exc}", markdown=False)
+            yield text_result(event, format_cli_error('cs', exc), markdown=False)
         finally:
             for path in paths:
                 path.unlink(missing_ok=True)

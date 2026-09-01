@@ -1,52 +1,123 @@
 # Doge v5 command guide
 
-Doge 的功能按能力域组织。先用 /help <分类> 找方向，再用 /help <指令> 或 /help <指令> <子功能> 看具体用法。
+本文件由 `capability_registry.json` 自动生成；运行时 `/help`、功能统计、命令归一化和 Agent 能力认知使用同一份注册表。
 
-## 开始 / 状态 (`start`)
+```text
+Doge CLI
+
+USAGE
+  /help <group>
+  /help <command>
+  /help <command> <subcommand>
+
+GROUPS
+  system       4  系统 / 状态
+             认识当前实例、查看运行状态与使用统计。
+  research    47  检索 / 科研
+             论文、知识检索，以及生化环材、天文和临床数据。
+  compute      9  计算机 / AI
+             数学、轻量 AI/CS 实验和远端代码执行。
+  create      69  排版 / 图形 / 工程
+             把公式、Markdown、代码、图表和工程系统变成可分享的结果。
+  language    12  语言学
+             西夏文、汉字历史音系、RRPL 与构造语言。
+  play        33  游戏 / 群聊实验
+             小游戏、解谜、概念炼金和荒诞竞技场。
+  media        9  媒体 / 小工具
+             图片识别、幻影坦克和少量不值得单独成域的小工具。
+  admin       11  管理
+             AstrBot 框架级会话与管理指令，统一收在 /admin 下。
+  legacy      81  Legacy / 历史博物馆（默认不加载）
+             v2-v4 旧入口、迁移状态与仍可追溯的历史子功能。
+
+QUICK START
+  /help research        论文与真实科研数据源
+  /help compute         CS / AI / 数学 / 代码
+  /help lang            Language Lab
+  /help lang tangut     西夏文双向翻译、拟音、字典和渲染
+  /help game            全部游戏
+  /help lab             全部科学小实验
+  /help legacy          历史功能状态
+
+SCALE
+  顶层指令       29
+  正式叶子功能   195
+  正式调用形式   449  （含 254 个兼容别名）
+  Legacy 叶子    81
+
+SYNTAX
+  <arg> 必填    [arg] 可选    A|B 任选其一
+  帮助只推荐 canonical 写法；旧别名仍可调用，但统计会归一到同一个功能。
+  `/` 同时是唤醒符；没有命中本表的 `/anything` 不会被算作指令。
+```
+
+## 系统 / 状态 (`system`)
 
 认识当前实例、查看运行状态与使用统计。
 
 ### `/help`
 
+```text
+COMMAND  /help
 分层帮助导航。
 
-用法：
+USAGE
+  /help [分类|指令|子功能]
 
-- `/help`
-- `/help <分类>`
-- `/help <指令>`
-- `/help <指令> <子功能>`
+ABOUT
+  分层查看分类、指令和子功能帮助。
 
-例子：
-
-- `/help research`
-- `/help game`
-- `/help game mine`
-- `/help lang tangut`
+BACK
+  /help
+```
 
 ### `/ver`
 
+```text
+COMMAND  /ver
 显示当前 Doge/AstrBot/Python/Git 的精确版本与运行能力规模。
 
-用法：
+USAGE
+  /ver
 
-- `/ver`
+ABOUT
+  显示精确版本与产品规模。
+
+BACK
+  /help
+```
 
 ### `/status`
 
+```text
+COMMAND  /status
 查看此刻服务器和 Doge 链路状态：负载、内存、磁盘、AstrBot RSS 与关键端口。
 
-用法：
+USAGE
+  /status
 
-- `/status`
+ABOUT
+  查看服务器与本地链路实时状态。
+
+BACK
+  /help
+```
 
 ### `/statics`
 
+```text
+COMMAND  /statics
 查看累计使用统计与产品规模：消息、命令、平台、LLM token、插件、指令和 Agent Tool。
 
-用法：
+USAGE
+  /statics
 
-- `/statics`
+ABOUT
+  查看真实使用统计、功能规模和 LLM 用量。
+
+BACK
+  /help
+```
 
 ## 检索 / 科研 (`research`)
 
@@ -54,72 +125,220 @@ Doge 的功能按能力域组织。先用 /help <分类> 找方向，再用 /hel
 
 ### `/lookup`
 
+```text
+COMMAND  /lookup
 有来源的通用知识/计算查询；优先可靠公开源，不把 LLM 猜测冒充检索结果。
 
-用法：
+DIRECT
+  /lookup <query>
+    自动选择真实百科/Wikidata 来源。
 
-- `/lookup wiki <主题>`
-- `/lookup wd <实体>`
-- `/lookup wa <问题>`
+SUBCOMMANDS
+  wiki             百科查询。
+    /lookup wiki <query>
+  entity           Wikidata/QLever 结构化事实。
+    /lookup entity <query>
+  wa               Wolfram|Alpha 查询（配置可用时）。
+    /lookup wa <query>
+  en               英文百科 + Wikidata 查询。
+    /lookup en <query>
 
-Wolfram 仅在配置可用时启用。
+NEXT
+  /help lookup wiki
+
+BACK
+  /help
+```
 
 ### `/paper`
 
+```text
+COMMAND  /paper
 论文发现、引用链、开放全文与引文查询。
 
-用法：
+SUBCOMMANDS
+  search           论文搜索
+    /paper search <query>
+  doi              精确 DOI/标识符书目查询
+    /paper doi <query>
+  cited            被引论文
+    /paper cited <query>
+  refs             参考文献
+    /paper refs <query>
+  related          相关论文
+    /paper related <query>
+  oa               开放获取定位
+    /paper oa <query>
+  bib              BibTeX/RIS 等引用格式
+    /paper bib <query>
+  check            撤稿/更正检查
+    /paper check <query>
+  dataset          关联数据集
+    /paper dataset <query>
+  pubmed           PubMed/PMC 查询
+    /paper pubmed <query>
+  arxiv            arXiv 查询
+    /paper arxiv <query>
+  author           作者查询
+    /paper author <query>
+  org              机构查询
+    /paper org <query>
+  affil            按 affiliation 查询机构
+    /paper affil <query>
 
-- `/paper <子功能> ...`
+NEXT
+  /help paper search
 
-例子：
-
-- `/paper search retrieval augmented generation`
+BACK
+  /help
+```
 
 ### `/bio`
 
+```text
+COMMAND  /bio
 蛋白、结构、序列、通路与靶点查询。
 
-用法：
+SUBCOMMANDS
+  protein          UniProt 蛋白
+    /bio protein <query>
+  domain           InterPro 结构域
+    /bio domain <query>
+  gene             Ensembl 基因
+    /bio gene <query>
+  pdb              PDB 结构
+    /bio pdb <query>
+  af               AlphaFold 结构
+    /bio af <query>
+  variant          变异查询
+    /bio variant <query>
+  blast            提交 BLAST
+    /bio blast <query>
+  blastget         获取 BLAST 结果
+    /bio blastget <query>
+  pathway          Reactome 通路
+    /bio pathway <query>
+  target           Open Targets 靶点
+    /bio target <query>
+  map              ID 映射
+    /bio map <query>
 
-- `/bio <子功能> ...`
+NEXT
+  /help bio protein
+
+BACK
+  /help
+```
 
 ### `/chem`
 
+```text
+COMMAND  /chem
 化学结构、PubChem 与 ChEMBL。
 
-用法：
+SUBCOMMANDS
+  formula          分子式查询/转换
+    /chem formula <query>
+  smiles           SMILES 查询/转换
+    /chem smiles <query>
+  names            名称查询
+    /chem names <query>
+  inchikey         InChIKey 查询
+    /chem inchikey <query>
+  image            结构图
+    /chem image <query>
+  info             PubChem 详情
+    /chem info <query>
+  drug             ChEMBL 药物机制
+    /chem drug <query>
+  target           ChEMBL/Open Targets 靶点
+    /chem target <query>
 
-- `/chem <子功能> ...`
+NEXT
+  /help chem formula
+
+BACK
+  /help
+```
 
 ### `/mat`
 
+```text
+COMMAND  /mat
 材料数据库、CIF 晶体结构与粉末衍射。
 
-用法：
+SUBCOMMANDS
+  find             OPTIMADE 跨数据库结构查询。
+    /mat find <formula/filter>
+  providers        OPTIMADE provider 列表。
+    /mat providers
+  crystal           2 功能  真实 CIF / XRD
 
-- `/mat <子功能> ...`
+NEXT
+  /help mat find
 
-例子：
+BACK
+  /help
+```
 
-- `/mat crystal info <CIF>`
-- `/mat crystal powder <CIF>`
+#### `/help mat crystal`
+
+```text
+COMMAND  /mat crystal
+真实 CIF / XRD
+
+SUBCOMMANDS
+  info             真实 CIF/mCIF 晶胞信息。
+    /mat crystal info + CIF/mCIF
+  powder           真实 CIF/mCIF powder XRD。
+    /mat crystal powder [energy width] + CIF/mCIF
+
+NEXT
+  /help mat crystal info
+
+BACK
+  /help mat
+```
 
 ### `/astro`
 
+```text
+COMMAND  /astro
 天体、系外行星和 ADS 文献。
 
-用法：
+SUBCOMMANDS
+  object           SIMBAD 天体对象
+    /astro object <query>
+  exo              系外行星
+    /astro exo <query>
+  ads              ADS 文献
+    /astro ads <query>
 
-- `/astro <子功能> ...`
+NEXT
+  /help astro object
+
+BACK
+  /help
+```
 
 ### `/trial`
 
+```text
+COMMAND  /trial
 ClinicalTrials.gov 临床试验查询。
 
-用法：
+SUBCOMMANDS
+  search           ClinicalTrials.gov 试验搜索。
+    /trial search <query>
+  get              ClinicalTrials.gov NCT 详情。
+    /trial get <NCT ID>
 
-- `/trial <关键词或编号>`
+NEXT
+  /help trial search
+
+BACK
+  /help
+```
 
 ## 计算机 / AI (`compute`)
 
@@ -127,49 +346,80 @@ ClinicalTrials.gov 临床试验查询。
 
 ### `/math`
 
+```text
+COMMAND  /math
 数学计算、进制、π、OEIS 等轻量数学工具。
 
-用法：
+SUBCOMMANDS
+  calc             数学表达式计算。
+    /math calc <表达式>
+  base             进制转换。
+    /math base <数> <原进制> <目标进制>
+  pi               查询 π 指定位数片段。
+    /math pi <起点> <位数>
+  oeis             查询 OEIS 数列/关键词。
+    /math oeis <数列或关键词>
 
-- `/math <子功能> ...`
+NEXT
+  /help math calc
+
+BACK
+  /help
+```
 
 ### `/ai`
 
+```text
+COMMAND  /ai
 不下载大模型的 AI 内部机制实验室。
 
-用法：
+SUBCOMMANDS
+  grad             micrograd 自动微分计算图与反向梯度。
+    /ai grad <expr> | x=...
+  bpe              minBPE byte-level merge/token 可视化。
+    /ai bpe [merges] <text>
 
-- `/ai grad <表达式> | x=...`
-- `/ai bpe <merge数> <文本>`
+NEXT
+  /help ai grad
 
-例子：
-
-- `/ai grad relu(x*y + x**2) | x=2 y=-1`
-- `/ai bpe 24 tokenizer为什么会把中文拆开`
+BACK
+  /help
+```
 
 ### `/cs`
 
+```text
+COMMAND  /cs
 计算机科学小实验：自动机与图算法。
 
-用法：
+SUBCOMMANDS
+  regex            Regex→ε-NFA→DFA→最小 DFA。
+    /cs regex <python-style regex>
+  pagerank         PageRank 图重要性计算与可视化。
+    /cs pagerank <边列表>
 
-- `/cs regex <Python-style regex>`
-- `/cs pagerank <边列表>`
+NEXT
+  /help cs regex
 
-例子：
-
-- `/cs regex (a|b)*abb`
-- `/cs pagerank A>B,B>C,C>A,A>C`
+BACK
+  /help
+```
 
 ### `/run`
 
+```text
+COMMAND  /run
 在受限远端编译/运行后端执行小段代码，不在 Doge 宿主机直接跑用户代码。
 
-用法：
+USAGE
+  /run <语言> <代码>
 
-- `/run <语言> <代码>`
+ABOUT
+  受限远端代码执行。
 
-有输入、输出和超时限制。
+BACK
+  /help
+```
 
 ## 排版 / 图形 / 工程 (`create`)
 
@@ -177,68 +427,309 @@ ClinicalTrials.gov 临床试验查询。
 
 ### `/md`
 
+```text
+COMMAND  /md
 Markdown 出版：聊天卡片、A4 文档 PNG 或真正 PDF。
 
-用法：
+SUBCOMMANDS
+  card             Markdown 自适应分享卡。
+    /md card <Markdown>
+  doc              Markdown A4 多页 PNG。
+    /md doc <Markdown>
+  pdf              Markdown 真 PDF。
+    /md pdf <Markdown>
 
-- `/md card <Markdown>`
-- `/md doc <Markdown>`
-- `/md pdf <Markdown>`
+NEXT
+  /help md card
+
+BACK
+  /help
+```
 
 ### `/snippet`
 
+```text
+COMMAND  /snippet
 代码/diff/终端输出的专业排版卡片。
 
-用法：
+USAGE
+  /snippet <语言> [--title=...] [--hl=...] <代码>
 
-- `/snippet <语言> [--hl=行号] <代码>`
+ABOUT
+  代码/diff/终端输出专业排版卡。
 
-例子：
-
-- `/snippet python --hl=2-4 def f(x): ...`
+BACK
+  /help
+```
 
 ### `/tex`
 
+```text
+COMMAND  /tex
 TeX/LaTeX 公式与文档渲染。
 
-用法：
+SUBCOMMANDS
+  smart            TeX 智能渲染。
+    /tex smart <TeX>
+  native           TeX 原生路径渲染。
+    /tex native <TeX>
+  local            TeX 本地路径渲染。
+    /tex local <TeX>
 
-- `/tex <TeX>`
+NEXT
+  /help tex smart
+
+BACK
+  /help
+```
 
 ### `/typst`
 
+```text
+COMMAND  /typst
 直接使用 Typst 排版。
 
-用法：
+SUBCOMMANDS
+  card             Typst 分享卡。
+    /typst card <Typst>
+  math             Typst 数学模式。
+    /typst math <Typst>
+  doc              Typst 文档模式。
+    /typst doc <Typst>
+  chat             Typst 聊天版式。
+    /typst chat <Typst>
 
-- `/typst <Typst source>`
+NEXT
+  /help typst card
+
+BACK
+  /help
+```
 
 ### `/diagram`
 
+```text
+COMMAND  /diagram
 结构图与数据可视化：本地 Graphviz、Vega-Lite，及 Mermaid。
 
-用法：
+SUBCOMMANDS
+  graphviz         本地 Graphviz DOT
+    /diagram graphviz <source>
+  mermaid          Mermaid 图
+    /diagram mermaid <source>
+  vegalite         本地 Vega-Lite 数据可视化
+    /diagram vegalite <source>
+  formats          查看稳定图形后端。
+    /diagram formats
 
-- `/diagram graphviz <DOT>`
-- `/diagram mermaid <source>`
-- `/diagram vegalite <JSON>`
+NEXT
+  /help diagram graphviz
+
+BACK
+  /help
+```
 
 ### `/eng`
 
+```text
+COMMAND  /eng
 工程实验室：Schemdraw 电路与 python-control 经典控制系统。
 
-用法：
+SUBCOMMANDS
+  circuit           4 功能  电路
+  control           5 功能  经典控制
 
-- `/eng circuit <描述>`
-- `/eng control bode|step|impulse|nyquist|root ...`
+NEXT
+  /help eng circuit
+
+BACK
+  /help
+```
+
+#### `/help eng circuit`
+
+```text
+COMMAND  /eng circuit
+电路
+
+SUBCOMMANDS
+  rc               RC 电路图
+    /eng circuit rc [...]
+  rlc              RLC 电路图
+    /eng circuit rlc [...]
+  divider          分压器电路图
+    /eng circuit divider [...]
+  series           自由串联元件电路图
+    /eng circuit series [...]
+
+NEXT
+  /help eng circuit rc
+
+BACK
+  /help eng
+```
+
+#### `/help eng control`
+
+```text
+COMMAND  /eng control
+经典控制
+
+SUBCOMMANDS
+  bode             bode 控制系统响应。
+    /eng control bode <num> | <den>
+  step             step 控制系统响应。
+    /eng control step <num> | <den>
+  impulse          impulse 控制系统响应。
+    /eng control impulse <num> | <den>
+  nyquist          nyquist 控制系统响应。
+    /eng control nyquist <num> | <den>
+  root             root 控制系统响应。
+    /eng control root <num> | <den>
+
+NEXT
+  /help eng control bode
+
+BACK
+  /help eng
+```
 
 ### `/lab`
 
+```text
+COMMAND  /lab
 数学、物理和复杂系统的直观科学实验。
 
-用法：
+SUBCOMMANDS
+  fractal           2 功能  分形
+  chaos            Logistic map 分岔图。
+    /lab chaos bifurcation [...]
+  attractor        Lorenz/Rössler/Clifford 吸引子。
+    /lab attractor [...]
+  ca               Wolfram 一维元胞自动机。
+    /lab ca [...]
+  number            2 功能  数论图形
+  lsys             L-system 分形。
+    /lab lsys [...]
+  tiling           Penrose 铺砌。
+    /lab tiling penrose [...]
+  wave             双源波干涉
+    /lab wave [...]
+  field            电场线
+    /lab field [...]
+  pendulum         双摆
+    /lab pendulum [...]
+  orbit            三体 figure-eight 轨道
+    /lab orbit [...]
+  reaction         Gray-Scott 反应扩散
+    /lab reaction [...]
+  linear           二维线性映射
+    /lab linear [...]
+  complex          复函数域着色
+    /lab complex [...]
+  newton           Newton 分形
+    /lab newton [...]
+  ising            二维 Ising 模型
+    /lab ising [...]
+  percolation      渗流模型
+    /lab percolation [...]
+  randommatrix     随机矩阵谱
+    /lab randommatrix [...]
+  voronoi          Voronoi 几何
+    /lab voronoi [...]
+  bloch            Bloch 球
+    /lab bloch [...]
+  relativity       Minkowski/狭义相对论图
+    /lab relativity [...]
+  spectrum         FFT 频谱
+    /lab spectrum [...]
+  sandpile         Abelian sandpile
+    /lab sandpile [...]
+  ant              Langton 蚂蚁
+    /lab ant [...]
+  moire            莫尔纹
+    /lab moire [...]
+  orbital          氢样原子轨道切片
+    /lab orbital [...]
+  lattice          晶格实空间投影
+    /lab lattice [...]
+  xrd              理想晶格 XRD 教学模型
+    /lab xrd [...]
+  knot             数学结可视化
+    /lab knot [...]
+  brownian         布朗运动
+    /lab brownian [...]
+  sir              SIR 传染病模型
+    /lab sir [...]
+  predator         Lotka–Volterra 捕食者模型
+    /lab predator [...]
+  lens             薄透镜成像
+    /lab lens [...]
+  well             量子无限深势阱
+    /lab well [...]
+  diffraction      双缝/单缝衍射
+    /lab diffraction [...]
+  replicator       复制子动力学/RPS
+    /lab replicator [...]
+  life             Conway Game of Life
+    /lab life [...]
+  dla              Diffusion-limited aggregation
+    /lab dla [...]
+  beats            拍频
+    /lab beats [...]
+  chladni          Chladni 板振型
+    /lab chladni [...]
+  phyllotaxis      叶序/黄金角
+    /lab phyllotaxis [...]
+  galton           Galton 板
+    /lab galton [...]
+  lissajous        Lissajous 曲线
+    /lab lissajous [...]
 
-- `/lab <实验> ...`
+NEXT
+  /help lab fractal
+
+BACK
+  /help
+```
+
+#### `/help lab fractal`
+
+```text
+COMMAND  /lab fractal
+分形
+
+SUBCOMMANDS
+  mandelbrot       Mandelbrot 分形。
+    /lab fractal mandelbrot [...]
+  julia            Julia 分形。
+    /lab fractal julia [...]
+
+NEXT
+  /help lab fractal mandelbrot
+
+BACK
+  /help lab
+```
+
+#### `/help lab number`
+
+```text
+COMMAND  /lab number
+数论图形
+
+SUBCOMMANDS
+  ulam             Ulam 素数螺旋。
+    /lab number ulam [...]
+  mod              模乘圆。
+    /lab number mod [...]
+
+NEXT
+  /help lab number ulam
+
+BACK
+  /help lab
+```
 
 ## 语言学 (`language`)
 
@@ -246,14 +737,92 @@ TeX/LaTeX 公式与文档渲染。
 
 ### `/lang`
 
+```text
+COMMAND  /lang
 Language Lab：西夏文、汉字音系、RRPL 与 R'lyehian/Cthuvian。
 
-用法：
+SUBCOMMANDS
+  tangut            6 功能  西夏文双向翻译 / 字典 / 拟音 / 渲染
+  cthuvian          3 功能  R'lyehian / Cthuvian
+  han               2 功能  汉字历史音系 / 方言
+  rrpl             RRPL
+    /lang rrpl <RRPL/汉字引用表达式>
 
-- `/lang tangut ...`
-- `/lang han ...`
-- `/lang rrpl ...`
-- `/lang cthuvian ...`
+NEXT
+  /help lang tangut
+
+BACK
+  /help
+```
+
+#### `/help lang tangut`
+
+```text
+COMMAND  /lang tangut
+西夏文双向翻译 / 字典 / 拟音 / 渲染
+
+SUBCOMMANDS
+  lookup           西夏文↔中文/英文词典查询。
+    /lang tangut lookup <西夏文/中文/英文>
+  gx               GX 拟音
+    /lang tangut gx <西夏文>
+  ghc              GHC 拟音
+    /lang tangut ghc <西夏文>
+  t2zh             西夏文→中文：词典 grounding 后保守整理。
+    /lang tangut t2zh <西夏文>
+  zh2t             中文→西夏文：exact-gloss grounding，未知项不乱译。
+    /lang tangut zh2t <中文>
+  render           西夏文 Noto Serif Tangut 渲染。
+    /lang tangut render <西夏文>
+
+NEXT
+  /help lang tangut lookup
+
+BACK
+  /help lang
+```
+
+#### `/help lang cthuvian`
+
+```text
+COMMAND  /lang cthuvian
+R'lyehian / Cthuvian
+
+SUBCOMMANDS
+  to               English→R’lyehian/Cthuvian 低语体翻译。
+    /lang cthuvian to <English>
+  high             English→Cthuvian 高语体。
+    /lang cthuvian high <English>
+  from             R’lyehian/Cthuvian→English gloss。
+    /lang cthuvian from <RC-1>
+
+NEXT
+  /help lang cthuvian to
+
+BACK
+  /help lang
+```
+
+#### `/help lang han`
+
+```text
+COMMAND  /lang han
+汉字历史音系 / 方言
+
+DIRECT
+  /lang han <汉字> [@ 语言筛选]
+    MCPDict/Yindian 汉字跨时代/方言读音比较。
+
+SUBCOMMANDS
+  find             搜索音典语言变体。
+    /lang han find <关键词>
+
+NEXT
+  /help lang han find
+
+BACK
+  /help lang
+```
 
 ## 游戏 / 群聊实验 (`play`)
 
@@ -261,50 +830,198 @@ Language Lab：西夏文、汉字音系、RRPL 与 R'lyehian/Cthuvian。
 
 ### `/game`
 
+```text
+COMMAND  /game
 群聊游戏与解谜统一入口。
 
-用法：
+SUBCOMMANDS
+  dice             桌面骰池
+    /game dice <expr>
+  mine              6 功能  扫雷
+  sudoku            5 功能  数独
+  24                4 功能  24 点
+  nc                5 功能  九子棋
+  signal            4 功能  Signal 解密
 
-- `/game 24 ...`
-- `/game nc ...`
-- `/game signal ...`
-- `/game mine ...`
-- `/game sudoku ...`
-- `/game dice ...`
+NEXT
+  /help game dice
 
-例子：
+BACK
+  /help
+```
 
-- `/game mine normal`
-- `/game sudoku hard`
-- `/game dice d20adv 察觉 15`
+#### `/help game mine`
+
+```text
+COMMAND  /game mine
+扫雷
+
+SUBCOMMANDS
+  new              开始扫雷；首次开格保证安全。
+    /game mine [easy|normal|hard]
+  open             扫雷开格。
+    /game mine open A1 [B2 ...]
+  mark             扫雷：标雷
+    /game mine mark A1 [B2 ...]
+  sweep            扫雷：周边清扫
+    /game mine sweep A1 [B2 ...]
+  board            扫雷：查看棋盘
+    /game mine board
+  end              扫雷：结束扫雷
+    /game mine end
+
+NEXT
+  /help game mine new
+
+BACK
+  /help game
+```
+
+#### `/help game sudoku`
+
+```text
+COMMAND  /game sudoku
+数独
+
+SUBCOMMANDS
+  new              开始唯一解数独。
+    /game sudoku [easy|normal|hard]
+  set              填写数独格子。
+    /game sudoku A1 5
+  show             查看数独棋盘
+    /game sudoku show
+  reveal           显示答案并结束
+    /game sudoku reveal
+  end              结束数独
+    /game sudoku end
+
+NEXT
+  /help game sudoku new
+
+BACK
+  /help game
+```
+
+#### `/help game 24`
+
+```text
+COMMAND  /game 24
+24 点
+
+SUBCOMMANDS
+  new              开始普通 24 点。
+    /game 24 new
+  wild             开始允许位运算的 24 点。
+    /game 24 wild
+  solve            提交 24 点表达式。
+    /game 24 <表达式>
+  reveal           显示 24 点答案。
+    /game 24 reveal
+
+NEXT
+  /help game 24 new
+
+BACK
+  /help game
+```
+
+#### `/help game nc`
+
+```text
+COMMAND  /game nc
+九子棋
+
+DIRECT
+  /game nc <A1|A1-A2|x B4>
+    九子棋放置、移动或吃子动作。
+
+SUBCOMMANDS
+  start            创建九子棋。
+    /game nc start
+  join             加入九子棋。
+    /game nc join
+  board            查看九子棋棋盘。
+    /game nc board
+  end              结束九子棋。
+    /game nc end
+
+NEXT
+  /help game nc start
+
+BACK
+  /help game
+```
+
+#### `/help game signal`
+
+```text
+COMMAND  /game signal
+Signal 解密
+
+SUBCOMMANDS
+  new              创建多层编码信号
+    /game signal new
+  hint             获取下一层提示
+    /game signal hint
+  show             查看当前信号
+    /game signal show
+  solve            提交完整解码答案
+    /game signal solve <完整答案>
+
+NEXT
+  /help game signal new
+
+BACK
+  /help game
+```
 
 ### `/fuse`
 
+```text
+COMMAND  /fuse
 把两个概念炼成可持续复用的群聊物件。
 
-用法：
+DIRECT
+  /fuse <素材A> + <素材B>
+    生成/重现群聊概念炼金设定。
 
-- `/fuse <概念A> + <概念B>`
+SUBCOMMANDS
+  book             查看炼金图鉴。
+    /fuse book [数量]
+
+NEXT
+  /help fuse book
+
+BACK
+  /help
+```
 
 ### `/arena`
 
+```text
+COMMAND  /arena
 完整保留原 /wp 238 条手写弱能力；支持原味直接对决与高组合竞技场。
 
-用法：
+SUBCOMMANDS
+  draw             从原 /wp 238 条弱能力中抽卡。
+    /arena draw
+  show             查看当前能力
+    /arena show
+  fight            原味弱能力直接对决
+    /arena fight @对手|QQ号
+  duel             带战场目标的竞技场对决
+    /arena duel @对手|QQ号
+  chaos            原 /wp 多能力组合
+    /arena chaos
+  deck             查看卡池/组合空间
+    /arena deck
 
-- `/arena draw|get|reroll`
-- `/arena show`
-- `/arena fight @某人`
-- `/arena duel @某人`
-- `/arena chaos [2|3]`
-- `/arena deck`
+NEXT
+  /help arena draw
 
-例子：
-
-- `/arena draw`
-- `/arena fight @某人`
-- `/arena chaos 3`
-- `/arena deck`
+BACK
+  /help
+```
 
 ## 媒体 / 小工具 (`media`)
 
@@ -312,20 +1029,82 @@ Language Lab：西夏文、汉字音系、RRPL 与 R'lyehian/Cthuvian。
 
 ### `/media`
 
-视觉小实验：AnimeTrace 图片识别与本地幻影坦克。
+```text
+GROUP  media
+媒体 / 小工具
+图片识别、幻影坦克和少量不值得单独成域的小工具。
 
-用法：
+COMMANDS
+  /media         4  视觉小实验：AnimeTrace 图片识别与本地幻影坦克。
+  /util          5  有用但不值得单独成域的小工具：codec、天气、APOD、Bing 等。
 
-- `/media trace anime|gal [图片]`
-- `/media mirage gray|color [两张图片]`
+NEXT
+  /help media
+  /help
+```
+
+#### `/help media trace`
+
+```text
+COMMAND  /media trace
+动漫 / Gal 识图
+
+SUBCOMMANDS
+  anime            AnimeTrace 动漫识别。
+    /media trace anime + 图片
+  gal              AnimeTrace Galgame 识别。
+    /media trace gal + 图片
+
+NEXT
+  /help media trace anime
+
+BACK
+  /help media
+```
+
+#### `/help media mirage`
+
+```text
+COMMAND  /media mirage
+幻影坦克
+
+SUBCOMMANDS
+  gray             灰度幻影坦克。
+    /media mirage gray + 两张图
+  color            彩色幻影坦克。
+    /media mirage color + 两张图
+
+NEXT
+  /help media mirage gray
+
+BACK
+  /help media
+```
 
 ### `/util`
 
+```text
+COMMAND  /util
 有用但不值得单独成域的小工具：codec、天气、APOD、Bing 等。
 
-用法：
+SUBCOMMANDS
+  encode           URL/Unicode/Hex/Base64 编码。
+    /util encode <url|unicode|hex|base64> <文本>
+  decode           URL/Unicode/Hex/Base64 解码。
+    /util decode <url|unicode|hex|base64> <文本>
+  weather          Open-Meteo 天气查询。
+    /util weather <地点> [1-7天]
+  apod             NASA Astronomy Picture of the Day。
+    /util apod [YYYY-MM-DD]
+  bing             Bing 当日壁纸。
+    /util bing
 
-- `/util <子功能> ...`
+NEXT
+  /help util encode
+
+BACK
+  /help
+```
 
 ## 管理 (`admin`)
 
@@ -333,153 +1112,19 @@ AstrBot 框架级会话与管理指令，统一收在 /admin 下。
 
 ### `/admin`
 
-AstrBot 框架级指令命名空间；普通 Doge 功能不放这里。
+```text
+GROUP  admin
+管理
+AstrBot 框架级会话与管理指令，统一收在 /admin 下。
 
-用法：
+COMMANDS
+  /admin        11  AstrBot 框架级指令命名空间；普通 Doge 功能不放这里。
 
-- `/admin help`
-- `/admin sid`
-- `/admin reset|stop|new|stats`
-- `/admin set|unset ...`
-- `/admin name|provider|dashboard_update ...`
+NEXT
+  /help admin
+  /help
+```
 
-部分子命令仅管理员可用。
+## Legacy
 
-## 下钻帮助
-
-### `/help game mine`
-
-经典扫雷，首击安全；支持开格、标雷、周边清扫。
-
-用法：
-
-- `/game mine easy|normal|hard`
-- `/game mine open A1 [B2 ...]`
-- `/game mine mark A1`
-- `/game mine sweep A1`
-- `/game mine board|end`
-
-### `/help game sudoku`
-
-唯一解数独，3 次错误机会，本地渲染棋盘。
-
-用法：
-
-- `/game sudoku easy|normal|hard`
-- `/game sudoku A1 5`
-- `/game sudoku show|reveal|end`
-
-### `/help game dice`
-
-Roll20 风格骰池：优势/劣势、keep/drop、爆炸骰、FATE、重骰、成功计数和 DC。
-
-用法：
-
-- `/game dice d20`
-- `/game dice 4d6kh3`
-- `/game dice d6!`
-- `/game dice 3d6>3`
-- `/game dice d20adv 察觉 15`
-
-### `/help game 24`
-
-24 点；wild 模式额外允许位运算。
-
-用法：
-
-- `/game 24 new`
-- `/game 24 wild`
-- `/game 24 <表达式>`
-- `/game 24 reveal`
-
-### `/help game nc`
-
-Nine Men's Morris / 九子棋。
-
-用法：
-
-- `/game nc start|join|board|end`
-- `/game nc A1`
-- `/game nc A1-A2`
-- `/game nc x B4`
-
-### `/help game signal`
-
-多层编码解密接力。
-
-用法：
-
-- `/game signal new easy|normal|hard`
-- `/game signal hint|show`
-- `/game signal solve <完整答案>`
-
-### `/help lang tangut`
-
-西夏文字典、GX/GHC 拟音与字典 grounding 的双向翻译。
-
-用法：
-
-- `/lang tangut <子功能> ...`
-
-### `/help lang han`
-
-通过音典 Web 后端比较中古、上古、方言和域外汉字音。
-
-用法：
-
-- `/lang han <汉字>`
-- `/lang han <汉字> @ <语言筛选>`
-- `/lang han find <语言关键词>`
-
-### `/help lang rrpl`
-
-RRPL 结构描述递归展开并本地渲染。
-
-用法：
-
-- `/lang rrpl <RRPL/汉字引用表达式>`
-
-### `/help lang cthuvian`
-
-固定上游 R'lyehian/Cthuvian Translator 的正反向与高语体翻译。
-
-用法：
-
-- `/lang cthuvian to <文本>`
-- `/lang cthuvian high <文本>`
-- `/lang cthuvian from <文本>`
-
-### `/help media trace`
-
-AnimeTrace 动漫/Gal 图片识别。
-
-用法：
-
-- `/media trace anime [图片]`
-- `/media trace gal [图片]`
-
-### `/help media mirage`
-
-本地 Pillow/NumPy 幻影坦克，不依赖付费 API。
-
-用法：
-
-- `/media mirage gray [两张图片]`
-- `/media mirage color [两张图片]`
-
-### `/help arena chaos`
-
-从 238 条原始弱能力中组合 2–3 条，并附加不会改写原文的竞技场结算条款。
-
-用法：
-
-- `/arena chaos 2`
-- `/arena chaos 3`
-
-### `/help arena fight`
-
-保留原 /wp fight 语义：双方直接拿当前弱能力进行严肃荒诞的对决解说，不额外强塞场景能力。
-
-用法：
-
-- `/arena fight @某人`
+Legacy 默认不加载。完整历史入口、状态和子功能见 [`LEGACY.md`](LEGACY.md)。

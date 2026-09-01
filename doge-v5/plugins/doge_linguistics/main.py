@@ -12,6 +12,7 @@ from astrbot.api.star import Context, Star, StarTools, register
 
 from data.plugins.doge_shared.presentation import image_result, long_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 
 from .linguistics import CthuvianAdapter, TangutDictionary, YindianService, render_tangut
 from .rrpl_py import RrplError, render_png as render_rrpl_png
@@ -106,7 +107,7 @@ class DogeLinguistics(Star):
             raise ValueError(f"未知语言学模块：{domain}\n\n{self._help()}")
         except Exception as exc:
             logger.warning(f"doge lang failed: {exc}")
-            yield text_result(event, f"lang 失败：{exc}", markdown=False)
+            yield text_result(event, format_cli_error('lang', exc), markdown=False)
 
     def _help(self) -> str:
         return (

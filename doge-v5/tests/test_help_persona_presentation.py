@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import sqlite3
@@ -12,8 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
 sys.path.insert(0, str(PLUGINS))
 
-from doge_shared.help_service import load_catalog, render_help
+from doge_shared.capabilities import agent_capability_prompt, capability_display, counts, match_invocation, registry
+from doge_shared.help_service import format_cli_error, render_help
 from doge_shared.presentation import markdown_to_plain
+from doge_shared.runtime_stats import UsageCounter
 
 
 def _load_module(name: str, path: Path):
@@ -24,10 +27,10 @@ def _load_module(name: str, path: Path):
     return mod
 
 
-class HelpTests(unittest.TestCase):
-    def test_catalog_covers_expected_public_surface(self):
-        catalog = load_catalog()
-        commands = set(catalog["commands"])
+class CapabilityRegistryTests(unittest.TestCase):
+    def test_registry_covers_expected_public_surface(self):
+        r = registry()
+        commands = set(r["commands"])
         expected = {
             "help", "ver", "status", "statics", "admin",
             "math", "util", "paper", "bio", "chem", "mat", "astro", "trial",
@@ -35,21 +38,145 @@ class HelpTests(unittest.TestCase):
             "lang", "media", "run", "lookup", "diagram", "ai", "cs", "eng",
         }
         self.assertEqual(commands, expected)
-        listed = {c for cat in catalog["categories"] for c in cat["commands"]}
+        listed = {c for cat in r["categories"] for c in cat["commands"]}
         self.assertEqual(listed, expected)
+        c = counts()
+        self.assertEqual(c["top_level"], 29)
+        self.assertEqual(c["functions"], 195)
+        self.assertEqual(c["forms"], 449)
+        self.assertEqual(c["aliases"], 254)
+        self.assertEqual(c["triggers"], 1)
+        self.assertEqual(c["legacy_top_level"], 45)
+        self.assertEqual(c["legacy_functions"], 81)
+        self.assertEqual(c["all_functions"], 276)
 
-    def test_layered_help(self):
-        root, _ = render_help("")
-        self.assertIn("/help game mine", root)
+    def test_registry_aliases_and_legacy_source_are_well_formed(self):
+        r = registry()
+        for op in r["operations"]:
+            self.assertIsInstance(op.get("aliases", []), list)
+            self.assertFalse(op.get("aliases") in [list("none"), list("required"), list("optional")], op["id"])
+        tree = ast.parse((PLUGINS / "doge_legacy" / "main.py").read_text(encoding="utf-8"))
+        history = None
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "HISTORY" for t in node.targets):
+                history = ast.literal_eval(node.value)
+                break
+        self.assertIsInstance(history, dict)
+        self.assertEqual(set(history), set(r["legacy"]["commands"]))
+
+    def test_slash_wake_is_not_automatically_a_command(self):
+        self.assertIsNone(match_invocation("/你好"))
+        self.assertIsNone(match_invocation("/你能做什么"))
+        self.assertIsNone(match_invocation("/totally-unknown whatever"))
+        self.assertEqual(match_invocation("/ver").capability_id, "core.ver")
+        self.assertIsNone(match_invocation("/gpt hello"))  # Legacy is not loaded in the default profile
+        self.assertEqual(match_invocation("/gpt hello", include_legacy=True).capability_id, "legacy.gpt")
+
+    def test_nested_aliases_canonicalize_but_invocation_form_is_preserved(self):
+        x = match_invocation("/game minesweeper open A1")
+        self.assertEqual(x.capability_id, "game.mine.open")
+        self.assertEqual(x.invoked, "game minesweeper open")
+        self.assertTrue(x.is_alias)
+        x = match_invocation("/lang 西夏文 zh2t 我爱中国")
+        self.assertEqual(x.capability_id, "lang.tangut.zh2t")
+        self.assertEqual(x.invoked, "lang 西夏文 zh2t")
+        self.assertEqual(match_invocation("/game nc start").capability_id, "game.nc.start")
+        self.assertEqual(match_invocation("给我一点电疗").capability_id, "util.electrotherapy")
+
+    def test_agent_knows_full_tangut_bidirectional_capability(self):
+        prompt = agent_capability_prompt()
+        self.assertIn("/lang tangut t2zh", prompt)
+        self.assertIn("西夏文→中文", prompt)
+        self.assertIn("/lang tangut zh2t", prompt)
+        self.assertIn("中文→西夏文", prompt)
+        self.assertIn("195 canonical leaf functions", prompt)
+        self.assertIn("81 documented historical leaf functions", prompt)
+        self.assertIn("Legacy is NOT loaded by the default profile", prompt)
+
+
+class HelpTests(unittest.TestCase):
+    def test_cli_root_and_layered_help(self):
+        root, markdown = render_help("")
+        self.assertFalse(markdown)
+        self.assertIn("Doge CLI", root)
+        self.assertIn("正式叶子功能   195", root)
+        self.assertIn("正式调用形式   449", root)
+        self.assertIn("Legacy 叶子    81", root)
+        self.assertIn("/help lang tangut", root)
         research, _ = render_help("research")
         self.assertIn("/paper", research)
         mine, _ = render_help("game mine")
-        self.assertIn("首击安全", mine)
-        self.assertIn("/game mine mark A1", mine)
+        self.assertIn("首次开格保证安全", mine)
+        self.assertIn("/game mine mark A1 [B2 ...]", mine)
+        self.assertIn("/game mine sweep A1 [B2 ...]", mine)
+        tangut, _ = render_help("lang tangut")
+        self.assertIn("t2zh", tangut)
+        self.assertIn("zh2t", tangut)
+        self.assertIn("中文→西夏文", tangut)
 
-    def test_generated_help_is_current(self):
+    def test_alias_help_redirect_and_typo_suggestion(self):
+        alias, _ = render_help("game minesweeper")
+        self.assertIn("兼容写法已归一", alias)
+        self.assertIn("/game mine", alias)
+        typo, _ = render_help("lagn")
+        self.assertIn("/help lang", typo)
+        self.assertNotIn("/help ltran", typo)
+        legacy_typo, _ = render_help("legacy gtp")
+        self.assertIn("/help legacy gpt", legacy_typo)
+
+    def test_cli_error_points_back_to_help(self):
+        out = format_cli_error("lang", "未知 Tangut 子命令", "lang tangut")
+        self.assertIn("ERROR  /lang", out)
+        self.assertIn("未知 Tangut 子命令", out)
+        self.assertIn("/help lang tangut", out)
+        self.assertIn("/help lang", out)
+
+    def test_legacy_help_and_generated_docs_are_current(self):
+        legacy, _ = render_help("legacy")
+        self.assertIn("历史顶层入口   45", legacy)
+        self.assertIn("历史叶子功能   81", legacy)
+        gan, _ = render_help("legacy gan")
+        self.assertIn("StyleGAN", gan)
+        self.assertIn("cat", gan)
+        self.assertIn("chem", gan)
         mod = _load_module("doge_help_gen", ROOT / "tools" / "generate_help_docs.py")
         self.assertEqual((ROOT / "HELP.md").read_text(encoding="utf-8"), mod.generate())
+        self.assertEqual((ROOT / "LEGACY.md").read_text(encoding="utf-8"), mod.generate_legacy())
+
+
+class UsageStatisticsTests(unittest.TestCase):
+    def test_aliases_roll_up_to_one_canonical_top_feature(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td); logs = td / "logs"; logs.mkdir(); usage = td / "usage.json"
+            counter = UsageCounter(usage, logs)
+            counter.record("aiocqhttp", "/game mine open A1")
+            counter.record("aiocqhttp", "/game minesweeper open B2")
+            counter.record("aiocqhttp", "/你觉得这个怎么样")
+            d = counter.snapshot()
+            self.assertEqual(d["commands"], 2)
+            self.assertEqual(d["by_capability"], {"game.mine.open": 2})
+            self.assertEqual(sum(d["by_command"].values()), 2)
+
+    def test_v1_migration_rebuilds_only_registered_commands(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td); logs = td / "logs"; logs.mkdir(); usage = td / "usage.json"
+            usage.write_text(json.dumps({
+                "schema": 1, "started_at": 1, "messages": 3, "commands": 3,
+                "by_platform": {}, "by_command": {"你好": 1, "ver": 1, "lang": 1}, "by_date": {},
+            }))
+            (logs / "astrbot.log").write_text(
+                "[x] [core.event_bus:74]: [g] [aiocqhttp] x: /你好\n"
+                "[x] [core.event_bus:74]: [g] [aiocqhttp] x: /ver\n"
+                "[x] [core.event_bus:74]: [g] [aiocqhttp] x: /lang 西夏文 zh2t 我爱中国\n",
+                encoding="utf-8",
+            )
+            d = UsageCounter(usage, logs).snapshot()
+            self.assertEqual(d["schema"], 2)
+            self.assertEqual(d["commands"], 2)
+            self.assertNotIn("你好", d["by_command"])
+            self.assertEqual(d["by_command"], {"ver": 1, "lang 西夏文 zh2t": 1})
+            self.assertEqual(d["by_capability"]["lang.tangut.zh2t"], 1)
+            self.assertEqual(capability_display("lang.tangut.zh2t"), "/lang tangut zh2t")
 
 
 class MarkdownPlainTests(unittest.TestCase):
@@ -75,16 +202,17 @@ class PersonaTests(unittest.TestCase):
         self.assertEqual(p["persona_id"], "doge")
         self.assertEqual(len(p["begin_dialogs"]) % 2, 0)
         self.assertGreaterEqual(len(p["begin_dialogs"]), 6)
-        self.assertIn("不编造真实人生经历", p["system_prompt"])
-        self.assertIn("计算机", p["system_prompt"])
+        self.assertIn("Doge 只是项目名，不代表犬类角色", p["system_prompt"])
+        self.assertIn("普通对话默认不使用任何 emoji", p["system_prompt"])
+        self.assertIn("实验室怪人型前辈", p["system_prompt"])
+        self.assertIn("西夏文支持双向翻译", p["system_prompt"])
+        self.assertNotIn("汪~", p["system_prompt"])
         self.assertIsNone(p["tools"])
 
     def test_runtime_profile_installer_is_idempotent_and_preserves_unrelated_config(self):
         installer = _load_module("doge_runtime_installer", ROOT / "tools" / "install_runtime_profile.py")
         with tempfile.TemporaryDirectory() as td:
-            runtime = Path(td)
-            data = runtime / "data"
-            data.mkdir()
+            runtime = Path(td); data = runtime / "data"; data.mkdir()
             cfg = {
                 "provider_settings": {"default_personality": "default", "persona_pool": ["*"], "default_provider_id": "keep-me"},
                 "platform": [{"id": "napcat", "secret": "DO_NOT_TOUCH"}],
@@ -96,19 +224,15 @@ class PersonaTests(unittest.TestCase):
                 "CREATE TABLE personas (created_at TEXT NOT NULL, updated_at TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT, persona_id TEXT UNIQUE NOT NULL, system_prompt TEXT NOT NULL, begin_dialogs JSON, tools JSON, skills JSON, custom_error_message TEXT, folder_id TEXT, sort_order INTEGER DEFAULT 0)"
             )
             conn.commit(); conn.close()
-
-            installer.install(runtime, backup=False)
-            installer.install(runtime, backup=False)
+            installer.install(runtime, backup=False); installer.install(runtime, backup=False)
             out = json.loads((data / "cmd_config.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(out["provider_settings"]["default_personality"], "doge")
             self.assertEqual(out["provider_settings"]["default_provider_id"], "keep-me")
             self.assertEqual(out["platform"][0]["secret"], "DO_NOT_TOUCH")
             self.assertTrue(out["disable_builtin_commands"])
             conn = sqlite3.connect(data / "data_v4.db")
-            rows = conn.execute("SELECT persona_id,system_prompt,begin_dialogs FROM personas").fetchall()
-            conn.close()
-            self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0][0], "doge")
+            rows = conn.execute("SELECT persona_id,system_prompt,begin_dialogs FROM personas").fetchall(); conn.close()
+            self.assertEqual(len(rows), 1); self.assertEqual(rows[0][0], "doge")
             self.assertEqual(len(json.loads(rows[0][2])) % 2, 0)
 
 

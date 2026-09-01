@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import json
 import os
 import platform
@@ -14,6 +13,8 @@ import time
 from collections import Counter
 from pathlib import Path
 from threading import Lock
+
+from .capabilities import counts as capability_counts, match_invocation
 
 _EVENT_RE = re.compile(r"\[core\.event_bus:74\]:\s+\[[^]]+\]\s+\[([^]]+)\].*?:\s(.*)$")
 
@@ -100,7 +101,7 @@ def version_snapshot(repo_root: Path) -> dict[str, str]:
     except Exception:
         astrbot_ver = "unknown"
     return {
-        "doge": "5.5.0",
+        "doge": "5.7.0",
         "git": git_revision(repo_root),
         "astrbot": astrbot_ver,
         "python": platform.python_version(),
@@ -127,19 +128,6 @@ def system_snapshot(data_root: Path) -> dict[str, object]:
     }
 
 
-def _extract_command(message: str) -> str | None:
-    text = (message or "").strip()
-    if not text.startswith("/"):
-        return None
-    bits = text[1:].split()
-    if not bits:
-        return None
-    head = bits[0].lower()
-    if head == "admin" and len(bits) > 1:
-        return "admin " + bits[1].lower()
-    return head
-
-
 class UsageCounter:
     """Tiny persistent aggregate counter. No message bodies or user identifiers are stored."""
 
@@ -153,24 +141,17 @@ class UsageCounter:
     @staticmethod
     def _blank() -> dict:
         return {
-            "schema": 1,
+            "schema": 2,
             "started_at": int(time.time()),
             "messages": 0,
             "commands": 0,
             "by_platform": {},
             "by_command": {},
+            "by_capability": {},
             "by_date": {},
         }
 
-    def _load_or_bootstrap(self) -> dict:
-        if self.path.exists():
-            try:
-                d = json.loads(self.path.read_text(encoding="utf-8"))
-                if d.get("schema") == 1:
-                    return d
-            except Exception:
-                pass
-        d = self._blank()
+    def _scan_logs(self, data: dict, *, messages: bool, commands: bool) -> None:
         for log in sorted(self.log_dir.glob("astrbot.log*")):
             try:
                 lines = log.read_text(encoding="utf-8", errors="ignore").splitlines()
@@ -181,12 +162,38 @@ class UsageCounter:
                 if not m:
                     continue
                 platform_name, msg = m.groups()
-                d["messages"] += 1
-                d["by_platform"][platform_name] = d["by_platform"].get(platform_name, 0) + 1
-                cmd = _extract_command(msg)
-                if cmd:
-                    d["commands"] += 1
-                    d["by_command"][cmd] = d["by_command"].get(cmd, 0) + 1
+                if messages:
+                    data["messages"] += 1
+                    data["by_platform"][platform_name] = data["by_platform"].get(platform_name, 0) + 1
+                if commands:
+                    inv = match_invocation(msg)
+                    if inv is not None:
+                        data["commands"] += 1
+                        data["by_command"][inv.invoked] = data["by_command"].get(inv.invoked, 0) + 1
+                        data["by_capability"][inv.capability_id] = data["by_capability"].get(inv.capability_id, 0) + 1
+
+    def _load_or_bootstrap(self) -> dict:
+        if self.path.exists():
+            try:
+                d = json.loads(self.path.read_text(encoding="utf-8"))
+                if d.get("schema") == 2:
+                    d.setdefault("by_capability", {})
+                    return d
+                if d.get("schema") == 1:
+                    # v1 treated every slash wake message as a command. Preserve
+                    # aggregate message history, but rebuild command history from
+                    # available logs using the authoritative capability registry.
+                    d["schema"] = 2
+                    d["commands"] = 0
+                    d["by_command"] = {}
+                    d["by_capability"] = {}
+                    self._scan_logs(d, messages=False, commands=True)
+                    self._save(d)
+                    return d
+            except Exception:
+                pass
+        d = self._blank()
+        self._scan_logs(d, messages=True, commands=True)
         self._save(d)
         return d
 
@@ -198,15 +205,16 @@ class UsageCounter:
 
     def record(self, platform_name: str, message: str) -> None:
         day = time.strftime("%Y-%m-%d", time.localtime())
-        cmd = _extract_command(message)
+        inv = match_invocation(message)
         with self._lock:
             self.data["messages"] += 1
             p = platform_name or "unknown"
             self.data["by_platform"][p] = self.data["by_platform"].get(p, 0) + 1
             self.data["by_date"][day] = self.data["by_date"].get(day, 0) + 1
-            if cmd:
+            if inv is not None:
                 self.data["commands"] += 1
-                self.data["by_command"][cmd] = self.data["by_command"].get(cmd, 0) + 1
+                self.data["by_command"][inv.invoked] = self.data["by_command"].get(inv.invoked, 0) + 1
+                self.data["by_capability"][inv.capability_id] = self.data["by_capability"].get(inv.capability_id, 0) + 1
             self._save()
 
     def snapshot(self) -> dict:
@@ -217,26 +225,26 @@ class UsageCounter:
 def product_counts(v5_root: Path) -> dict[str, int]:
     manifest = json.loads((v5_root / "plugin_manifest.json").read_text(encoding="utf-8"))
     defaults = [x["name"] for x in manifest["plugins"] if x.get("default") and x.get("status") not in {"planned", "merged"}]
-    commands: set[str] = set()
-    for name in defaults:
-        p = v5_root / "plugins" / name / "main.py"
-        if not p.exists():
-            continue
-        try:
-            tree = ast.parse(p.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        for node in ast.walk(tree):
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            for deco in node.decorator_list:
-                if not isinstance(deco, ast.Call) or not isinstance(deco.func, ast.Attribute):
-                    continue
-                if deco.func.attr not in {"command", "command_group"}:
-                    continue
-                if deco.args and isinstance(deco.args[0], ast.Constant):
-                    commands.add(str(deco.args[0].value))
-    return {"plugins": len(defaults), "commands": len(commands)}
+    c = capability_counts()
+    coverage = {"v2_rules": [], "v3": {}, "v4": {}}
+    try:
+        coverage = json.loads((v5_root / "legacy_coverage.json").read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {
+        "plugins": len(defaults),
+        "commands": c["top_level"],
+        "functions": c["functions"],
+        "forms": c["forms"],
+        "aliases": c["aliases"],
+        "triggers": c["triggers"],
+        "legacy_commands": c["legacy_top_level"],
+        "legacy_functions": c["legacy_functions"],
+        "all_functions": c["all_functions"],
+        "history_v2": len(coverage.get("v2_rules", [])),
+        "history_v3": len(coverage.get("v3", {})),
+        "history_v4": len(coverage.get("v4", {})),
+    }
 
 
 def provider_aggregates(db_path: Path) -> dict[str, int | float]:

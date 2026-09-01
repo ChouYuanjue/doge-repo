@@ -5,6 +5,7 @@ from astrbot.api.star import Context, Star, register
 
 from data.plugins.doge_shared.presentation import long_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload
+from data.plugins.doge_shared.capabilities import counts, registry
 
 # Historical commands that are intentionally not part of the modern default
 # surface.  The legacy plugin is a museum: preserving names, intent, and a
@@ -45,11 +46,11 @@ HISTORY = {
     "api": ("v4 可配置 API 管理器", "retired", "旧插件把任意 HTTP API 配置直接暴露为群指令，边界与密钥管理都较弱；现代能力改由各正式 domain service/Agent Tool 管理。"),
     "emojimix": ("v4 emoji 合成", "archived", "历史 Emoji Kitchen 风格入口留档；若恢复应进入独立 memes/media 域并复用当前稳定上游。"),
     "meme": ("v3/v4 表情包与模板管理", "archived", "旧模板系统与资源仍有参考价值，但当前正式媒体模块尚未完成；先完整保留历史语义。"),
-    "mirage": ("v3/v4 幻影坦克图片", "archived", "旧图片合成玩法留档；未来若恢复应进入 memes/media，而不是 core。"),
+    "mirage": ("v3/v4 幻影坦克图片", "migrated", "历史图片合成玩法已经现代化为正式 `/media mirage gray|color`，使用本地 Pillow/NumPy 实现。"),
     "music": ("v4 点歌/音乐搜索", "archived", "旧非官方音乐接口较脆弱；正式 music 域只会在找到稳定上游后恢复。"),
     "lyrics": ("v4 歌词搜索", "archived", "旧歌词链路与 music 同属历史媒体能力，暂不依赖非官方接口。"),
     "vv": ("v4 视频/媒体辅助", "archived", "旧 vvapi 入口留档；后续统一并入 media 编排，不单独维持顶层命令。"),
-    "trace": ("v4 trace.moe / 动漫图片识别", "archived", "能力本身仍有价值，但应由现代 media/image-exploration 域复用成熟插件，而不是继续维护旧单点实现。"),
+    "trace": ("v4 trace.moe / 动漫图片识别", "migrated", "动漫/Gal 图片识别已经迁入正式 `/media trace anime|gal`，当前使用 AnimeTrace 并保留真实后端失败说明。"),
     "st": ("v4 图片搜索/识别辅助", "archived", "旧图片检索入口留档；正式恢复应复用当前成熟 image-exploration 插件。"),
     "mc": ("v4 Minecraft 查询/服务器管理", "archived", "旧 mclist/mcget/mcadd/mcdel/mcup 等语义留档；只有在确定真实使用场景后才恢复独立模块。"),
     "law": ("v2/v3 法律片段/今日刑法", "offline", "旧网页抓取源年代久远且不适合做可靠法律信息源；历史用途保留，不提供法律判断。"),
@@ -74,8 +75,30 @@ class DogeLegacy(Star):
 
     @filter.command("legacy")
     async def legacy(self, event: AstrMessageEvent):
-        body = "\n".join(f"- `/{k}` — {v[0]} · `{v[1]}`" for k, v in HISTORY.items())
-        yield long_result(event, "Doge Legacy Museum", body, fold_threshold=1200)
+        c = counts()
+        legacy = (registry().get("legacy") or {}).get("commands", {})
+        states = {}
+        for meta in legacy.values():
+            state = meta.get("state", "legacy")
+            states[state] = states.get(state, 0) + 1
+        lines = [
+            "Doge Legacy Museum",
+            "默认 profile 不加载这些历史实现；当前已启用 Legacy 插件，所以历史入口可以返回状态/迁移说明。",
+            "",
+            f"历史顶层入口 {c['legacy_top_level']}",
+            f"历史叶子功能 {c['legacy_functions']}",
+            "",
+            "状态",
+        ]
+        lines.extend(f"  {state:<10} {n}" for state, n in sorted(states.items()))
+        lines += [
+            "",
+            "帮助",
+            "  /help legacy",
+            "  /help legacy retired",
+            "  /help legacy <历史命令>",
+        ]
+        yield text_result(event, "\n".join(lines), markdown=False)
 
     @filter.command("gpt")
     async def gpt(self,event):

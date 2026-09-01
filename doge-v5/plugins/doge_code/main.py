@@ -4,6 +4,7 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 from data.plugins.doge_shared.presentation import long_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 
 from .executor import LANGUAGES, RunoobExecutor
 
@@ -33,4 +34,4 @@ class DogeCode(Star):
             # strip it for OneBot/NapCat via the shared presentation layer.
             yield long_result(event, f"Run · {language}", f"```\n{result}\n```", fold_threshold=1800)
         except Exception as exc:
-            yield text_result(event, f"run 失败：{exc}", markdown=False)
+            yield text_result(event, format_cli_error('run', exc), markdown=False)

@@ -8,6 +8,7 @@ from astrbot.api.provider import LLMResponse, ProviderRequest
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 from data.plugins.doge_shared.agent_tools import DogeWeatherTool, register_domain_tools
+from data.plugins.doge_shared.capabilities import agent_capability_prompt, capability_display
 from data.plugins.doge_shared.help_service import render_help
 from data.plugins.doge_shared.presentation import markdown_to_plain, text_result
 from data.plugins.doge_shared.raw_command import command_payload
@@ -21,7 +22,7 @@ from data.plugins.doge_shared.runtime_stats import (
 )
 
 
-@register("doge_core", "runnel", "Doge 核心运行、状态与统计", "5.5.0")
+@register("doge_core", "runnel", "Doge 核心运行、状态与统计", "5.7.0")
 class DogeCore(Star):
     """Always-on Doge foundation: identity, health, statistics and Agent basics."""
 
@@ -45,24 +46,18 @@ class DogeCore(Star):
             tools = 0
         return counts, tools
 
-    def _adapters(self, event: AstrMessageEvent) -> list[str]:
-        try:
-            cfg = self.context.get_config(umo=event.unified_msg_origin)
-            return [
-                f"{p.get('id', '?')}:{p.get('type', '?')}"
-                for p in cfg.get("platform", [])
-                if p.get("enable", True)
-            ]
-        except Exception:
-            return []
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=10000)
     async def count_usage(self, event: AstrMessageEvent):
-        # Aggregate only: platform + top-level command + date. No content/user IDs.
+        # Aggregate only: platform/date + registry-recognized invocation. No content/user IDs.
         self.counter.record(event.get_platform_name(), event.message_str or "")
 
     @filter.on_llm_request(priority=100)
-    async def onebot_plain_prompt(self, event: AstrMessageEvent, req: ProviderRequest) -> None:
+    async def enrich_llm_request(self, event: AstrMessageEvent, req: ProviderRequest) -> None:
+        # Capability knowledge is generated from the same leaf-level registry as
+        # /help and /statics, so the persona cannot drift into "I cannot do X"
+        # while X is actually installed.
+        req.system_prompt = (req.system_prompt or "") + "\n\n" + agent_capability_prompt()
         if str(event.get_platform_name() or "").lower() != "aiocqhttp":
             return
         req.system_prompt += (
@@ -91,35 +86,35 @@ class DogeCore(Star):
     async def version(self, event: AstrMessageEvent):
         v = version_snapshot(self.repo_root)
         counts, tools = self._product()
-        adapters = self._adapters(event)
         lines = [
-            f"Doge {v['doge']} · git {v['git']}",
-            f"AstrBot {v['astrbot']} · Python {v['python']}",
-            f"default profile: {counts['plugins']} plugins · {counts['commands']} commands · {tools} Agent tools",
+            f"Doge {v['doge']}",
+            f"Git {v['git']}",
+            f"AstrBot {v['astrbot']}",
+            f"Python {v['python']}",
+            f"默认插件 {counts['plugins']}",
+            f"顶层指令 {counts['commands']}",
+            f"正式叶子功能 {counts['functions']}",
+            f"正式调用形式 {counts['forms']}",
+            f"Legacy 历史叶子 {counts['legacy_functions']}",
+            f"Agent Tools {tools}",
         ]
-        if adapters:
-            lines.append("adapters: " + " · ".join(adapters))
-        lines.append(
-            f"current: {event.get_platform_name()} · instance={event.get_platform_id()}"
-        )
         yield text_result(event, "\n".join(lines), markdown=False)
 
     @filter.command("status")
     async def status(self, event: AstrMessageEvent):
         s = system_snapshot(self.data_root)
         ports = s["ports"]
-        adapters = self._adapters(event)
         lines = [
-            f"host uptime: {s['host_uptime']} · load {s['load']}",
-            f"memory: {s['memory']} ({s['memory_pct']:.1f}%) · AstrBot RSS {s['astrbot_rss']}",
-            f"disk: {s['disk']} ({s['disk_pct']:.1f}%)",
-            "local links: "
-            + f"NapCat 6099={'up' if ports[6099] else 'down'} · "
-            + f"OneBot 6199={'up' if ports[6199] else 'down'} · "
-            + f"Dashboard 6185={'up' if ports[6185] else 'down'}",
+            f"Host uptime {s['host_uptime']}",
+            f"Load {s['load']}",
+            f"Memory {s['memory']} ({s['memory_pct']:.1f}%)",
+            f"AstrBot RSS {s['astrbot_rss']}",
+            f"Disk {s['disk']} ({s['disk_pct']:.1f}%)",
+            "",
+            f"NapCat WebUI 6099 {'UP' if ports[6099] else 'DOWN'}",
+            f"OneBot WS 6199 {'UP' if ports[6199] else 'DOWN'}",
+            f"AstrBot WebUI 6185 {'UP' if ports[6185] else 'DOWN'}",
         ]
-        if adapters:
-            lines.append("configured adapters: " + " · ".join(adapters))
         yield text_result(event, "\n".join(lines), markdown=False)
 
     @filter.command("statics")
@@ -128,15 +123,34 @@ class DogeCore(Star):
         counts, tools = self._product()
         provider = provider_aggregates(self.data_root / "data_v4.db")
         today = __import__("time").strftime("%Y-%m-%d")
-        top = top_counts(usage.get("by_command", {}), 5)
-        platforms = top_counts(usage.get("by_platform", {}), 5)
+        top = top_counts(usage.get("by_capability", {}), 7)
         lines = [
-            f"product: {counts['plugins']} default plugins · {counts['commands']} top-level commands · {tools} Agent tools",
-            f"usage: {usage.get('messages', 0)} inbound messages · {usage.get('commands', 0)} slash commands · today {usage.get('by_date', {}).get(today, 0)} messages",
-            f"LLM: {provider['requests']} requests · {provider['tokens']} tokens ({provider['output_tokens']} output) · avg {provider['avg_latency']:.2f}s",
+            "Doge Statics",
+            "",
+            "产品",
+            f"  默认插件 {counts['plugins']}",
+            f"  顶层指令 {counts['commands']}",
+            f"  正式叶子功能 {counts['functions']}",
+            f"  正式调用形式 {counts['forms']}（含 {counts['aliases']} 个兼容别名）",
+            f"  Legacy 历史入口 {counts['legacy_commands']}",
+            f"  Legacy 历史叶子 {counts['legacy_functions']}",
+            f"  历史收容 v2 {counts['history_v2']}/108",
+            f"  历史收容 v3 {counts['history_v3']}/34",
+            f"  历史收容 v4 {counts['history_v4']}/35",
+            f"  Agent Tools {tools}",
+            "",
+            "使用",
+            f"  入站消息 {usage.get('messages', 0)}",
+            f"  有效功能调用 {usage.get('commands', 0)}",
+            f"  今日消息 {usage.get('by_date', {}).get(today, 0)}",
+            "",
+            "LLM",
+            f"  请求 {provider['requests']}",
+            f"  Token {provider['tokens']}",
+            f"  输出 Token {provider['output_tokens']}",
+            f"  平均延迟 {provider['avg_latency']:.2f}s",
         ]
-        if platforms:
-            lines.append("platforms: " + " · ".join(f"{k} {v}" for k, v in platforms))
         if top:
-            lines.append("top commands: " + " · ".join(f"/{k} {v}" for k, v in top))
+            lines += ["", "Top 功能"]
+            lines.extend(f"  {capability_display(k)}  {v}" for k, v in top)
         yield text_result(event, "\n".join(lines), markdown=False)

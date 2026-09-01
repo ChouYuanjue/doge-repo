@@ -1,0 +1,3454 @@
+{
+  "version": 3,
+  "syntax": {
+    "required": "<...> 必填",
+    "optional": "[...] 可选",
+    "alternatives": "A|B 表示任选其一",
+    "aliases": "别名会参与统计，但不重复算 canonical 功能。"
+  },
+  "categories": [
+    {
+      "id": "system",
+      "title": "系统 / 状态",
+      "summary": "认识当前实例、查看运行状态与使用统计。",
+      "commands": [
+        "help",
+        "ver",
+        "status",
+        "statics"
+      ]
+    },
+    {
+      "id": "research",
+      "title": "检索 / 科研",
+      "summary": "论文、知识检索，以及生化环材、天文和临床数据。",
+      "commands": [
+        "lookup",
+        "paper",
+        "bio",
+        "chem",
+        "mat",
+        "astro",
+        "trial"
+      ]
+    },
+    {
+      "id": "compute",
+      "title": "计算机 / AI",
+      "summary": "数学、轻量 AI/CS 实验和远端代码执行。",
+      "commands": [
+        "math",
+        "ai",
+        "cs",
+        "run"
+      ]
+    },
+    {
+      "id": "create",
+      "title": "排版 / 图形 / 工程",
+      "summary": "把公式、Markdown、代码、图表和工程系统变成可分享的结果。",
+      "commands": [
+        "md",
+        "snippet",
+        "tex",
+        "typst",
+        "diagram",
+        "eng",
+        "lab"
+      ]
+    },
+    {
+      "id": "language",
+      "title": "语言学",
+      "summary": "西夏文、汉字历史音系、RRPL 与构造语言。",
+      "commands": [
+        "lang"
+      ]
+    },
+    {
+      "id": "play",
+      "title": "游戏 / 群聊实验",
+      "summary": "小游戏、解谜、概念炼金和荒诞竞技场。",
+      "commands": [
+        "game",
+        "fuse",
+        "arena"
+      ]
+    },
+    {
+      "id": "media",
+      "title": "媒体 / 小工具",
+      "summary": "图片识别、幻影坦克和少量不值得单独成域的小工具。",
+      "commands": [
+        "media",
+        "util"
+      ]
+    },
+    {
+      "id": "admin",
+      "title": "管理",
+      "summary": "AstrBot 框架级会话与管理指令，统一收在 /admin 下。",
+      "commands": [
+        "admin"
+      ]
+    }
+  ],
+  "commands": {
+    "help": {
+      "summary": "分层帮助导航。",
+      "category": "system"
+    },
+    "ver": {
+      "summary": "显示当前 Doge/AstrBot/Python/Git 的精确版本与运行能力规模。",
+      "category": "system"
+    },
+    "status": {
+      "summary": "查看此刻服务器和 Doge 链路状态：负载、内存、磁盘、AstrBot RSS 与关键端口。",
+      "category": "system"
+    },
+    "statics": {
+      "summary": "查看累计使用统计与产品规模：消息、命令、平台、LLM token、插件、指令和 Agent Tool。",
+      "category": "system"
+    },
+    "lookup": {
+      "summary": "有来源的通用知识/计算查询；优先可靠公开源，不把 LLM 猜测冒充检索结果。",
+      "category": "research"
+    },
+    "paper": {
+      "summary": "论文发现、引用链、开放全文与引文查询。",
+      "category": "research"
+    },
+    "bio": {
+      "summary": "蛋白、结构、序列、通路与靶点查询。",
+      "category": "research"
+    },
+    "chem": {
+      "summary": "化学结构、PubChem 与 ChEMBL。",
+      "category": "research"
+    },
+    "mat": {
+      "summary": "材料数据库、CIF 晶体结构与粉末衍射。",
+      "category": "research"
+    },
+    "astro": {
+      "summary": "天体、系外行星和 ADS 文献。",
+      "category": "research"
+    },
+    "trial": {
+      "summary": "ClinicalTrials.gov 临床试验查询。",
+      "category": "research"
+    },
+    "math": {
+      "summary": "数学计算、进制、π、OEIS 等轻量数学工具。",
+      "category": "compute"
+    },
+    "ai": {
+      "summary": "不下载大模型的 AI 内部机制实验室。",
+      "category": "compute"
+    },
+    "cs": {
+      "summary": "计算机科学小实验：自动机与图算法。",
+      "category": "compute"
+    },
+    "run": {
+      "summary": "在受限远端编译/运行后端执行小段代码，不在 Doge 宿主机直接跑用户代码。",
+      "category": "compute"
+    },
+    "md": {
+      "summary": "Markdown 出版：聊天卡片、A4 文档 PNG 或真正 PDF。",
+      "category": "create"
+    },
+    "snippet": {
+      "summary": "代码/diff/终端输出的专业排版卡片。",
+      "category": "create"
+    },
+    "tex": {
+      "summary": "TeX/LaTeX 公式与文档渲染。",
+      "category": "create"
+    },
+    "typst": {
+      "summary": "直接使用 Typst 排版。",
+      "category": "create"
+    },
+    "diagram": {
+      "summary": "结构图与数据可视化：本地 Graphviz、Vega-Lite，及 Mermaid。",
+      "category": "create"
+    },
+    "eng": {
+      "summary": "工程实验室：Schemdraw 电路与 python-control 经典控制系统。",
+      "category": "create"
+    },
+    "lab": {
+      "summary": "数学、物理和复杂系统的直观科学实验。",
+      "category": "create"
+    },
+    "lang": {
+      "summary": "Language Lab：西夏文、汉字音系、RRPL 与 R'lyehian/Cthuvian。",
+      "category": "language"
+    },
+    "game": {
+      "summary": "群聊游戏与解谜统一入口。",
+      "category": "play"
+    },
+    "fuse": {
+      "summary": "把两个概念炼成可持续复用的群聊物件。",
+      "category": "play"
+    },
+    "arena": {
+      "summary": "完整保留原 /wp 238 条手写弱能力；支持原味直接对决与高组合竞技场。",
+      "category": "play"
+    },
+    "media": {
+      "summary": "视觉小实验：AnimeTrace 图片识别与本地幻影坦克。",
+      "category": "media"
+    },
+    "util": {
+      "summary": "有用但不值得单独成域的小工具：codec、天气、APOD、Bing 等。",
+      "category": "media"
+    },
+    "admin": {
+      "summary": "AstrBot 框架级指令命名空间；普通 Doge 功能不放这里。",
+      "category": "admin"
+    }
+  },
+  "operations": [
+    {
+      "id": "help.navigate",
+      "path": "help",
+      "summary": "分层查看分类、指令和子功能帮助。",
+      "usage": "/help [分类|指令|子功能]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "core.ver",
+      "path": "ver",
+      "summary": "显示精确版本与产品规模。",
+      "usage": "/ver",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "core.status",
+      "path": "status",
+      "summary": "查看服务器与本地链路实时状态。",
+      "usage": "/status",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "core.statics",
+      "path": "statics",
+      "summary": "查看真实使用统计、功能规模和 LLM 用量。",
+      "usage": "/statics",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "admin.help",
+      "path": "admin help",
+      "summary": "查看 AstrBot 管理命名空间帮助。",
+      "usage": "/admin help",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "admin.sid",
+      "path": "admin sid",
+      "summary": "查看会话 ID。",
+      "usage": "/admin sid",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "admin.reset",
+      "path": "admin reset",
+      "summary": "重置当前会话。",
+      "usage": "/admin reset",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "admin.stop",
+      "path": "admin stop",
+      "summary": "停止当前会话生成。",
+      "usage": "/admin stop",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "admin.new",
+      "path": "admin new",
+      "summary": "新建会话。",
+      "usage": "/admin new",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "admin.stats",
+      "path": "admin stats",
+      "summary": "查看 AstrBot 会话统计。",
+      "usage": "/admin stats",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "admin.set",
+      "path": "admin set",
+      "summary": "设置会话变量。",
+      "usage": "/admin set <key> <value>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "admin.unset",
+      "path": "admin unset",
+      "summary": "删除会话变量。",
+      "usage": "/admin unset <key>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "admin.name",
+      "path": "admin name",
+      "summary": "设置名称/别名（管理员）。",
+      "usage": "/admin name <alias>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "admin.provider",
+      "path": "admin provider",
+      "summary": "查看或切换 provider（管理员）。",
+      "usage": "/admin provider",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "admin.dashboard_update",
+      "path": "admin dashboard_update",
+      "summary": "更新 Dashboard（管理员）。",
+      "usage": "/admin dashboard_update",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "math.calc",
+      "path": "math calc",
+      "summary": "数学表达式计算。",
+      "usage": "/math calc <表达式>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "math.base",
+      "path": "math base",
+      "summary": "进制转换。",
+      "usage": "/math base <数> <原进制> <目标进制>",
+      "aliases": [
+        "math system"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "math.pi",
+      "path": "math pi",
+      "summary": "查询 π 指定位数片段。",
+      "usage": "/math pi <起点> <位数>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "math.oeis",
+      "path": "math oeis",
+      "summary": "查询 OEIS 数列/关键词。",
+      "usage": "/math oeis <数列或关键词>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "util.encode",
+      "path": "util encode",
+      "summary": "URL/Unicode/Hex/Base64 编码。",
+      "usage": "/util encode <url|unicode|hex|base64> <文本>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "util.decode",
+      "path": "util decode",
+      "summary": "URL/Unicode/Hex/Base64 解码。",
+      "usage": "/util decode <url|unicode|hex|base64> <文本>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "util.weather",
+      "path": "util weather",
+      "summary": "Open-Meteo 天气查询。",
+      "usage": "/util weather <地点> [1-7天]",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "util.apod",
+      "path": "util apod",
+      "summary": "NASA Astronomy Picture of the Day。",
+      "usage": "/util apod [YYYY-MM-DD]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "util.bing",
+      "path": "util bing",
+      "summary": "Bing 当日壁纸。",
+      "usage": "/util bing",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "util.electrotherapy",
+      "path": "trigger electrotherapy",
+      "summary": "NapCat 群聊“给我…光明/电疗”自助短禁言彩蛋。",
+      "usage": "给我…光明 / 给我…电疗",
+      "aliases": [],
+      "args": "none",
+      "kind": "trigger",
+      "pattern": "^给我.*(?:光明|电疗).*$"
+    },
+    {
+      "id": "md.card",
+      "path": "md card",
+      "summary": "Markdown 自适应分享卡。",
+      "usage": "/md card <Markdown>",
+      "aliases": [
+        "md"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "md.doc",
+      "path": "md doc",
+      "summary": "Markdown A4 多页 PNG。",
+      "usage": "/md doc <Markdown>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "md.pdf",
+      "path": "md pdf",
+      "summary": "Markdown 真 PDF。",
+      "usage": "/md pdf <Markdown>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "snippet.render",
+      "path": "snippet",
+      "summary": "代码/diff/终端输出专业排版卡。",
+      "usage": "/snippet <语言> [--title=...] [--hl=...] <代码>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "tex.smart",
+      "path": "tex smart",
+      "summary": "TeX 智能渲染。",
+      "usage": "/tex smart <TeX>",
+      "aliases": [
+        "tex"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "tex.native",
+      "path": "tex native",
+      "summary": "TeX 原生路径渲染。",
+      "usage": "/tex native <TeX>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "tex.local",
+      "path": "tex local",
+      "summary": "TeX 本地路径渲染。",
+      "usage": "/tex local <TeX>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "typst.card",
+      "path": "typst card",
+      "summary": "Typst 分享卡。",
+      "usage": "/typst card <Typst>",
+      "aliases": [
+        "typst"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "typst.math",
+      "path": "typst math",
+      "summary": "Typst 数学模式。",
+      "usage": "/typst math <Typst>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "typst.doc",
+      "path": "typst doc",
+      "summary": "Typst 文档模式。",
+      "usage": "/typst doc <Typst>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "typst.chat",
+      "path": "typst chat",
+      "summary": "Typst 聊天版式。",
+      "usage": "/typst chat <Typst>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lab.mandelbrot",
+      "path": "lab fractal mandelbrot",
+      "summary": "Mandelbrot 分形。",
+      "usage": "/lab fractal mandelbrot [...]",
+      "aliases": [
+        "lab fractal mandel",
+        "lab fractal m"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.julia",
+      "path": "lab fractal julia",
+      "summary": "Julia 分形。",
+      "usage": "/lab fractal julia [...]",
+      "aliases": [
+        "lab fractal j"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.bifurcation",
+      "path": "lab chaos bifurcation",
+      "summary": "Logistic map 分岔图。",
+      "usage": "/lab chaos bifurcation [...]",
+      "aliases": [
+        "lab chaos bif",
+        "lab chaos logistic",
+        "lab chaos"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.attractor",
+      "path": "lab attractor",
+      "summary": "Lorenz/Rössler/Clifford 吸引子。",
+      "usage": "/lab attractor [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.ca",
+      "path": "lab ca",
+      "summary": "Wolfram 一维元胞自动机。",
+      "usage": "/lab ca [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.ulam",
+      "path": "lab number ulam",
+      "summary": "Ulam 素数螺旋。",
+      "usage": "/lab number ulam [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.modcircle",
+      "path": "lab number mod",
+      "summary": "模乘圆。",
+      "usage": "/lab number mod [...]",
+      "aliases": [
+        "lab number circle",
+        "lab number modcircle"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.lsystem",
+      "path": "lab lsys",
+      "summary": "L-system 分形。",
+      "usage": "/lab lsys [...]",
+      "aliases": [
+        "lab l-system"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.penrose",
+      "path": "lab tiling penrose",
+      "summary": "Penrose 铺砌。",
+      "usage": "/lab tiling penrose [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.wave",
+      "path": "lab wave",
+      "summary": "双源波干涉",
+      "usage": "/lab wave [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.field",
+      "path": "lab field",
+      "summary": "电场线",
+      "usage": "/lab field [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.pendulum",
+      "path": "lab pendulum",
+      "summary": "双摆",
+      "usage": "/lab pendulum [...]",
+      "aliases": [
+        "lab doublependulum"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.orbit",
+      "path": "lab orbit",
+      "summary": "三体 figure-eight 轨道",
+      "usage": "/lab orbit [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.reaction",
+      "path": "lab reaction",
+      "summary": "Gray-Scott 反应扩散",
+      "usage": "/lab reaction [...]",
+      "aliases": [
+        "lab grayscott"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.linear",
+      "path": "lab linear",
+      "summary": "二维线性映射",
+      "usage": "/lab linear [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.complex",
+      "path": "lab complex",
+      "summary": "复函数域着色",
+      "usage": "/lab complex [...]",
+      "aliases": [
+        "lab domain"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.newton",
+      "path": "lab newton",
+      "summary": "Newton 分形",
+      "usage": "/lab newton [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.ising",
+      "path": "lab ising",
+      "summary": "二维 Ising 模型",
+      "usage": "/lab ising [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.percolation",
+      "path": "lab percolation",
+      "summary": "渗流模型",
+      "usage": "/lab percolation [...]",
+      "aliases": [
+        "lab perc"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.randommatrix",
+      "path": "lab randommatrix",
+      "summary": "随机矩阵谱",
+      "usage": "/lab randommatrix [...]",
+      "aliases": [
+        "lab rmt"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.voronoi",
+      "path": "lab voronoi",
+      "summary": "Voronoi 几何",
+      "usage": "/lab voronoi [...]",
+      "aliases": [
+        "lab geometry"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.bloch",
+      "path": "lab bloch",
+      "summary": "Bloch 球",
+      "usage": "/lab bloch [...]",
+      "aliases": [
+        "lab quantum"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.relativity",
+      "path": "lab relativity",
+      "summary": "Minkowski/狭义相对论图",
+      "usage": "/lab relativity [...]",
+      "aliases": [
+        "lab minkowski"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.spectrum",
+      "path": "lab spectrum",
+      "summary": "FFT 频谱",
+      "usage": "/lab spectrum [...]",
+      "aliases": [
+        "lab fft"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.sandpile",
+      "path": "lab sandpile",
+      "summary": "Abelian sandpile",
+      "usage": "/lab sandpile [...]",
+      "aliases": [
+        "lab sand"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.ant",
+      "path": "lab ant",
+      "summary": "Langton 蚂蚁",
+      "usage": "/lab ant [...]",
+      "aliases": [
+        "lab langton"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.moire",
+      "path": "lab moire",
+      "summary": "莫尔纹",
+      "usage": "/lab moire [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.orbital",
+      "path": "lab orbital",
+      "summary": "氢样原子轨道切片",
+      "usage": "/lab orbital [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.lattice",
+      "path": "lab lattice",
+      "summary": "晶格实空间投影",
+      "usage": "/lab lattice [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.xrd",
+      "path": "lab xrd",
+      "summary": "理想晶格 XRD 教学模型",
+      "usage": "/lab xrd [...]",
+      "aliases": [
+        "lab diffraction-crystal"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.knot",
+      "path": "lab knot",
+      "summary": "数学结可视化",
+      "usage": "/lab knot [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.brownian",
+      "path": "lab brownian",
+      "summary": "布朗运动",
+      "usage": "/lab brownian [...]",
+      "aliases": [
+        "lab walk"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.sir",
+      "path": "lab sir",
+      "summary": "SIR 传染病模型",
+      "usage": "/lab sir [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.predator",
+      "path": "lab predator",
+      "summary": "Lotka–Volterra 捕食者模型",
+      "usage": "/lab predator [...]",
+      "aliases": [
+        "lab lotka"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.lens",
+      "path": "lab lens",
+      "summary": "薄透镜成像",
+      "usage": "/lab lens [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.well",
+      "path": "lab well",
+      "summary": "量子无限深势阱",
+      "usage": "/lab well [...]",
+      "aliases": [
+        "lab quantumwell"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.diffraction",
+      "path": "lab diffraction",
+      "summary": "双缝/单缝衍射",
+      "usage": "/lab diffraction [...]",
+      "aliases": [
+        "lab slit"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.replicator",
+      "path": "lab replicator",
+      "summary": "复制子动力学/RPS",
+      "usage": "/lab replicator [...]",
+      "aliases": [
+        "lab rps"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.life",
+      "path": "lab life",
+      "summary": "Conway Game of Life",
+      "usage": "/lab life [...]",
+      "aliases": [
+        "lab conway"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.dla",
+      "path": "lab dla",
+      "summary": "Diffusion-limited aggregation",
+      "usage": "/lab dla [...]",
+      "aliases": [
+        "lab aggregate"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.beats",
+      "path": "lab beats",
+      "summary": "拍频",
+      "usage": "/lab beats [...]",
+      "aliases": [
+        "lab beat"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.chladni",
+      "path": "lab chladni",
+      "summary": "Chladni 板振型",
+      "usage": "/lab chladni [...]",
+      "aliases": [
+        "lab plate"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.phyllotaxis",
+      "path": "lab phyllotaxis",
+      "summary": "叶序/黄金角",
+      "usage": "/lab phyllotaxis [...]",
+      "aliases": [
+        "lab sunflower"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.galton",
+      "path": "lab galton",
+      "summary": "Galton 板",
+      "usage": "/lab galton [...]",
+      "aliases": [
+        "lab bean"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "lab.lissajous",
+      "path": "lab lissajous",
+      "summary": "Lissajous 曲线",
+      "usage": "/lab lissajous [...]",
+      "aliases": [
+        "lab xy"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "eng.circuit.rc",
+      "path": "eng circuit rc",
+      "summary": "RC 电路图",
+      "usage": "/eng circuit rc [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "eng.circuit.rlc",
+      "path": "eng circuit rlc",
+      "summary": "RLC 电路图",
+      "usage": "/eng circuit rlc [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "eng.circuit.divider",
+      "path": "eng circuit divider",
+      "summary": "分压器电路图",
+      "usage": "/eng circuit divider [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "eng.circuit.series",
+      "path": "eng circuit series",
+      "summary": "自由串联元件电路图",
+      "usage": "/eng circuit series [...]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "eng.control.bode",
+      "path": "eng control bode",
+      "summary": "bode 控制系统响应。",
+      "usage": "/eng control bode <num> | <den>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "eng.control.step",
+      "path": "eng control step",
+      "summary": "step 控制系统响应。",
+      "usage": "/eng control step <num> | <den>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "eng.control.impulse",
+      "path": "eng control impulse",
+      "summary": "impulse 控制系统响应。",
+      "usage": "/eng control impulse <num> | <den>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "eng.control.nyquist",
+      "path": "eng control nyquist",
+      "summary": "nyquist 控制系统响应。",
+      "usage": "/eng control nyquist <num> | <den>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "eng.control.root",
+      "path": "eng control root",
+      "summary": "root 控制系统响应。",
+      "usage": "/eng control root <num> | <den>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.search",
+      "path": "paper search",
+      "summary": "论文搜索",
+      "usage": "/paper search <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.doi",
+      "path": "paper doi",
+      "summary": "精确 DOI/标识符书目查询",
+      "usage": "/paper doi <query>",
+      "aliases": [
+        "paper get",
+        "paper lookup"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.cited",
+      "path": "paper cited",
+      "summary": "被引论文",
+      "usage": "/paper cited <query>",
+      "aliases": [
+        "paper cites"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.refs",
+      "path": "paper refs",
+      "summary": "参考文献",
+      "usage": "/paper refs <query>",
+      "aliases": [
+        "paper references"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.related",
+      "path": "paper related",
+      "summary": "相关论文",
+      "usage": "/paper related <query>",
+      "aliases": [
+        "paper similar"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.oa",
+      "path": "paper oa",
+      "summary": "开放获取定位",
+      "usage": "/paper oa <query>",
+      "aliases": [
+        "paper open"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.bib",
+      "path": "paper bib",
+      "summary": "BibTeX/RIS 等引用格式",
+      "usage": "/paper bib <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.check",
+      "path": "paper check",
+      "summary": "撤稿/更正检查",
+      "usage": "/paper check <query>",
+      "aliases": [
+        "paper retract",
+        "paper retraction"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.dataset",
+      "path": "paper dataset",
+      "summary": "关联数据集",
+      "usage": "/paper dataset <query>",
+      "aliases": [
+        "paper data"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.pubmed",
+      "path": "paper pubmed",
+      "summary": "PubMed/PMC 查询",
+      "usage": "/paper pubmed <query>",
+      "aliases": [
+        "paper pmc"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.arxiv",
+      "path": "paper arxiv",
+      "summary": "arXiv 查询",
+      "usage": "/paper arxiv <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.author",
+      "path": "paper author",
+      "summary": "作者查询",
+      "usage": "/paper author <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.org",
+      "path": "paper org",
+      "summary": "机构查询",
+      "usage": "/paper org <query>",
+      "aliases": [
+        "paper institution"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "paper.affil",
+      "path": "paper affil",
+      "summary": "按 affiliation 查询机构",
+      "usage": "/paper affil <query>",
+      "aliases": [
+        "paper affiliation"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "bio.protein",
+      "path": "bio protein",
+      "summary": "UniProt 蛋白",
+      "usage": "/bio protein <query>",
+      "aliases": [
+        "bio uniprot"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "bio.domain",
+      "path": "bio domain",
+      "summary": "InterPro 结构域",
+      "usage": "/bio domain <query>",
+      "aliases": [
+        "bio interpro"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "bio.gene",
+      "path": "bio gene",
+      "summary": "Ensembl 基因",
+      "usage": "/bio gene <query>",
+      "aliases": [
+        "bio ensembl"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "bio.pdb",
+      "path": "bio pdb",
+      "summary": "PDB 结构",
+      "usage": "/bio pdb <query>",
+      "aliases": [
+        "bio structure"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "bio.af",
+      "path": "bio af",
+      "summary": "AlphaFold 结构",
+      "usage": "/bio af <query>",
+      "aliases": [
+        "bio alphafold"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "bio.variant",
+      "path": "bio variant",
+      "summary": "变异查询",
+      "usage": "/bio variant <query>",
+      "aliases": [
+        "bio var"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "bio.blast",
+      "path": "bio blast",
+      "summary": "提交 BLAST",
+      "usage": "/bio blast <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "bio.blastget",
+      "path": "bio blastget",
+      "summary": "获取 BLAST 结果",
+      "usage": "/bio blastget <query>",
+      "aliases": [
+        "bio blast_get"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "bio.pathway",
+      "path": "bio pathway",
+      "summary": "Reactome 通路",
+      "usage": "/bio pathway <query>",
+      "aliases": [
+        "bio reactome"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "bio.target",
+      "path": "bio target",
+      "summary": "Open Targets 靶点",
+      "usage": "/bio target <query>",
+      "aliases": [
+        "bio opentargets"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "bio.map",
+      "path": "bio map",
+      "summary": "ID 映射",
+      "usage": "/bio map <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chem.formula",
+      "path": "chem formula",
+      "summary": "分子式查询/转换",
+      "usage": "/chem formula <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chem.smiles",
+      "path": "chem smiles",
+      "summary": "SMILES 查询/转换",
+      "usage": "/chem smiles <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chem.names",
+      "path": "chem names",
+      "summary": "名称查询",
+      "usage": "/chem names <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chem.inchikey",
+      "path": "chem inchikey",
+      "summary": "InChIKey 查询",
+      "usage": "/chem inchikey <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chem.image",
+      "path": "chem image",
+      "summary": "结构图",
+      "usage": "/chem image <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chem.info",
+      "path": "chem info",
+      "summary": "PubChem 详情",
+      "usage": "/chem info <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chem.drug",
+      "path": "chem drug",
+      "summary": "ChEMBL 药物机制",
+      "usage": "/chem drug <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chem.target",
+      "path": "chem target",
+      "summary": "ChEMBL/Open Targets 靶点",
+      "usage": "/chem target <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "mat.find",
+      "path": "mat find",
+      "summary": "OPTIMADE 跨数据库结构查询。",
+      "usage": "/mat find <formula/filter>",
+      "aliases": [
+        "mat search",
+        "mat"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "mat.providers",
+      "path": "mat providers",
+      "summary": "OPTIMADE provider 列表。",
+      "usage": "/mat providers",
+      "aliases": [
+        "mat db",
+        "mat databases"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "mat.crystal.info",
+      "path": "mat crystal info",
+      "summary": "真实 CIF/mCIF 晶胞信息。",
+      "usage": "/mat crystal info + CIF/mCIF",
+      "aliases": [
+        "mat crystal cell"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "mat.crystal.powder",
+      "path": "mat crystal powder",
+      "summary": "真实 CIF/mCIF powder XRD。",
+      "usage": "/mat crystal powder [energy width] + CIF/mCIF",
+      "aliases": [
+        "mat crystal xrd"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "astro.object",
+      "path": "astro object",
+      "summary": "SIMBAD 天体对象",
+      "usage": "/astro object <query>",
+      "aliases": [
+        "astro simbad"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "astro.exo",
+      "path": "astro exo",
+      "summary": "系外行星",
+      "usage": "/astro exo <query>",
+      "aliases": [
+        "astro exoplanet"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "astro.ads",
+      "path": "astro ads",
+      "summary": "ADS 文献",
+      "usage": "/astro ads <query>",
+      "aliases": [
+        "astro paper"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "trial.search",
+      "path": "trial search",
+      "summary": "ClinicalTrials.gov 试验搜索。",
+      "usage": "/trial search <query>",
+      "aliases": [
+        "trial find",
+        "trial"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "trial.get",
+      "path": "trial get",
+      "summary": "ClinicalTrials.gov NCT 详情。",
+      "usage": "/trial get <NCT ID>",
+      "aliases": [
+        "trial show"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "game.dice",
+      "path": "game dice",
+      "summary": "Roll20 风格骰池。",
+      "usage": "/game dice <expr>",
+      "aliases": [
+        "game roll"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "game.mine.new",
+      "path": "game mine new",
+      "summary": "开始扫雷；首次开格保证安全。",
+      "usage": "/game mine [easy|normal|hard]",
+      "aliases": [
+        "game mine start",
+        "game mine easy",
+        "game mine normal",
+        "game mine hard",
+        "game mine",
+        "game minesweeper",
+        "game minesweeper start",
+        "game minesweeper easy",
+        "game minesweeper normal",
+        "game minesweeper hard"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.mine.open",
+      "path": "game mine open",
+      "summary": "扫雷开格。",
+      "usage": "/game mine open A1 [B2 ...]",
+      "aliases": [
+        "game minesweeper open",
+        "game mine",
+        "game minesweeper"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "game.mine.mark",
+      "path": "game mine mark",
+      "summary": "扫雷：标雷",
+      "usage": "/game mine mark A1 [B2 ...]",
+      "aliases": [
+        "game minesweeper mark"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "game.mine.sweep",
+      "path": "game mine sweep",
+      "summary": "扫雷：周边清扫",
+      "usage": "/game mine sweep A1 [B2 ...]",
+      "aliases": [
+        "game minesweeper sweep"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "game.mine.board",
+      "path": "game mine board",
+      "summary": "扫雷：查看棋盘",
+      "usage": "/game mine board",
+      "aliases": [
+        "game mine show",
+        "game mine status",
+        "game minesweeper board",
+        "game minesweeper show",
+        "game minesweeper status"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.mine.end",
+      "path": "game mine end",
+      "summary": "扫雷：结束扫雷",
+      "usage": "/game mine end",
+      "aliases": [
+        "game mine stop",
+        "game mine quit",
+        "game minesweeper end",
+        "game minesweeper stop",
+        "game minesweeper quit"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.sudoku.new",
+      "path": "game sudoku new",
+      "summary": "开始唯一解数独。",
+      "usage": "/game sudoku [easy|normal|hard]",
+      "aliases": [
+        "game sudoku start",
+        "game sudoku easy",
+        "game sudoku normal",
+        "game sudoku hard",
+        "game sudoku",
+        "game sdk",
+        "game sdk start",
+        "game sdk easy",
+        "game sdk normal",
+        "game sdk hard"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.sudoku.set",
+      "path": "game sudoku set",
+      "summary": "填写数独格子。",
+      "usage": "/game sudoku A1 5",
+      "aliases": [
+        "game sudoku fill",
+        "game sudoku",
+        "game sdk set",
+        "game sdk fill",
+        "game sdk"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "game.sudoku.show",
+      "path": "game sudoku show",
+      "summary": "查看数独棋盘",
+      "usage": "/game sudoku show",
+      "aliases": [
+        "game sudoku board",
+        "game sudoku status",
+        "game sdk show",
+        "game sdk board",
+        "game sdk status"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.sudoku.reveal",
+      "path": "game sudoku reveal",
+      "summary": "显示答案并结束",
+      "usage": "/game sudoku reveal",
+      "aliases": [
+        "game sudoku answer",
+        "game sdk reveal",
+        "game sdk answer"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.sudoku.end",
+      "path": "game sudoku end",
+      "summary": "结束数独",
+      "usage": "/game sudoku end",
+      "aliases": [
+        "game sudoku stop",
+        "game sudoku quit",
+        "game sdk end",
+        "game sdk stop",
+        "game sdk quit"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.24.new",
+      "path": "game 24 new",
+      "summary": "开始普通 24 点。",
+      "usage": "/game 24 new",
+      "aliases": [
+        "game 24 start",
+        "game 24",
+        "game 24p new",
+        "game point24 new"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.24.wild",
+      "path": "game 24 wild",
+      "summary": "开始允许位运算的 24 点。",
+      "usage": "/game 24 wild",
+      "aliases": [
+        "game 24p wild",
+        "game point24 wild"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.24.solve",
+      "path": "game 24 solve",
+      "summary": "提交 24 点表达式。",
+      "usage": "/game 24 <表达式>",
+      "aliases": [
+        "game 24",
+        "game 24p",
+        "game point24"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "game.24.reveal",
+      "path": "game 24 reveal",
+      "summary": "显示 24 点答案。",
+      "usage": "/game 24 reveal",
+      "aliases": [
+        "game 24 answer",
+        "game 24 ans",
+        "game 24p reveal",
+        "game point24 reveal"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.nc.start",
+      "path": "game nc start",
+      "summary": "创建九子棋。",
+      "usage": "/game nc start",
+      "aliases": [
+        "game nc new",
+        "game morris start",
+        "game nine start"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.nc.join",
+      "path": "game nc join",
+      "summary": "加入九子棋。",
+      "usage": "/game nc join",
+      "aliases": [
+        "game morris join",
+        "game nine join"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.nc.board",
+      "path": "game nc board",
+      "summary": "查看九子棋棋盘。",
+      "usage": "/game nc board",
+      "aliases": [
+        "game nc status",
+        "game morris board",
+        "game nine board"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.nc.end",
+      "path": "game nc end",
+      "summary": "结束九子棋。",
+      "usage": "/game nc end",
+      "aliases": [
+        "game nc stop",
+        "game morris end",
+        "game nine end"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.nc.action",
+      "path": "game nc",
+      "summary": "九子棋放置、移动或吃子动作。",
+      "usage": "/game nc <A1|A1-A2|x B4>",
+      "aliases": [
+        "game morris",
+        "game nine"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "game.signal.new",
+      "path": "game signal new",
+      "summary": "创建多层编码信号",
+      "usage": "/game signal new",
+      "aliases": [
+        "game signal start",
+        "game sig new",
+        "game sig start"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "game.signal.hint",
+      "path": "game signal hint",
+      "summary": "获取下一层提示",
+      "usage": "/game signal hint",
+      "aliases": [
+        "game sig hint"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.signal.show",
+      "path": "game signal show",
+      "summary": "查看当前信号",
+      "usage": "/game signal show",
+      "aliases": [
+        "game signal status",
+        "game sig show",
+        "game sig status"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "game.signal.solve",
+      "path": "game signal solve",
+      "summary": "提交完整解码答案",
+      "usage": "/game signal solve <完整答案>",
+      "aliases": [
+        "game sig solve"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "fuse.generate",
+      "path": "fuse",
+      "summary": "生成/重现群聊概念炼金设定。",
+      "usage": "/fuse <素材A> + <素材B>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "fuse.book",
+      "path": "fuse book",
+      "summary": "查看炼金图鉴。",
+      "usage": "/fuse book [数量]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "arena.draw",
+      "path": "arena draw",
+      "summary": "从原 /wp 238 条弱能力中抽卡。",
+      "usage": "/arena draw",
+      "aliases": [
+        "arena get",
+        "arena reroll"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "arena.show",
+      "path": "arena show",
+      "summary": "查看当前能力",
+      "usage": "/arena show",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "arena.fight",
+      "path": "arena fight",
+      "summary": "原 /wp 风格直接对决",
+      "usage": "/arena fight @对手|QQ号",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "arena.duel",
+      "path": "arena duel",
+      "summary": "带战场目标的竞技场对决",
+      "usage": "/arena duel @对手|QQ号",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "arena.chaos",
+      "path": "arena chaos",
+      "summary": "组合 2–3 条原始弱能力",
+      "usage": "/arena chaos",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "arena.deck",
+      "path": "arena deck",
+      "summary": "查看卡池/组合空间",
+      "usage": "/arena deck",
+      "aliases": [
+        "arena pool",
+        "arena capacity"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "lang.tangut.lookup",
+      "path": "lang tangut lookup",
+      "summary": "西夏文↔中文/英文词典查询。",
+      "usage": "/lang tangut lookup <西夏文/中文/英文>",
+      "aliases": [
+        "lang tangut find",
+        "lang tangut dict",
+        "lang 西夏 find",
+        "lang 西夏 dict",
+        "lang 西夏文 find",
+        "lang 西夏文 dict",
+        "lang 西夏 lookup",
+        "lang 西夏文 lookup",
+        "lang tangut"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lang.tangut.gx",
+      "path": "lang tangut gx",
+      "summary": "GX 拟音",
+      "usage": "/lang tangut gx <西夏文>",
+      "aliases": [
+        "lang 西夏 gx",
+        "lang 西夏文 gx"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lang.tangut.ghc",
+      "path": "lang tangut ghc",
+      "summary": "GHC 拟音",
+      "usage": "/lang tangut ghc <西夏文>",
+      "aliases": [
+        "lang 西夏 ghc",
+        "lang 西夏文 ghc"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lang.tangut.t2zh",
+      "path": "lang tangut t2zh",
+      "summary": "西夏文→中文：词典 grounding 后保守整理。",
+      "usage": "/lang tangut t2zh <西夏文>",
+      "aliases": [
+        "lang tangut tozh",
+        "lang tangut zh",
+        "lang 西夏 tozh",
+        "lang 西夏 zh",
+        "lang 西夏文 tozh",
+        "lang 西夏文 zh",
+        "lang 西夏 t2zh",
+        "lang 西夏文 t2zh"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lang.tangut.zh2t",
+      "path": "lang tangut zh2t",
+      "summary": "中文→西夏文：exact-gloss grounding，未知项不乱译。",
+      "usage": "/lang tangut zh2t <中文>",
+      "aliases": [
+        "lang tangut totangut",
+        "lang tangut tangut",
+        "lang 西夏 totangut",
+        "lang 西夏 tangut",
+        "lang 西夏文 totangut",
+        "lang 西夏文 tangut",
+        "lang 西夏 zh2t",
+        "lang 西夏文 zh2t"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lang.tangut.render",
+      "path": "lang tangut render",
+      "summary": "西夏文 Noto Serif Tangut 渲染。",
+      "usage": "/lang tangut render <西夏文>",
+      "aliases": [
+        "lang tangut image",
+        "lang 西夏 image",
+        "lang 西夏文 image",
+        "lang 西夏 render",
+        "lang 西夏文 render"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lang.cthuvian.to",
+      "path": "lang cthuvian to",
+      "summary": "English→R’lyehian/Cthuvian 低语体翻译。",
+      "usage": "/lang cthuvian to <English>",
+      "aliases": [
+        "lang cthuvian low",
+        "lang cthuvian translate",
+        "lang cth low",
+        "lang cth translate",
+        "lang rlyehian low",
+        "lang rlyehian translate",
+        "lang rlyeh low",
+        "lang rlyeh translate",
+        "lang cth to",
+        "lang rlyehian to",
+        "lang rlyeh to"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lang.cthuvian.high",
+      "path": "lang cthuvian high",
+      "summary": "English→Cthuvian 高语体。",
+      "usage": "/lang cthuvian high <English>",
+      "aliases": [
+        "lang cthuvian chant",
+        "lang cth chant",
+        "lang rlyehian chant",
+        "lang rlyeh chant",
+        "lang cth high",
+        "lang rlyehian high",
+        "lang rlyeh high"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lang.cthuvian.from",
+      "path": "lang cthuvian from",
+      "summary": "R’lyehian/Cthuvian→English gloss。",
+      "usage": "/lang cthuvian from <RC-1>",
+      "aliases": [
+        "lang cthuvian gloss",
+        "lang cthuvian reverse",
+        "lang cth gloss",
+        "lang cth reverse",
+        "lang rlyehian gloss",
+        "lang rlyehian reverse",
+        "lang rlyeh gloss",
+        "lang rlyeh reverse",
+        "lang cth from",
+        "lang rlyehian from",
+        "lang rlyeh from"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lang.han.compare",
+      "path": "lang han",
+      "summary": "MCPDict/Yindian 汉字跨时代/方言读音比较。",
+      "usage": "/lang han <汉字> [@ 语言筛选]",
+      "aliases": [
+        "lang hanzi",
+        "lang yindian",
+        "lang mcpdict",
+        "lang 音典"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lang.han.find",
+      "path": "lang han find",
+      "summary": "搜索音典语言变体。",
+      "usage": "/lang han find <关键词>",
+      "aliases": [
+        "lang han langs",
+        "lang han language",
+        "lang han languages",
+        "lang hanzi langs",
+        "lang hanzi language",
+        "lang hanzi languages",
+        "lang yindian langs",
+        "lang yindian language",
+        "lang yindian languages",
+        "lang mcpdict langs",
+        "lang mcpdict language",
+        "lang mcpdict languages",
+        "lang 音典 langs",
+        "lang 音典 language",
+        "lang 音典 languages",
+        "lang hanzi find",
+        "lang yindian find",
+        "lang mcpdict find",
+        "lang 音典 find"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lang.rrpl",
+      "path": "lang rrpl",
+      "summary": "RRPL 递归部件语言解析与渲染。",
+      "usage": "/lang rrpl <RRPL/汉字引用表达式>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "media.trace.anime",
+      "path": "media trace anime",
+      "summary": "AnimeTrace 动漫识别。",
+      "usage": "/media trace anime + 图片",
+      "aliases": [
+        "media trace"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "media.trace.gal",
+      "path": "media trace gal",
+      "summary": "AnimeTrace Galgame 识别。",
+      "usage": "/media trace gal + 图片",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "media.mirage.gray",
+      "path": "media mirage gray",
+      "summary": "灰度幻影坦克。",
+      "usage": "/media mirage gray + 两张图",
+      "aliases": [
+        "media mirage"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "media.mirage.color",
+      "path": "media mirage color",
+      "summary": "彩色幻影坦克。",
+      "usage": "/media mirage color + 两张图",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "run.execute",
+      "path": "run",
+      "summary": "受限远端代码执行。",
+      "usage": "/run <语言> <代码>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lookup.auto",
+      "path": "lookup",
+      "summary": "自动选择真实百科/Wikidata 来源。",
+      "usage": "/lookup <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lookup.wiki",
+      "path": "lookup wiki",
+      "summary": "百科查询。",
+      "usage": "/lookup wiki <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lookup.entity",
+      "path": "lookup entity",
+      "summary": "Wikidata/QLever 结构化事实。",
+      "usage": "/lookup entity <query>",
+      "aliases": [
+        "lookup wikidata"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lookup.wa",
+      "path": "lookup wa",
+      "summary": "Wolfram|Alpha 查询（配置可用时）。",
+      "usage": "/lookup wa <query>",
+      "aliases": [
+        "lookup wolfram"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "lookup.en",
+      "path": "lookup en",
+      "summary": "英文百科 + Wikidata 查询。",
+      "usage": "/lookup en <query>",
+      "aliases": [
+        "lookup english"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "diagram.graphviz",
+      "path": "diagram graphviz",
+      "summary": "本地 Graphviz DOT",
+      "usage": "/diagram graphviz <source>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "diagram.mermaid",
+      "path": "diagram mermaid",
+      "summary": "Mermaid 图",
+      "usage": "/diagram mermaid <source>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "diagram.vegalite",
+      "path": "diagram vegalite",
+      "summary": "本地 Vega-Lite 数据可视化",
+      "usage": "/diagram vegalite <source>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "diagram.formats",
+      "path": "diagram formats",
+      "summary": "查看稳定图形后端。",
+      "usage": "/diagram formats",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "ai.grad",
+      "path": "ai grad",
+      "summary": "micrograd 自动微分计算图与反向梯度。",
+      "usage": "/ai grad <expr> | x=...",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "ai.bpe",
+      "path": "ai bpe",
+      "summary": "minBPE byte-level merge/token 可视化。",
+      "usage": "/ai bpe [merges] <text>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "cs.regex",
+      "path": "cs regex",
+      "summary": "Regex→ε-NFA→DFA→最小 DFA。",
+      "usage": "/cs regex <python-style regex>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "cs.pagerank",
+      "path": "cs pagerank",
+      "summary": "PageRank 图重要性计算与可视化。",
+      "usage": "/cs pagerank <边列表>",
+      "aliases": [
+        "cs pr"
+      ],
+      "args": "required",
+      "kind": "command"
+    }
+  ],
+  "legacy": {
+    "summary": "Doge v2-v4 历史功能博物馆。默认 profile 不加载；这里记录旧入口、原用途、退役/迁移状态和仍可追溯的子功能。",
+    "commands": {
+      "gpt": {
+        "title": "v3 GPT-2 continuation",
+        "state": "retired",
+        "note": "当年的小型 GPT-2 文本续写已经被 AstrBot 当前对话模型完全替代；直接和机器人对话即可。"
+      },
+      "yg": {
+        "title": "v3 AI 约稿/图片生成",
+        "state": "retired",
+        "note": "旧生成后端已过时；现代图片生成应走当前模型/媒体插件，而不是复活旧 API。"
+      },
+      "gan": {
+        "title": "v3 StyleGAN 随机猫/人脸/动漫/化学图",
+        "state": "retired",
+        "note": "固定 StyleGAN demo 已失去维护价值；历史子命令 cat/art/horse/waifu/anime/furry/person/chem 仅留档。"
+      },
+      "dream": {
+        "title": "v3 Google DeepDream",
+        "state": "retired",
+        "note": "算法仍有教学意义，但作为日常图片功能已被现代图像编辑取代；可未来作为 /lab 的视觉实验复刻。"
+      },
+      "style": {
+        "title": "v3 神经风格迁移",
+        "state": "retired",
+        "note": "旧两图 style-transfer 服务已过时；现代图片编辑能力更强。"
+      },
+      "toonify": {
+        "title": "v3 人像卡通化",
+        "state": "retired",
+        "note": "旧 Toonify 模型链路不再维护；现代图片编辑已覆盖。"
+      },
+      "gen": {
+        "title": "v3 伪论文生成器",
+        "state": "retired",
+        "note": "math/cs/hep-ph 随机论文生成属于历史玩具，不再作为正式学术能力维护。"
+      },
+      "siku": {
+        "title": "v3 四库全书检索/阅读",
+        "state": "offline",
+        "note": "旧 siku/skqs 上游已失效。功能目的保留，若找到稳定数字人文接口可在独立插件重新实现。"
+      },
+      "perc": {
+        "title": "v3 Perchance generator bridge",
+        "state": "offline",
+        "note": "旧 Glitch 转发桥已返回 410；不再依赖该脆弱链路。"
+      },
+      "phil": {
+        "title": "v3 哲学语录/关键词",
+        "state": "offline",
+        "note": "旧 philosophyapi 后端不可达；作为历史入口保留。"
+      },
+      "poem": {
+        "title": "v3 随机诗词",
+        "state": "archived",
+        "note": "原功能属于轻娱乐，后续若恢复应进入独立文化/文本插件，而不是 core。"
+      },
+      "insult": {
+        "title": "v3 文化人骂街",
+        "state": "archived",
+        "note": "原模板/语料玩法保留历史记录，不作为默认功能。"
+      },
+      "fru": {
+        "title": "v3 假俄语转换",
+        "state": "archived",
+        "note": "原 en/py/zh 转换玩法可恢复，但低频，暂仅保留语义。"
+      },
+      "rua": {
+        "title": "v3 图片表情变形",
+        "state": "archived",
+        "note": "旧图片模板链路留档；正式图片玩法将统一进入 media。"
+      },
+      "jeffjoke": {
+        "title": "v3 Jeff 笑话生成",
+        "state": "archived",
+        "note": "历史模板生成器；原 mj/myjoke/dj/diyjoke 语义保留。"
+      },
+      "px": {
+        "title": "v3 Pixiv 搜索/搜图/setu",
+        "state": "retired",
+        "note": "旧 Pixiv 非官方接口与内容策略均不适合作为默认能力；历史 id/user/tst/tsf/setu/kw 留档。"
+      },
+      "yan": {
+        "title": "v3 群友‘圣训’语料统计",
+        "state": "retired",
+        "note": "旧实现涉及被动收集群友语料，隐私模型不再适合；不会默认恢复。"
+      },
+      "se": {
+        "title": "v3 被主动封印的 secret 功能",
+        "state": "sealed",
+        "note": "原作者当时就标记为封印；其中部分行为不适合现代 bot，保持封印。"
+      },
+      "genshin": {
+        "title": "v3/v4 原神抽卡",
+        "state": "offline",
+        "note": "旧卡池/接口/数据年代久远，且 v4 API key 配置无效；不伪装成当前游戏数据。"
+      },
+      "honkai": {
+        "title": "v4 崩坏查询",
+        "state": "broken",
+        "note": "旧实现存在未定义 session/Path/uuid 且依赖失效配置，保留故障说明。"
+      },
+      "pack": {
+        "title": "v4 Magdeburg packing CGI",
+        "state": "offline",
+        "note": "旧 CGI 后端实测超时；功能概念可未来在 /lab 以本地算法重做。"
+      },
+      "doubao": {
+        "title": "v4 豆包模型专用入口",
+        "state": "retired",
+        "note": "模型品牌专用命令已被 AstrBot provider 抽象取代；直接使用当前 provider。"
+      },
+      "lcha": {
+        "title": "v4 LiblibAI 查任务",
+        "state": "archived",
+        "note": "旧 LiblibAI 专用 API 工具留档，不进入默认功能。"
+      },
+      "ltran": {
+        "title": "v4 LiblibAI 文生图",
+        "state": "retired",
+        "note": "固定平台文生图接口已被通用图片生成工作流取代。"
+      },
+      "lsd": {
+        "title": "v4 LiblibAI SD",
+        "state": "retired",
+        "note": "历史 Stable Diffusion 平台调用入口留档。"
+      },
+      "lflux": {
+        "title": "v4 LiblibAI Flux",
+        "state": "retired",
+        "note": "历史平台模型入口留档；不把具体模型名固化成长期指令。"
+      },
+      "lcon": {
+        "title": "v4 LiblibAI ControlNet",
+        "state": "retired",
+        "note": "历史平台专用控制图入口留档。"
+      },
+      "limg": {
+        "title": "v4 LiblibAI 图生图",
+        "state": "retired",
+        "note": "历史平台专用图生图入口留档。"
+      },
+      "amuse": {
+        "title": "v3 零乱娱乐功能",
+        "state": "archived",
+        "note": "旧 chp/zuan/du/gar/tian/cp 等群聊娱乐玩法统一留档；不再把低质量外部文案 API 放回正式模块。"
+      },
+      "netool": {
+        "title": "v3 ping/web/nmap/gc 网络工具",
+        "state": "retired",
+        "note": "旧实现允许用户驱动宿主网络探测，不适合现代公共群机器人；如需网络诊断应使用受控 Agent/运维工具。"
+      },
+      "chart": {
+        "title": "v3/v4 Chart.js / QuickChart",
+        "state": "migrated",
+        "note": "原始 Chart.js JSON 入口已由正式 /diagram vegalite 取代；旧 QuickChart 语义仅留档。"
+      },
+      "api": {
+        "title": "v4 可配置 API 管理器",
+        "state": "retired",
+        "note": "旧插件把任意 HTTP API 配置直接暴露为群指令，边界与密钥管理都较弱；现代能力改由各正式 domain service/Agent Tool 管理。"
+      },
+      "emojimix": {
+        "title": "v4 emoji 合成",
+        "state": "archived",
+        "note": "历史 Emoji Kitchen 风格入口留档；若恢复应进入独立 memes/media 域并复用当前稳定上游。"
+      },
+      "meme": {
+        "title": "v3/v4 表情包与模板管理",
+        "state": "archived",
+        "note": "旧模板系统与资源仍有参考价值，但当前正式媒体模块尚未完成；先完整保留历史语义。"
+      },
+      "mirage": {
+        "title": "v3/v4 幻影坦克图片",
+        "state": "migrated",
+        "note": "历史图片合成玩法已经现代化为正式 `/media mirage gray|color`，使用本地 Pillow/NumPy 实现。"
+      },
+      "music": {
+        "title": "v4 点歌/音乐搜索",
+        "state": "archived",
+        "note": "旧非官方音乐接口较脆弱；正式 music 域只会在找到稳定上游后恢复。"
+      },
+      "lyrics": {
+        "title": "v4 歌词搜索",
+        "state": "archived",
+        "note": "旧歌词链路与 music 同属历史媒体能力，暂不依赖非官方接口。"
+      },
+      "vv": {
+        "title": "v4 视频/媒体辅助",
+        "state": "archived",
+        "note": "旧 vvapi 入口留档；后续统一并入 media 编排，不单独维持顶层命令。"
+      },
+      "trace": {
+        "title": "v4 trace.moe / 动漫图片识别",
+        "state": "migrated",
+        "note": "动漫/Gal 图片识别已经迁入正式 `/media trace anime|gal`，当前使用 AnimeTrace 并保留真实后端失败说明。"
+      },
+      "st": {
+        "title": "v4 图片搜索/识别辅助",
+        "state": "archived",
+        "note": "旧图片检索入口留档；正式恢复应复用当前成熟 image-exploration 插件。"
+      },
+      "mc": {
+        "title": "v4 Minecraft 查询/服务器管理",
+        "state": "archived",
+        "note": "旧 mclist/mcget/mcadd/mcdel/mcup 等语义留档；只有在确定真实使用场景后才恢复独立模块。"
+      },
+      "law": {
+        "title": "v2/v3 法律片段/今日刑法",
+        "state": "offline",
+        "note": "旧网页抓取源年代久远且不适合做可靠法律信息源；历史用途保留，不提供法律判断。"
+      },
+      "anime": {
+        "title": "v2 随机动漫/图片内容",
+        "state": "retired",
+        "note": "旧随机媒体接口和内容源已过时；现代媒体能力不复活这一随机接口。"
+      },
+      "say": {
+        "title": "v2 say/TTS 风格入口",
+        "state": "archived",
+        "note": "旧第三方语音/复读实现留档；若恢复应基于当前平台原生语音能力。"
+      },
+      "arknights": {
+        "title": "v2 明日方舟寻访/库存/保底状态机",
+        "state": "archived",
+        "note": "完整用户语义已收容；几十条 EPK 变量/库存/保底节点属于内部状态机，不逐条注册成假功能。"
+      }
+    },
+    "operations": [
+      {
+        "id": "legacy.gpt",
+        "path": "gpt",
+        "summary": "v3 GPT-2 continuation",
+        "usage": "/gpt [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.yg",
+        "path": "yg",
+        "summary": "v3 AI 约稿/图片生成",
+        "usage": "/yg [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.gan.cat",
+        "path": "gan cat",
+        "summary": "随机猫",
+        "usage": "/gan cat [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.gan.art",
+        "path": "gan art",
+        "summary": "随机艺术图",
+        "usage": "/gan art [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.gan.horse",
+        "path": "gan horse",
+        "summary": "随机马",
+        "usage": "/gan horse [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.gan.waifu",
+        "path": "gan waifu",
+        "summary": "随机 waifu",
+        "usage": "/gan waifu [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.gan.anime",
+        "path": "gan anime",
+        "summary": "随机动漫图",
+        "usage": "/gan anime [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.gan.furry",
+        "path": "gan furry",
+        "summary": "随机 furry",
+        "usage": "/gan furry [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.gan.person",
+        "path": "gan person",
+        "summary": "随机人像",
+        "usage": "/gan person [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.gan.chem",
+        "path": "gan chem",
+        "summary": "随机化学图",
+        "usage": "/gan chem [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.dream",
+        "path": "dream",
+        "summary": "v3 Google DeepDream",
+        "usage": "/dream [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.style",
+        "path": "style",
+        "summary": "v3 神经风格迁移",
+        "usage": "/style [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.toonify",
+        "path": "toonify",
+        "summary": "v3 人像卡通化",
+        "usage": "/toonify [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.gen.math",
+        "path": "gen math",
+        "summary": "伪数学论文",
+        "usage": "/gen math [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.gen.cs",
+        "path": "gen cs",
+        "summary": "伪计算机论文",
+        "usage": "/gen cs [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.gen.hep-ph",
+        "path": "gen hep-ph",
+        "summary": "伪高能物理论文",
+        "usage": "/gen hep-ph [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.siku.search",
+        "path": "siku search",
+        "summary": "四库检索",
+        "usage": "/siku search [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "offline"
+      },
+      {
+        "id": "legacy.siku.read",
+        "path": "siku read",
+        "summary": "四库正文阅读",
+        "usage": "/siku read [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "offline"
+      },
+      {
+        "id": "legacy.perc",
+        "path": "perc",
+        "summary": "v3 Perchance generator bridge",
+        "usage": "/perc [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "offline"
+      },
+      {
+        "id": "legacy.phil.quote",
+        "path": "phil quote",
+        "summary": "哲学语录",
+        "usage": "/phil quote [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "offline"
+      },
+      {
+        "id": "legacy.phil.keyword",
+        "path": "phil keyword",
+        "summary": "哲学关键词",
+        "usage": "/phil keyword [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "offline"
+      },
+      {
+        "id": "legacy.poem",
+        "path": "poem",
+        "summary": "v3 随机诗词",
+        "usage": "/poem [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.insult",
+        "path": "insult",
+        "summary": "v3 文化人骂街",
+        "usage": "/insult [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.fru.en",
+        "path": "fru en",
+        "summary": "英语假俄语化",
+        "usage": "/fru en [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.fru.py",
+        "path": "fru py",
+        "summary": "拼音假俄语化",
+        "usage": "/fru py [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.fru.zh",
+        "path": "fru zh",
+        "summary": "中文假俄语化",
+        "usage": "/fru zh [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.rua",
+        "path": "rua",
+        "summary": "v3 图片表情变形",
+        "usage": "/rua [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.jeffjoke.mj",
+        "path": "jeffjoke mj",
+        "summary": "模板笑话",
+        "usage": "/jeffjoke mj [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.jeffjoke.myjoke",
+        "path": "jeffjoke myjoke",
+        "summary": "自定义笑话",
+        "usage": "/jeffjoke myjoke [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.jeffjoke.dj",
+        "path": "jeffjoke dj",
+        "summary": "段子",
+        "usage": "/jeffjoke dj [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.jeffjoke.diyjoke",
+        "path": "jeffjoke diyjoke",
+        "summary": "DIY 笑话",
+        "usage": "/jeffjoke diyjoke [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.px.id",
+        "path": "px id",
+        "summary": "Pixiv 作品 ID",
+        "usage": "/px id [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.px.user",
+        "path": "px user",
+        "summary": "Pixiv 用户",
+        "usage": "/px user [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.px.tst",
+        "path": "px tst",
+        "summary": "以图搜图",
+        "usage": "/px tst [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.px.tsf",
+        "path": "px tsf",
+        "summary": "图片检索",
+        "usage": "/px tsf [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.px.setu",
+        "path": "px setu",
+        "summary": "随机图",
+        "usage": "/px setu [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.px.kw",
+        "path": "px kw",
+        "summary": "关键词检索",
+        "usage": "/px kw [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.yan",
+        "path": "yan",
+        "summary": "v3 群友‘圣训’语料统计",
+        "usage": "/yan [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.se",
+        "path": "se",
+        "summary": "v3 被主动封印的 secret 功能",
+        "usage": "/se [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "sealed"
+      },
+      {
+        "id": "legacy.genshin",
+        "path": "genshin",
+        "summary": "v3/v4 原神抽卡",
+        "usage": "/genshin [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "offline"
+      },
+      {
+        "id": "legacy.honkai",
+        "path": "honkai",
+        "summary": "v4 崩坏查询",
+        "usage": "/honkai [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "broken"
+      },
+      {
+        "id": "legacy.pack",
+        "path": "pack",
+        "summary": "v4 Magdeburg packing CGI",
+        "usage": "/pack [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "offline"
+      },
+      {
+        "id": "legacy.doubao",
+        "path": "doubao",
+        "summary": "v4 豆包模型专用入口",
+        "usage": "/doubao [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.lcha",
+        "path": "lcha",
+        "summary": "v4 LiblibAI 查任务",
+        "usage": "/lcha [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.ltran",
+        "path": "ltran",
+        "summary": "v4 LiblibAI 文生图",
+        "usage": "/ltran [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.lsd",
+        "path": "lsd",
+        "summary": "v4 LiblibAI SD",
+        "usage": "/lsd [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.lflux",
+        "path": "lflux",
+        "summary": "v4 LiblibAI Flux",
+        "usage": "/lflux [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.lcon",
+        "path": "lcon",
+        "summary": "v4 LiblibAI ControlNet",
+        "usage": "/lcon [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.limg",
+        "path": "limg",
+        "summary": "v4 LiblibAI 图生图",
+        "usage": "/limg [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.amuse.chp",
+        "path": "amuse chp",
+        "summary": "彩虹屁",
+        "usage": "/amuse chp [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.amuse.zuan",
+        "path": "amuse zuan",
+        "summary": "嘴臭文案",
+        "usage": "/amuse zuan [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.amuse.du",
+        "path": "amuse du",
+        "summary": "毒鸡汤",
+        "usage": "/amuse du [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.amuse.gar",
+        "path": "amuse gar",
+        "summary": "尬聊文案",
+        "usage": "/amuse gar [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.amuse.tian",
+        "path": "amuse tian",
+        "summary": "舔狗日记",
+        "usage": "/amuse tian [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.amuse.cp",
+        "path": "amuse cp",
+        "summary": "CP 文案",
+        "usage": "/amuse cp [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.netool.ping",
+        "path": "netool ping",
+        "summary": "Ping",
+        "usage": "/netool ping [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.netool.web",
+        "path": "netool web",
+        "summary": "网页探测",
+        "usage": "/netool web [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.netool.nmap",
+        "path": "netool nmap",
+        "summary": "端口探测",
+        "usage": "/netool nmap [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.netool.gc",
+        "path": "netool gc",
+        "summary": "网络小工具",
+        "usage": "/netool gc [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.chart",
+        "path": "chart",
+        "summary": "v3/v4 Chart.js / QuickChart",
+        "usage": "/chart [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "migrated"
+      },
+      {
+        "id": "legacy.api",
+        "path": "api",
+        "summary": "v4 可配置 API 管理器",
+        "usage": "/api [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.emojimix",
+        "path": "emojimix",
+        "summary": "v4 emoji 合成",
+        "usage": "/emojimix [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.meme",
+        "path": "meme",
+        "summary": "v3/v4 表情包与模板管理",
+        "usage": "/meme [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.mirage",
+        "path": "mirage",
+        "summary": "v3/v4 幻影坦克图片",
+        "usage": "/mirage [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "migrated"
+      },
+      {
+        "id": "legacy.music",
+        "path": "music",
+        "summary": "v4 点歌/音乐搜索",
+        "usage": "/music [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.lyrics",
+        "path": "lyrics",
+        "summary": "v4 歌词搜索",
+        "usage": "/lyrics [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.vv",
+        "path": "vv",
+        "summary": "v4 视频/媒体辅助",
+        "usage": "/vv [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.trace",
+        "path": "trace",
+        "summary": "v4 trace.moe / 动漫图片识别",
+        "usage": "/trace [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "migrated"
+      },
+      {
+        "id": "legacy.st",
+        "path": "st",
+        "summary": "v4 图片搜索/识别辅助",
+        "usage": "/st [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.mc.mclist",
+        "path": "mc mclist",
+        "summary": "服务器列表",
+        "usage": "/mc mclist [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.mc.mcget",
+        "path": "mc mcget",
+        "summary": "服务器查询",
+        "usage": "/mc mcget [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.mc.mcadd",
+        "path": "mc mcadd",
+        "summary": "添加服务器",
+        "usage": "/mc mcadd [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.mc.mcdel",
+        "path": "mc mcdel",
+        "summary": "删除服务器",
+        "usage": "/mc mcdel [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.mc.mcup",
+        "path": "mc mcup",
+        "summary": "更新服务器",
+        "usage": "/mc mcup [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.law",
+        "path": "law",
+        "summary": "v2/v3 法律片段/今日刑法",
+        "usage": "/law [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "offline"
+      },
+      {
+        "id": "legacy.anime",
+        "path": "anime",
+        "summary": "v2 随机动漫/图片内容",
+        "usage": "/anime [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "retired"
+      },
+      {
+        "id": "legacy.say",
+        "path": "say",
+        "summary": "v2 say/TTS 风格入口",
+        "usage": "/say [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.arknights.draw",
+        "path": "arknights draw",
+        "summary": "寻访",
+        "usage": "/arknights draw [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.arknights.inventory",
+        "path": "arknights inventory",
+        "summary": "库存",
+        "usage": "/arknights inventory [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.arknights.up",
+        "path": "arknights up",
+        "summary": "UP/卡池",
+        "usage": "/arknights up [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      },
+      {
+        "id": "legacy.arknights.status",
+        "path": "arknights status",
+        "summary": "保底与每日状态",
+        "usage": "/arknights status [历史参数]",
+        "aliases": [],
+        "args": "optional",
+        "kind": "command",
+        "legacy": true,
+        "state": "archived"
+      }
+    ]
+  }
+}

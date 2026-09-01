@@ -5,6 +5,7 @@ from data.plugins.doge_shared.agent_tools import DogeBioTool,register_domain_too
 from data.plugins.doge_shared.academic import BioService
 from data.plugins.doge_shared.presentation import long_result,text_result
 from data.plugins.doge_shared.raw_command import command_payload,split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 
 @register('doge_bio','runnel','蛋白、结构、序列、通路与靶点工具','5.3.0')
 class DogeBio(Star):
@@ -32,4 +33,4 @@ class DogeBio(Star):
     r=await BioService.map_ids(x[0],x[1],x[2])
    else: raise ValueError('未知 bio 子命令')
    yield long_result(event,'Bio',r,fold_threshold=1400)
-  except Exception as e: logger.warning(f'doge bio failed: {e}'); yield text_result(event,f'bio 失败：{e}',markdown=False)
+  except Exception as e: logger.warning(f'doge bio failed: {e}'); yield text_result(event,format_cli_error('bio', e),markdown=False)

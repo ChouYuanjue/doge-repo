@@ -11,6 +11,7 @@ from data.plugins.doge_shared.academic import MaterialService
 from data.plugins.doge_shared.agent_tools import DogeMaterialTool, register_domain_tools
 from data.plugins.doge_shared.presentation import image_result, long_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 from data.plugins.doge_shared.science_wrappers import (
     ScienceExtraDependencyError,
     ScienceWrapperError,
@@ -81,9 +82,9 @@ class DogeMaterials(Star):
                 result = await MaterialService.find(query)
             yield long_result(event, 'Materials', result, fold_threshold=1400)
         except (ScienceWrapperError, ScienceExtraDependencyError, ValueError) as exc:
-            yield text_result(event, f'mat 失败：{exc}', markdown=False)
+            yield text_result(event, format_cli_error('mat', exc), markdown=False)
         except Exception as exc:
-            yield text_result(event, f'mat 失败：{exc}', markdown=False)
+            yield text_result(event, format_cli_error('mat', exc), markdown=False)
         finally:
             if out_path is not None:
                 out_path.unlink(missing_ok=True)

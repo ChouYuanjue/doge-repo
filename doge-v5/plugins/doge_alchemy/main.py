@@ -6,6 +6,7 @@ from astrbot.api.star import Context,Star,StarTools,register
 from data.plugins.doge_shared.alchemy import AlchemyBook,parse as parse_fusion,prompts as fusion_prompts,split_recipe
 from data.plugins.doge_shared.presentation import text_result
 from data.plugins.doge_shared.raw_command import command_payload,split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 
 @register('doge_alchemy','runnel','Doge 概念炼金与群聊生成设定图鉴','5.6.0')
 class DogeAlchemy(Star):
@@ -37,4 +38,4 @@ class DogeAlchemy(Star):
     system,prompt=fusion_prompts(left,right,book.names()); resp=await provider.text_chat(prompt=prompt,system_prompt=system)
     d=book.add(parse_fusion(resp.completion_text or '',left,right,event.get_sender_id()))
    yield text_result(event,d.render(),markdown=False)
-  except Exception as e: logger.warning(f'doge fuse failed: {e}'); yield text_result(event,f'fuse 失败：{e}',markdown=False)
+  except Exception as e: logger.warning(f'doge fuse failed: {e}'); yield text_result(event,format_cli_error('fuse', e),markdown=False)

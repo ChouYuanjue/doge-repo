@@ -4,6 +4,7 @@ from data.plugins.doge_shared.agent_tools import DogeAstroTool,register_domain_t
 from data.plugins.doge_shared.academic import AstroService
 from data.plugins.doge_shared.presentation import long_result,text_result
 from data.plugins.doge_shared.raw_command import command_payload,split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 @register('doge_astro','runnel','天体、系外行星与 ADS 工具','5.3.0')
 class DogeAstro(Star):
  def __init__(self,context:Context): super().__init__(context); register_domain_tools(context,'doge_astro',DogeAstroTool())
@@ -18,4 +19,4 @@ class DogeAstro(Star):
    elif a in {'ads','paper'}: r=await AstroService.ads(q)
    else: raise ValueError('未知 astro 子命令')
    yield long_result(event,'Astro',r,fold_threshold=1400)
-  except Exception as e: yield text_result(event,f'astro 失败：{e}',markdown=False)
+  except Exception as e: yield text_result(event,format_cli_error('astro', e),markdown=False)

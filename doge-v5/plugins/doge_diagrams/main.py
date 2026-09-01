@@ -8,6 +8,7 @@ from astrbot.api.star import Context, Star, StarTools, register
 from data.plugins.doge_shared.diagrams import DiagramError, FORMATS, render_diagram
 from data.plugins.doge_shared.presentation import image_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 
 HELP = (
     "Doge Diagrams /diagram\n"
@@ -44,7 +45,7 @@ class DogeDiagrams(Star):
             path, caption = await render_diagram(self.data_dir, kind, source)
             yield image_result(event, path, caption)
         except DiagramError as exc:
-            yield text_result(event, f"diagram 失败：{exc}", markdown=False)
+            yield text_result(event, format_cli_error('diagram', exc), markdown=False)
         finally:
             if path is not None:
                 path.unlink(missing_ok=True)

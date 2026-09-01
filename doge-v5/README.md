@@ -25,7 +25,7 @@ See **`HELP.md`** for the generated layered command guide, **`PERSONA.md`** for 
 - `plugins/doge_*`: independent AstrBot plugins;
 - `plugins/doge_shared`: reusable services/algorithms/presentation, not an AstrBot plugin;
 - `plugin_manifest.json`: deployable plugin truth;
-- `plugins/doge_shared/resources/help_catalog.json`: command-help source of truth;
+- `plugins/doge_shared/resources/capability_registry.json`: command-help source of truth;
 - `persona/doge.json`: production persona source of truth;
 - `legacy_coverage.json`: machine-readable v2-v4 containment map;
 - `feature_catalog.json` / `FEATURE_MATRIX.md`: historical product audit;

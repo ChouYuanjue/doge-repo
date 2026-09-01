@@ -5,6 +5,7 @@ from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, StarTools, register
 from data.plugins.doge_shared.presentation import image_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 from .ai_lab import AILabError, render_bpe, render_grad
 HELP=("Doge AI Lab /ai\n"
 "  /ai grad <expr> | x=2 y=3      micrograd 计算图 + 反向梯度\n"
@@ -37,6 +38,6 @@ class DogeAI(Star):
     if p and p[0].isdigit(): merges=int(p[0]); text=p[1] if len(p)>1 else ""
     path,caption=await asyncio.to_thread(render_bpe,self.data_dir,text,merges); yield image_result(event,path,caption); return
    raise AILabError("未知 AI 子命令。\n"+HELP)
-  except (AILabError,ValueError) as exc: yield text_result(event,f"ai 失败：{exc}",markdown=False)
+  except (AILabError,ValueError) as exc: yield text_result(event,format_cli_error('ai', exc),markdown=False)
   finally:
    if path is not None: Path(path).unlink(missing_ok=True)

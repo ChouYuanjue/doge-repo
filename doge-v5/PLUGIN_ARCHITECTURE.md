@@ -1,4 +1,4 @@
-# Doge v5.6 plugin architecture
+# Doge v5.7 plugin architecture
 
 A plugin is an independently meaningful user capability, not merely a Python folder. Tiny useful features live in `misc`; obsolete or unstable historical surfaces live in the opt-in Legacy museum.
 
@@ -34,7 +34,7 @@ A plugin is an independently meaningful user capability, not merely a Python fol
 
 ## Help and command policy
 
-`plugins/doge_shared/resources/help_catalog.json` is the command-documentation source of truth. `/help` supports category → command → subtopic drill-down; `tools/generate_help_docs.py` generates `HELP.md`, and tests require the catalog to cover every default top-level command. Formal plugins never use AstrBot `alias=` for historical names.
+`plugins/doge_shared/resources/capability_registry.json` is the capability/command source of truth. `/help` supports category → command → subtopic drill-down; `tools/generate_help_docs.py` generates `HELP.md`, and tests require the catalog to cover every default top-level command. Formal plugins never use AstrBot `alias=` for historical names.
 
 AstrBot builtin commands are disabled in production and wrapped under `/admin`; Doge intentionally owns the public `/help`. Bare `/reset`, `/stats`, `/provider`, etc. therefore do not compete with the product command surface.
 

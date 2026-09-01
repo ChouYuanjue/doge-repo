@@ -5,6 +5,7 @@ from data.plugins.doge_shared.agent_tools import DogePaperTool,register_domain_t
 from data.plugins.doge_shared.academic import PaperService
 from data.plugins.doge_shared.presentation import long_result,text_result
 from data.plugins.doge_shared.raw_command import command_payload,split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 
 @register('doge_papers','runnel','论文发现、引用链、开放全文与引文信息','5.3.0')
 class DogePapers(Star):
@@ -33,4 +34,4 @@ class DogePapers(Star):
    elif a in {'affil','affiliation'}: r=await PaperService.organization(q,affiliation=True)
    else: raise ValueError('未知 paper 子命令')
    yield long_result(event,'Paper',r,fold_threshold=1400)
-  except Exception as e: logger.warning(f'doge paper failed: {e}'); yield text_result(event,f'paper 失败：{e}',markdown=False)
+  except Exception as e: logger.warning(f'doge paper failed: {e}'); yield text_result(event,format_cli_error('paper', e),markdown=False)

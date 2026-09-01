@@ -8,6 +8,7 @@ from data.plugins.doge_shared.presentation import file_result,image_result,image
 from data.plugins.doge_shared.raw_command import command_payload,split_head
 from data.plugins.doge_shared.typeset import TypesetDependencyError,TypesetError,render_tex,render_typst,tex_help,typst_help
 from data.plugins.doge_shared.markdown_typeset import markdown_help,render_markdown,render_snippet,snippet_help
+from data.plugins.doge_shared.help_service import format_cli_error
 
 @register('doge_typeset','runnel','TeX 与 Typst 群聊排版','5.3.0')
 class DogeTypeset(Star):
@@ -32,7 +33,7 @@ class DogeTypeset(Star):
    else:
     yield images_result(event,paths,caption)
   except (TypesetError,TypesetDependencyError,ValueError) as e: yield text_result(event,str(e),markdown=False)
-  except Exception as e: logger.warning(f'doge md failed: {e}'); yield text_result(event,f'md 失败：{e}',markdown=False)
+  except Exception as e: logger.warning(f'doge md failed: {e}'); yield text_result(event,format_cli_error('md', e),markdown=False)
   finally:
    for p in paths: Path(p).unlink(missing_ok=True)
 
@@ -63,7 +64,7 @@ class DogeTypeset(Star):
    path,caption=await asyncio.to_thread(render_snippet,self.data_dir,rest,language=lang,title=title,highlight=highlight)
    yield image_result(event,path,caption)
   except (TypesetError,TypesetDependencyError,ValueError) as e: yield text_result(event,str(e),markdown=False)
-  except Exception as e: logger.warning(f'doge snippet failed: {e}'); yield text_result(event,f'snippet 失败：{e}',markdown=False)
+  except Exception as e: logger.warning(f'doge snippet failed: {e}'); yield text_result(event,format_cli_error('snippet', e),markdown=False)
   finally:
    if path is not None: Path(path).unlink(missing_ok=True)
 
@@ -80,7 +81,7 @@ class DogeTypeset(Star):
     payload=parts[1]
    path,caption=await render_tex(self.data_dir,payload,mode); yield image_result(event,path,caption)
   except (TypesetError,TypesetDependencyError,ValueError) as e: yield text_result(event,str(e),markdown=False)
-  except Exception as e: logger.warning(f'doge tex failed: {e}'); yield text_result(event,f'tex 失败：{e}',markdown=False)
+  except Exception as e: logger.warning(f'doge tex failed: {e}'); yield text_result(event,format_cli_error('tex', e),markdown=False)
   finally:
    if path is not None: Path(path).unlink(missing_ok=True)
  @filter.command('typst')
@@ -96,6 +97,6 @@ class DogeTypeset(Star):
     payload=parts[1]
    paths,caption=await asyncio.to_thread(render_typst,self.data_dir,payload,mode); yield images_result(event,paths,caption)
   except (TypesetError,TypesetDependencyError,ValueError) as e: yield text_result(event,str(e),markdown=False)
-  except Exception as e: logger.warning(f'doge typst failed: {e}'); yield text_result(event,f'typst 失败：{e}',markdown=False)
+  except Exception as e: logger.warning(f'doge typst failed: {e}'); yield text_result(event,format_cli_error('typst', e),markdown=False)
   finally:
    for p in paths: Path(p).unlink(missing_ok=True)

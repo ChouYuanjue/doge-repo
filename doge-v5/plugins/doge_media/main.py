@@ -9,6 +9,7 @@ from astrbot.core.utils.session_waiter import SessionController, session_waiter
 
 from data.plugins.doge_shared.presentation import image_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
+from data.plugins.doge_shared.help_service import format_cli_error
 
 from .media_service import make_mirage, trace_image
 
@@ -97,7 +98,7 @@ class DogeMedia(Star):
 
             raise ValueError("未知 media 类型；支持 trace / mirage")
         except Exception as exc:
-            yield text_result(event, f"media 失败：{exc}", markdown=False)
+            yield text_result(event, format_cli_error('media', exc), markdown=False)
         finally:
             if result_path is not None:
                 result_path.unlink(missing_ok=True)

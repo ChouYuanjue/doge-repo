@@ -9,6 +9,7 @@ from data.plugins.doge_shared.presentation import image_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
 from data.plugins.doge_shared.services import BingService, CodecService, NasaService
 from data.plugins.doge_shared.weather import WeatherService
+from data.plugins.doge_shared.help_service import format_cli_error
 
 
 @register("doge_misc", "runnel", "Doge 有用但不值得独立成域的小工具与轻彩蛋", "5.6.0")
@@ -100,7 +101,7 @@ class DogeMisc(Star):
             raise ValueError("未知 util 子命令")
         except Exception as exc:
             logger.warning(f"doge misc failed: {exc}")
-            yield text_result(event, f"util 失败：{exc}", markdown=False)
+            yield text_result(event, format_cli_error('util', exc), markdown=False)
 
     @filter.regex(r"^给我.*(?:光明|电疗).*$")
     async def shock(self, event: AstrMessageEvent):
@@ -114,4 +115,4 @@ class DogeMisc(Star):
                 markdown=False,
             )
         except Exception as exc:
-            yield text_result(event, f"电疗失败：{exc}", markdown=False)
+            yield text_result(event, format_cli_error("util", exc), markdown=False)

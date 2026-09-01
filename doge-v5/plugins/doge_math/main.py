@@ -7,6 +7,7 @@ from data.plugins.doge_shared.agent_tools import DogeMathTool, register_domain_t
 from data.plugins.doge_shared.presentation import text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
 from data.plugins.doge_shared.services import MathService
+from data.plugins.doge_shared.help_service import format_cli_error
 
 
 @register("doge_math", "runnel", "Doge 数学计算、进制、π 与 OEIS", "5.3.0")
@@ -40,4 +41,4 @@ class DogeMath(Star):
                 result = MathService.calc(payload)
             yield text_result(event, str(result), markdown=False)
         except Exception as exc:
-            yield text_result(event, f"math 失败：{exc}", markdown=False)
+            yield text_result(event, format_cli_error('math', exc), markdown=False)
