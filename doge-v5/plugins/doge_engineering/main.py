@@ -20,10 +20,11 @@ from data.plugins.doge_shared.science_wrappers import (
 
 HELP = (
     "Doge Engineering /eng\n"
-    "  /eng circuit rc [R C]\n"
-    "  /eng circuit rlc [R L C]\n"
-    "  /eng circuit divider [R1 R2]\n"
-    "  /eng circuit series V:5V R:1k C:10u GND\n"
+    "  /eng circuit rc [R] [C]\n"
+    "  /eng circuit rlc [R] [L] [C]\n"
+    "  /eng circuit divider [R1] [R2]\n"
+    "  /eng circuit series <component> [component ...]\n"
+    "    例：/eng circuit series V:5V R:1k C:10u GND\n"
     "  /eng control bode|step|impulse|nyquist|root <num coeffs> | <den coeffs>\n"
     "示例：/eng control bode 1 | 1 0.4 1"
 )

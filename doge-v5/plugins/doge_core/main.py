@@ -8,7 +8,9 @@ from astrbot.api.provider import LLMResponse, ProviderRequest
 from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
+from data.plugins.doge_shared.agent_bridge import DogeCapabilityTool, DogePresentTool
 from data.plugins.doge_shared.agent_tools import DogeWeatherTool, register_domain_tools
+from data.plugins.doge_shared.affect import TransientAffect
 from data.plugins.doge_shared.capabilities import agent_capability_prompt, capability_display
 from data.plugins.doge_shared.help_live import (
     HelpPreferenceStore,
@@ -17,7 +19,9 @@ from data.plugins.doge_shared.help_live import (
     render_help_live,
     scope_key,
 )
+from data.plugins.doge_shared.module_control import disabled_plugins, filter_toolset_for_session
 from data.plugins.doge_shared.presentation import image_result, markdown_to_plain, text_result
+from data.plugins.doge_shared.release import DOGE_VERSION
 from data.plugins.doge_shared.raw_command import command_payload
 from data.plugins.doge_shared.runtime_stats import (
     UsageCounter,
@@ -29,7 +33,7 @@ from data.plugins.doge_shared.runtime_stats import (
 )
 
 
-@register("doge_core", "runnel", "Doge 核心运行、状态与统计", "5.7.0")
+@register("doge_core", "runnel", "Doge 核心运行、状态与统计", DOGE_VERSION)
 class DogeCore(Star):
     """Always-on Doge foundation: identity, health, statistics and Agent basics."""
 
@@ -45,7 +49,14 @@ class DogeCore(Star):
             self.data_root / "logs",
         )
         self.help_preferences = HelpPreferenceStore(self.core_data_dir / "help_preferences.json")
-        register_domain_tools(context, "doge_core", DogeWeatherTool())
+        self.affect = TransientAffect()
+        register_domain_tools(
+            context,
+            "doge_core",
+            DogeWeatherTool(),
+            DogeCapabilityTool(),
+            DogePresentTool(),
+        )
 
     def _product(self) -> tuple[dict[str, int], int]:
         counts = product_counts(self.v5_root)
@@ -73,9 +84,26 @@ class DogeCore(Star):
 
     @filter.on_llm_request(priority=100)
     async def enrich_llm_request(self, event: AstrMessageEvent, req: ProviderRequest) -> None:
-        # Capability knowledge is generated from the same leaf-level registry as
-        # /help and /statics, so style changes never alter runtime self-knowledge.
-        req.system_prompt = (req.system_prompt or "") + "\n\n" + agent_capability_prompt()
+        # Persona owns voice; the registry owns capability truth.  The generic
+        # bridge makes every formal non-Legacy command reachable without adding
+        # 199 near-duplicate tool schemas to each request.
+        mood = self.affect.observe(event.unified_msg_origin, event.message_str or "")
+        await filter_toolset_for_session(event.unified_msg_origin, req.func_tool)
+        session_disabled = await disabled_plugins(event.unified_msg_origin)
+        req.system_prompt = (
+            (req.system_prompt or "")
+            + "\n\n"
+            + agent_capability_prompt()
+            + "\n\n"
+            + self.affect.prompt(mood)
+        )
+        if session_disabled:
+            req.system_prompt += (
+                "\n\n# Current session modules\n"
+                "The following Doge modules are disabled for this group/session: "
+                + ", ".join(x.removeprefix("doge_") for x in sorted(session_disabled))
+                + ". Do not use or claim those modules are currently callable until a group administrator re-enables them."
+            )
         if str(event.get_platform_name() or "").lower() != "aiocqhttp":
             return
         req.system_prompt += (

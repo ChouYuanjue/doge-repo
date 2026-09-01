@@ -18,6 +18,7 @@ class DogeMath(Star):
 
     @filter.command("math")
     async def math_command(self, event: AstrMessageEvent):
+        help_topic = "math"
         try:
             payload = command_payload(event.message_str, "math")
             parts = split_head(payload, 1)
@@ -25,6 +26,8 @@ class DogeMath(Star):
                 yield text_result(event, "`/math <表达式>` · `base <数> <原进制> <目标进制>` · `pi <起点> <位数>` · `oeis <查询>`")
                 return
             action = parts[0].lower(); rest = parts[1] if len(parts) > 1 else ""
+            if action in {"calc", "base", "system", "pi", "oeis"}:
+                help_topic = "math base" if action == "system" else f"math {action}"
             if action == "calc": result = MathService.calc(rest)
             elif action in {"base", "system"}:
                 args = rest.split()
@@ -41,4 +44,4 @@ class DogeMath(Star):
                 result = MathService.calc(payload)
             yield text_result(event, str(result), markdown=False)
         except Exception as exc:
-            yield text_result(event, format_cli_error('math', exc), markdown=False)
+            yield text_result(event, format_cli_error('math', exc, help_topic), markdown=False)

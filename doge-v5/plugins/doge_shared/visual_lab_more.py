@@ -233,17 +233,17 @@ def replicator(output_dir:Path, bias:float=0.0)->tuple[Path,str]:
 
 def help_text()->str:
     return (
-      "  /lab moire [angle spacing]\n"
-      "  /lab orbital <1s|2px|2py|3dxy|3dz2>\n"
-      "  /lab lattice <sc|bcc|fcc|diamond> [cells]\n"
-      "  /lab xrd <sc|bcc|fcc|diamond> [a wavelength]\n"
-      "  /lab knot <trefoil|figure8|torus> [p q]\n"
-      "  /lab brownian [walkers steps]\n"
-      "  /lab sir [R0 infectious_days]\n"
-      "  /lab predator [alpha beta delta gamma]\n"
-      "  /lab lens [f object_distance]\n"
+      "  /lab moire [angle_deg] [spacing_px]\n"
+      "  /lab orbital [{1s|2px|2py|3dxy|3dz2}]\n"
+      "  /lab lattice [{sc|bcc|fcc|diamond}] [cells]\n"
+      "  /lab xrd [{sc|bcc|fcc|diamond}] [a] [wavelength]\n"
+      "  /lab knot [{trefoil|figure8|torus}] [p] [q]\n"
+      "  /lab brownian [walkers] [steps]\n"
+      "  /lab sir [R0] [infectious_days]\n"
+      "  /lab predator [alpha] [beta] [delta] [gamma]\n"
+      "  /lab lens [focal] [object_distance]\n"
       "  /lab well [n]\n"
-      "  /lab diffraction [slit_sep slit_width wavelength]\n"
+      "  /lab diffraction [slit_sep] [slit_width] [wavelength]\n"
       "  /lab replicator [bias]\n"
       + __import__("doge_v5.visual_lab_fun", fromlist=["help_text"]).help_text()
     )

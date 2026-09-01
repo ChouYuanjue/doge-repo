@@ -126,10 +126,10 @@ def lissajous(output_dir: Path, a: int = 3, b: int = 2, phase_deg: float = 90.0)
 
 def help_text() -> str:
     return (
-        "  /lab chladni [m n]\n"
-        "  /lab phyllotaxis [angle_deg points]\n"
-        "  /lab galton [rows balls]\n"
-        "  /lab lissajous [fx fy phase_deg]"
+        "  /lab chladni [m] [n]\n"
+        "  /lab phyllotaxis [angle_deg] [points]\n"
+        "  /lab galton [rows] [balls]\n"
+        "  /lab lissajous [fx] [fy] [phase_deg]"
     )
 
 

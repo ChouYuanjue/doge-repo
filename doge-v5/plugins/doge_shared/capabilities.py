@@ -159,6 +159,20 @@ def capability_display(capability_id: str) -> str:
     return "/" + op["path"] if op.get("kind", "command") == "command" else op["usage"]
 
 
+def _agent_input_hint(op: dict) -> str:
+    inputs = [x for x in (op.get("inputs") or []) if isinstance(x, dict)]
+    if not inputs:
+        return ""
+    required = [str(x.get("name") or "<attachment>") for x in inputs if x.get("required", True)]
+    optional = [str(x.get("name") or "<attachment>") for x in inputs if not x.get("required", True)]
+    bits = []
+    if required:
+        bits.append("requires same-message input: " + ", ".join(required))
+    if optional:
+        bits.append("optional same-message input: " + ", ".join(optional))
+    return " [" + "; ".join(bits) + "]" if bits else ""
+
+
 @lru_cache(maxsize=1)
 def agent_capability_prompt() -> str:
     """Complete capability inventory injected into every Agent request.
@@ -180,8 +194,11 @@ def agent_capability_prompt() -> str:
         "# Doge capability inventory",
         "This is authoritative runtime self-knowledge generated from the same registry as /help and /statics.",
         "Do not claim an installed capability is unavailable until you have checked this list.",
-        "These are bot capabilities and user command routes; only capabilities separately registered as Agent Tools may be invoked directly as tools by the model.",
-        "When a user asks whether Doge can do something, answer from this inventory and, when useful, give the exact canonical command.",
+        "Every installed formal non-Legacy capability below is callable by the Agent: prefer a dedicated Doge domain tool when one exists, otherwise invoke the exact documented command through doge_capability.",
+        "The Agent is the synthesis layer above plugin outputs. It may combine several capabilities, reconcile or summarize their text results, and should show only the most useful evidence instead of dumping every raw result.",
+        "doge_capability can return deferred media asset IDs. Call doge_present only for images that materially improve the answer; do not automatically present every image produced by tools.",
+        "If seeing the exact raw plugin output would help, you may optionally mention its complete canonical/direct command. Do not append command reminders to every answer.",
+        "When a user asks whether Doge can do something, answer from this inventory. Current group module switches can temporarily make an installed module unavailable and take precedence over this global inventory.",
         "Important example: Tangut support includes dictionary lookup, GX/GHC pronunciation, Tangut→Chinese, Chinese→Tangut, and image rendering.",
         "",
         f"Installed formal surface: {c['top_level']} top-level commands; {c['functions']} canonical leaf functions; {c['forms']} callable forms including aliases.",
@@ -192,7 +209,7 @@ def agent_capability_prompt() -> str:
             continue
         lines.append(f"/{cmd}: " + d["commands"][cmd].get("summary", ""))
         for op in ops:
-            lines.append(f"  /{op['path']} — {op['summary']}")
+            lines.append(f"  {op['usage']} — {op['summary']}{_agent_input_hint(op)}")
     triggers = [x for x in formal_operations() if x.get("kind") == "trigger"]
     if triggers:
         lines.append("Designed non-slash triggers:")

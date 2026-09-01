@@ -57,6 +57,38 @@ def _relative(path: str, prefix: str) -> str:
     return path[len(prefix):].strip()
 
 
+def _argument_help_lines(op: dict) -> list[str]:
+    lines: list[str] = []
+    params = op.get("parameters") or []
+    if params:
+        lines += ["", "PARAMETERS"]
+        for item in params:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "<arg>")
+            desc = str(item.get("description") or "").strip()
+            lines.append(f"  {name}")
+            if desc:
+                lines.append(f"    {desc}")
+    inputs = op.get("inputs") or []
+    if inputs:
+        lines += ["", "INPUTS"]
+        for item in inputs:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "<input>")
+            required = bool(item.get("required", True))
+            desc = str(item.get("description") or "").strip()
+            lines.append(f"  {name}  {'必需' if required else '可选'}")
+            if desc:
+                lines.append(f"    {desc}")
+    examples = [str(x).strip() for x in (op.get("examples") or []) if str(x).strip()]
+    if examples:
+        lines += ["", "EXAMPLES"]
+        lines.extend(f"  {x}" for x in examples)
+    return lines
+
+
 def _prefix_groups(prefix: str, ops: list[dict]) -> tuple[dict[str, list[dict]], list[dict]]:
     groups: dict[str, list[dict]] = defaultdict(list)
     direct: list[dict] = []
@@ -111,7 +143,8 @@ def _render_root() -> str:
         f"  Legacy 叶子    {c['legacy_functions']}",
         "",
         "SYNTAX",
-        "  <arg> 必填    [arg] 可选    A|B 任选其一",
+        "  <arg> 必填    [arg] 可选    {a|b} 必选其一    [{a|b}] 可选其一",
+        "  [arg ...] 可重复    + <附件> 表示同一条消息附带的非文本输入",
         "  帮助只推荐 canonical 写法；旧别名仍可调用，但统计会归一到同一个功能。",
         "  `/` 同时是唤醒符；没有命中本表的 `/anything` 不会被算作指令。",
     ]
@@ -144,7 +177,9 @@ def _render_prefix(prefix: str) -> str:
     # A true leaf gets a compact man-page view.
     exact = next((x for x in ops if x["path"] == prefix), None)
     if exact and len(ops) == 1:
-        lines += ["USAGE", f"  {exact['usage']}", "", "ABOUT", f"  {exact['summary']}"]
+        lines += ["USAGE", f"  {exact['usage']}"]
+        lines += _argument_help_lines(exact)
+        lines += ["", "ABOUT", f"  {exact['summary']}"]
         aliases = _alias_note(exact)
         if aliases:
             lines += ["", "ALIASES", aliases]
@@ -318,12 +353,47 @@ def render_help(topic: str = "") -> tuple[str, bool]:
     return "\n".join(lines), False
 
 
+def _infer_error_topic(message: str, fallback: str) -> str:
+    """Recover the most specific registered command mentioned by an error.
+
+    Many handlers intentionally raise messages such as
+    ``用法：/math oeis <数列或关键词>`` when a required argument is missing.
+    Those failures happen *before* the invocation can satisfy the normal
+    registry matcher, so infer the leaf from any slash form mentioned in the
+    error and then let the registry provide the canonical usage/parameters.
+    """
+    import re
+
+    candidates: list[tuple[int, str]] = []
+    lower = (message or "").lower()
+    for op in formal_operations():
+        if op.get("kind", "command") != "command":
+            continue
+        for form in [op["path"], *(op.get("aliases") or [])]:
+            pattern = r"/" + re.escape(form.lower()) + r"(?=$|[\s<\[{:@|，,；;])"
+            if re.search(pattern, lower):
+                candidates.append((len(form.split()), op["path"]))
+    if candidates:
+        candidates.sort(reverse=True)
+        return candidates[0][1]
+    return _norm(fallback)
+
+
 def format_cli_error(command: str, error: object, topic: str | None = None) -> str:
-    """Reusable CLI-style failure with deterministic navigation."""
+    """Reusable CLI-style failure with actionable parameter guidance."""
     cmd = _norm(command).split()[0] if _norm(command) else ""
-    target = _norm(topic or command)
     msg = str(error).strip() or "执行失败"
-    lines = [f"ERROR  /{cmd}" if cmd else "ERROR", f"  {msg}", "", "NEXT"]
+    target = _norm(topic) if topic else _infer_error_topic(msg, command)
+    lines = [f"ERROR  /{cmd}" if cmd else "ERROR", f"  {msg}"]
+
+    exact = None
+    if target:
+        exact = next((x for x in operations_for_prefix(target) if x["path"] == target), None)
+    if exact:
+        lines += ["", "USAGE", f"  {exact['usage']}"]
+        lines += _argument_help_lines(exact)
+
+    lines += ["", "NEXT"]
     if target:
         lines.append(f"  /help {target}")
     if cmd and target != cmd:

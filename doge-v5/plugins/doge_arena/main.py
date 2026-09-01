@@ -62,9 +62,9 @@ class DogeArena(Star):
                     "Doge Arena / 弱能力竞技场\n"
                     "/arena draw|get|reroll  从原 /wp 238 条手写弱能力中抽一条\n"
                     "/arena show             查看当前能力\n"
-                    "/arena fight @某人      原 /wp 风格直接弱能力对决\n"
-                    "/arena duel @某人       加入场地、目标和异常规则的竞技场对决\n"
-                    "/arena chaos [2|3]      组合 2–3 条原始弱能力与竞技场条款\n"
+                    "/arena fight <@对手或QQ号>  原 /wp 风格直接弱能力对决\n"
+                    "/arena duel <@对手或QQ号>   加入场地、目标和异常规则的竞技场对决\n"
+                    "/arena chaos [{2|3}]        组合 2–3 条原始弱能力与竞技场条款\n"
                     "/arena deck             查看原始卡池与组合空间",
                     markdown=False,
                 )

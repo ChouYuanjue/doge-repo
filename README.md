@@ -1,275 +1,160 @@
-# 豆子 Doge 仓库说明
+# 豆子 Doge
+
 ![GitHub repo size](https://img.shields.io/github/repo-size/ChouYuanjue/doge-repo)
 ![GitHub last commit](https://img.shields.io/github/last-commit/ChouYuanjue/doge-repo)
 ![GitHub stars](https://img.shields.io/github/stars/ChouYuanjue/doge-repo)
-![Line of Codes](https://img.shields.io/badge/code%20lines-38940-brightgreen)
-> QQ 机器人「豆子 Doge」源码仓库导读与上手指南
 
-本文件旨在帮助你**大致了解豆子**、**快速读懂仓库结构**、**了解各版本差异**、并**尽可能成功部署机器人**
+> 从 2019 年延续至今的 QQ 群聊机器人。当前主线是 **Doge v5 / AstrBot**；v2-v4 作为可追溯历史保留。
 
----
+Doge 不是一个只会聊天的单一模型壳。v5 把旧版本长期积累的功能重构为一组可独立维护的 AstrBot 插件，并在它们之上提供统一的 Agent 编排层：普通用户既可以使用明确的 `/command` 获得原始、可重复的工具结果，也可以直接自然语言询问，由 Agent 选择并组合多个正式能力。
 
-**对此项目有疑问？**
+当前能力与命令的**唯一权威来源**是 `doge-v5/plugins/doge_shared/resources/capability_registry.json`。仓库中的 `doge-v5/HELP.md` 由它自动生成；运行时 `/help`、使用统计和 Agent capability inventory 也读取同一份 registry。
 
-可以直接在wiki提问！[DeepWiki](https://deepwiki.com/ChouYuanjue/doge-repo)
+## 当前版本：Doge v5
 
-## 0. 简介
+Doge v5 面向 **AstrBot 4.27.x / Python 3.12**，目前生产同时服务 QQ Official 与 NapCat/OneBot。正式能力默认全部加载，Legacy 历史插件默认关闭。
 
-豆子 Doge 诞生于 2019 年，到如今历经四个版本。
+主要能力包括：
 
-`v1`活跃时间为 2019 年，采用 CQA 。仅有关键词回复和图灵api聊天两个功能，完全基于酷Q自带面板进行配置，不存在源码一说。
+- **检索与科研数据**：论文、PubMed/arXiv、UniProt、InterPro、PDB、AlphaFold、PubChem、ChEMBL、OPTIMADE、SIMBAD、NASA Exoplanet、ClinicalTrials.gov 等；
+- **数学 / CS / AI**：表达式计算、进制、π、OEIS、自动机、PageRank、micrograd、minBPE、远端受限代码执行；
+- **排版与图形**：TeX、Typst、Markdown 卡片/PDF、代码片段、Graphviz、Mermaid、Vega-Lite；
+- **科学与工程实验**：分形、混沌、元胞自动机、随机矩阵、量子/相对论教学图、晶格/XRD、电路、控制系统等；
+- **语言学**：西夏文双向词典 grounding 翻译、GX/GHC 拟音、汉字历史音系/方言、RRPL、R'lyehian/Cthuvian；
+- **群聊游戏与原生玩法**：24 点、九子棋、Signal、扫雷、数独、骰池、概念炼金，以及完整保留原 `/wp` 238 条弱能力的 Arena；
+- **媒体工具**：AnimeTrace、Galgame 识图、本地幻影坦克等；
+- **运行与管理**：版本、状态、统计、分层 Help，以及按群隔离的正式模块开关。
 
-`v2`活跃时间为 2020 年，采用 CQP 。仓库中文件与`v2`实际功能不完全对应，只包含可以找到的少部分源文件。
+完整命令表见 [`doge-v5/HELP.md`](doge-v5/HELP.md)。历史能力与迁移状态见 [`doge-v5/LEGACY.md`](doge-v5/LEGACY.md)。
 
-- `v2`文档可参见: [v2_docs.pdf](doge-v2/v2_docs.pdf) （**注意**：此文档为早期版本，基本不包含此仓库中源文件所涉及的功能）
+## Agent 与直接命令
 
-`v3`活跃时间为 2022 年，采用 Mirai。仓库基本实现全收录.
+v5 有两种等价但用途不同的入口。
 
-- `v3`文档可参见：[v3_docs.md](doge-v3/v3_docs.md) 或者 [豆子 Doge 说明文档](https://docs-doge.netlify.app)
+**直接命令**适合需要完整原始输出、可重复调用或精确参数控制的场景，例如：
 
-`v4`为现行版本，采用 AstrBot。仓库实时更新。
-
-- `v4`文档可参见：[v4_docs.md](doge-v4/v4_docs.md)，已整合入bot的知识库，可直接向bot提问来咨询详情
-
-四个版本的豆子始终活跃于数学吧官群，在此对数吧群的各位表示感谢。豆子诞生的契机是认识了丽琪，复刻丽琪的功能也一度成为开发豆子的动力和目标。在开发过程中，丽琪的作者多次进行了倾力指导。没有丽琪，也就不会有如今的豆子。感谢伟大的丽琪之父fyr。特别鸣谢sym学长，在服务器方面不遗余力地进行了大量指导，让豆子得以成功摆脱本地部署的种种不便。
-
-欢迎各位参与豆子的开发工作！
-
-
-
-## 1. 我应该从哪个版本开始？
-
-* **v4（doge-v4）— 当前版本**：基于 **AstrBot** 框架（Python）。如果你是首次部署或想获得最新功能，请从 v4 开始。
-* **v3（doge-v3）— 旧版本**：基于 **Mirai** 框架（JVM）。仅用于回溯或研究旧实现，不建议部署。此版本分为四个子模块，其中主体为`mirai-native`和`mirai-jvm`。
-* **v2（doge-v2）— 历史版本**：基于 **CQP** 的早期实现，生态已停运；如需复刻，通常需用 **go-cqhttp** / **mirai-native** / **MiraiCQ** 等替代底层。不建议部署。
-
-
-
-## 2. 功能块/指令概览
-
+```text
+/math oeis 1,1,2,3,5,8
+/lang tangut zh2t 我爱中国
+/lab ising 2.269 240
+/eng control bode 1 | 1 0.4 1
 ```
+
+参数记法遵循常见 CLI 约定：
+
+```text
+<arg>       必填位置参数
+[arg]       可选位置参数
+{a|b}       必须从候选中选一个
+[{a|b}]     可选的枚举项
+[arg ...]   可重复的可选参数
+```
+
+图片、CIF/mCIF 等不是位置参数，会在 Help 中单独列为附加输入。
+
+**自然语言 Agent**位于所有正式插件之上。它默认可以调用全部正式非 Legacy 能力；会根据问题组合多个工具结果、压缩冗余文本并只保留最有价值的证据。图片类插件结果先被捕获为临时媒体资产，只有 Agent 判断确实值得展示时才发送，而不是每调用一次插件就自动把所有图塞进回复。
+
+如果用户需要工具的原始结果，Agent 可以在合适时给出对应完整命令，但不会机械地在每条回答后追加命令提示。
+
+## Help 与模块开关
+
+`/help` 默认生成本地 Typst 排版的 geek 风格图片卡片，也可以按群切换为纯文本：
+
+```text
+/help style image
+/help style text
+```
+
+Help 内容由 live registry 生成，支持逐层导航，例如：
+
+```text
+/help math
+/help math oeis
+/help lang tangut
+/help lab ising
+```
+
+正式模块默认全部开启。群主/群管理员可以使用 AstrBot 原生 session-level plugin 配置的 Doge 外壳，对**当前群**独立启停模块：
+
+```text
+/admin modules list
+/admin modules off games
+/admin modules on games
+/admin modules reset
+```
+
+`core` 与 `admin` 是恢复入口，不能被群内关闭；Legacy 不在正式模块列表中。模块关闭同时影响直接命令和 Agent Tools。
+
+## 仓库结构
+
+```text
 .
-├── doge-v2/
-├── doge-v3/
-│   ├── lua-mirai/
-│   │   ├── jeffjoke
-│   │   └── qs
-│   ├── mirai-api-http/
-│   │   └── chatlearning
-│   ├── mirai-jvm/
-│   │   ├── chat
-│   │   ├── genshin
-│   │   ├── mirage
-│   │   ├── nasa
-│   │   ├── nc
-│   │   ├── netool
-│   │   ├── px
-│   │   ├── wa
-│   │   └── yan
-│   └── mirai-native/
-│       └── epk/
-│           ├── amuse
-│           ├── anime
-│           ├── ask
-│           ├── bing
-│           ├── chem
-│           ├── chart
-│           ├── cotool
-│           ├── docs
-│           ├── dream
-│           ├── echo
-│           ├── frun
-│           ├── fru
-│           ├── gan
-│           ├── game
-│           ├── gen
-│           ├── gpt
-│           ├── insult
-│           ├── jianh
-│           ├── law
-│           ├── math
-│           ├── meme
-│           ├── phil
-│           ├── pic-url
-│           ├── poem
-│           ├── repo
-│           ├── run
-│           ├── se
-│           ├── siku
-│           ├── style
-│           ├── test
-│           ├── tex
-│           ├── toonify
-│           ├── url-pic
-│           ├── ver
-│           └── yg
-└── doge-v4/
-    ├── apis
-    ├── complex
-    ├── cube
-    ├── doubao
-    ├── emojimix
-    ├── fourier
-    ├── genshin
-    ├── gol
-    ├── gomoku
-    ├── honkai
-    ├── latex
-    ├── liblibapi
-    ├── lyrics
-    ├── mc
-    ├── meme
-    ├── mermaid
-    ├── mirage
-    ├── music
-    ├── pack
-    ├── pjsk
-    ├── pokemon
-    ├── poker
-    ├── rrpl
-    ├── run
-    ├── soup
-    ├── st
-    ├── tangut
-    ├── trace
-    ├── typst
-    ├── utex
-    ├── vv
-    ├── wa
-    ├── wordle
-    ├── wiki
-    └── wp
-
+├── doge-v5/                 # 当前主线：AstrBot 插件化实现
+│   ├── plugins/             # doge_* 正式插件 + doge_shared 共享层
+│   ├── persona/             # 生产 persona 源文件
+│   ├── tests/               # 回归、渲染、能力/历史覆盖测试
+│   ├── tools/               # runtime materialize / install / docs generator
+│   ├── plugin_manifest.json # 可部署插件真值表
+│   ├── HELP.md              # registry 自动生成的正式帮助
+│   └── LEGACY.md            # 历史能力索引
+├── doge-v4/                 # 上一代 AstrBot 实现，保留用于回溯
+├── doge-v3/                 # Mirai 时代历史源码
+└── doge-v2/                 # CQP 时代可恢复的部分源码
 ```
 
+v5 的内部结构、部署边界和开发规范见 [`doge-v5/README.md`](doge-v5/README.md)。
 
+## 部署 v5
 
-## 3. 快速上手（v4 / AstrBot）
+本仓库没有把所有目录直接复制进 AstrBot。应由 manifest 物化需要的 profile。
 
-### 3.1 先决条件
+先检查：
 
-* **Python**：建议 3.10+
-* **平台**：QQ / QQ 频道 （仅在 aiocqhttp 端进行过部署，其他平台不保证成功）
-* **依赖与配置**：运行`pip install -r requirements.txt`安装依赖的库(可能有冗余)。为了bot的流畅运行，建议预留1G左右内存。
-* **协议端**：建议安装 NapCat 并进行登录，配置反向 Websocket 待用。其余实现请自行参考有关文档。
-
-### 3.2 部署路径
-
-本项目未在AstrBot进行发布，请手动部署。以下全部为linux端部署教程。
-
-**方式 A：Docker（推荐）**
-
-1. 安装 Docker / Docker Compose。
-2. 使用以下指令直接部署：
-```
-sudo docker run -itd -p 6180-6200:6180-6200 -p 11451:11451 -v $PWD/data:/AstrBot/data -v /etc/localtime:/etc/localtime:ro -v /etc/timezone:/etc/timezone:ro --name astrbot m.daocloud.io/docker.io/soulter/astrbot:latest
-```
-该操作会将容器中的`/AstrBot/data`目录映射到`~/astrbot/data`。如需映射其他目录请自行修改以上指令。
-
-3. 将`doge-v4/`下的文件复制到`~/astrbot/data/plugins/`。
-
-4. 通过面板重启bot以加载插件。
-
-（如果不会使用docker不建议使用此方案部署，容易滋生问题。）
-
-**方式 B：本地运行**
-
-1. 克隆AstrBot仓库，切换路径至仓库目录。
-
-2. 运行以下指令：
-```
-uv sync
-uv run main.py
+```bash
+python3.12 doge-v5/tools/materialize_plugins.py \
+  --dest /path/to/AstrBot/data/plugins \
+  --profile default \
+  --dry-run
 ```
 
-3. 将 `doge-v4/` 下文件复制到`/AstrBot/data/plugins/`
+确认后安装默认正式插件，并安装 Persona/运行时策略：
 
-4. 通过面板重启bot以加载插件。
+```bash
+python3.12 doge-v5/tools/materialize_plugins.py \
+  --dest /path/to/AstrBot/data/plugins \
+  --profile default \
+  --mode symlink \
+  --force
 
-如果仍不会部署请参考[AstrBot 官方文档](https://docs.astrbot.app/)。
+python3 doge-v5/tools/install_runtime_profile.py \
+  --runtime /path/to/AstrBot
+```
 
-> 提示：AstrBot 提供**可视化管理面板**与**插件系统**；很多配置可以在 WebUI 中完成。
+`default` 不包含 Legacy。`legacy` 是显式 opt-in；`planned`、`merged` 项不会被当成独立生产插件物化。
 
-### 3.3 开发插件（v4）
+具体依赖、平台配置与第三方边界请继续阅读 v5 文档和各插件实现。不要把 API key、QQ 凭据或 provider token 写入仓库。
 
-作为一个成长中的bot，豆子欢迎各位开发者进行pr。
+## 开发原则
 
-* 在 `plugins/` 下新建独立目录，内含最小化入口与 `pyproject.toml`/`requirements.txt`（如需要）。至少应包含`main.py`和`metadata.yaml`。
-* 插件代码应**避免阻塞**，尽量使用异步 I/O；
-* 将**密钥**放入环境变量或独立配置文件，不要写死在仓库中。
+欢迎 PR。v5 不是简单堆命令，新增功能至少应满足以下约束：
 
+1. **Registry first**：公开功能进入 capability registry，并明确 canonical path、别名、必填/可选参数、附件输入和简要说明；
+2. **单一事实源**：Help、统计、Agent 自我认知不分别手写另一套功能表；
+3. **真实结果优先**：科研/检索/状态能力应返回真实数据或明确失败，不用 silent mock 冒充成功；
+4. **异步与隔离**：避免阻塞 AstrBot 主事件循环，不把用户代码直接执行在 Doge 宿主机；
+5. **图片可控**：图片输出必须有明确价值，Agent 场景下允许上层选择是否展示；
+6. **历史可追溯**：不因重构随意删除有价值的旧能力；无法继续生产使用的功能进入 Legacy 并记录状态；
+7. **测试与回滚**：修改 runtime 前先测试并保留可恢复备份。
 
+更详细的架构说明见 [`doge-v5/PLUGIN_ARCHITECTURE.md`](doge-v5/PLUGIN_ARCHITECTURE.md)，事实性返回原则见 [`doge-v5/TRUTHFULNESS.md`](doge-v5/TRUTHFULNESS.md)，人格说明见 [`doge-v5/PERSONA.md`](doge-v5/PERSONA.md)。
 
-## 4. 旧版本导读
+## 历史
 
-### 4.1 v3（Mirai）
+豆子始于 2019 年，并长期活跃于数学吧相关群聊。不同年代更换过 CQA、CQP、Mirai 与 AstrBot 等底层；旧版本目录的价值主要是历史回溯、功能考古和迁移参考，而不是推荐部署。
 
-* 适合复现旧功能或迁移思路；
-* 鉴于 Mirai 官方已跑路，不建议再对此版本进行部署；
-* MCL 登录目前需要自行签名，或者通过 overflow 对接 NapCat，具体操作不多赘述，请自行搜索；
-* mirai-jvm 目录下插件依赖于 mirai-console ，本仓库仅提供`src/main`下主要源码，请自行分辨将各文件放在Mirai插件模板的合适位置，自行打包后投放至 `plugins` 目录；
-* lua-mirai 直接基于 mirai-core，具体可见 lua-mirai 官方文档；
-* mirai-api-http 基于 OneBot 标准，其插件理论上可通过 http/ws 连接其他支持 OneBot 的框架（如 NapCat）；
-* 鉴于 mirai-native 的特殊性，和 mirai-console 部分插件可能发生冲突，上述方案不一定适用。目前经个人测试确定可行的一个方案是通过 MiraiCQ 连 NapCat 的正向 Websocket，合理放置插件的`dll`和`json`位置。`v3_epk_config.json`无法直接导入，请打开插件面板后对照`json`逐条配置。
+- `v2`：CQP 时代，仓库只保存了能恢复的部分源码；
+- `v3`：Mirai 时代，历史实现相对完整；
+- `v4`：第一代 AstrBot 主线；
+- `v5`：当前主线，对 v2-v4 进行能力级重构并引入统一 registry、Agent 编排与 Legacy containment。
 
-### 4.2 v2（CQP）
-
-* 酷Q已停运；如需复刻或回溯，请以其他底层作为事件/协议桥接；
-* 可参考上方针对`mirai-native`的部署方案进行部署，合理放置插件的`dll`和`json`位置，在插件面板导入`doge-v2.epk`；
-* 该目录只包含可以找到的部分源文件，并不能复刻v2豆子全部功能，也缺少相关的本地数据。`v2_epk_config.json`为`doge-v2.epk`解码整理所得，便于查看，无法直接导入。
-* 由于生态陈旧，**不建议用户使用 v2**。
-
-
-
-## 5. 运行与调试建议
-
-* **最小可运行**：先仅接入一个平台（例如 QQ），验证收发消息，再逐步开启其他平台与功能。
-* **日志与排障**：
-
-  * 启动失败：优先检查 Python 版本、依赖安装、端口占用、环境变量；
-  * 登录异常：检查平台凭据、风控/设备锁、频率限制；
-  * 收发异常：核对适配器开关、路由/权限、消息上报/推送配置。
-  * 回复错误：检查文件目录是否对应、部分功能的 API KEY 是否配置
-
-
-
-## 6. 常见问答（FAQ）
-
-**Q: 一次性支持多平台吗？**
-
-A: 可以。建议先接一个平台，稳定后再逐步扩展。
-
-**Q: 插件该放哪里？怎么热更新？**
-
-A: 放在 `plugins/`。支持热加载；生产环境建议重启以保证一致性。
-
-**Q: 需要前置驱动或手机协议文件吗？**
-
-A: 取决于所选平台与适配器。请按对应文档准备设备信息、协议选择与风控处理策略。
-
-
-
-## 7. 参考与延伸阅读
-
-* [NapCat 官方文档](https://napneko.github.io/guide/napcat)
-* [AstrBot 官方文档](https://docs.astrbot.app/)
-* [Mirai 官方文档](https://docs.mirai.mamoe.net/)
-* [Mirai 插件模板](https://github.com/project-mirai/mirai-console-plugin-template)
-* [lua-mirai 官方文档](https://only52607.github.io/lua-mirai/)
-* [OneBot 官方文档](https://onebot.dev/)
-* [MiraiCQ 项目地址](https://github.com/super1207/MiraiCQ)
-* [丽琪bot 仓库地址](https://github.com/fyr233/liqiv3)
-* [豆子 Doge 前仓库地址](https://github.com/doge-qbot/doge-repo)
-
-> 若你在使用本导读时发现与仓库实际不符，请提交 Issue 说明具体目录与文件，我们会同步更新本文件。
-
-
-
-
-## Credentials
-
-Copy `.env.example` to `.env` and fill the credentials required by the plugins you use. `.env` and generated `*.local.*` files are ignored by Git. For the archived v2/v3 configurations, run `python tools/materialize_legacy_configs.py` to create local runtime copies with environment values substituted.
-
-## 8. 许可证
-
-本仓库使用 **GPL-3.0** 许可证。提交贡献即默认接受相同开源协议。
+感谢历代贡献者、使用者以及曾对底层部署和机器人开发提供帮助的朋友。

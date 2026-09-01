@@ -15,6 +15,7 @@ from pathlib import Path
 from threading import Lock
 
 from .capabilities import counts as capability_counts, match_invocation
+from .release import DOGE_VERSION
 
 _EVENT_RE = re.compile(r"\[core\.event_bus:74\]:\s+\[[^]]+\]\s+\[([^]]+)\].*?:\s(.*)$")
 
@@ -101,7 +102,7 @@ def version_snapshot(repo_root: Path) -> dict[str, str]:
     except Exception:
         astrbot_ver = "unknown"
     return {
-        "doge": "5.7.0",
+        "doge": DOGE_VERSION,
         "git": git_revision(repo_root),
         "astrbot": astrbot_ver,
         "python": platform.python_version(),

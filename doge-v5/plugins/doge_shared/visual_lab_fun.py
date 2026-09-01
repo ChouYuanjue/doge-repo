@@ -172,9 +172,9 @@ def beats(output_dir: Path, f1: float=9.0, f2: float=10.0, seconds: float=3.0) -
 
 def help_text() -> str:
     return (
-        "  /lab life <glider|gun|acorn|random> [steps]\n"
+        "  /lab life [{glider|gun|acorn|random}] [steps]\n"
         "  /lab dla [particles]\n"
-        "  /lab beats [f1 f2 seconds]\n"
+        "  /lab beats [f1] [f2] [seconds]\n"
         + __import__("doge_v5.visual_lab_fun2", fromlist=["help_text"]).help_text()
     )
 

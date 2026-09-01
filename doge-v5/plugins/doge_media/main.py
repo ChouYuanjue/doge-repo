@@ -69,8 +69,8 @@ class DogeMedia(Star):
                 yield text_result(
                     event,
                     "Doge Media\n"
-                    "/media trace anime|gal  + 一张图\n"
-                    "/media mirage gray|color + 两张图（第一张表图，第二张里图）",
+                    "/media trace {anime|gal}   同一条消息附一张图\n"
+                    "/media mirage {gray|color} 同一条消息附两张图（第一张表图，第二张里图）",
                     markdown=False,
                 )
                 return

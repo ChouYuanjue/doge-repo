@@ -254,15 +254,15 @@ def langton_ant(output_dir: Path, steps: int=18000, size: int=401) -> tuple[Path
 
 def help_text() -> str:
     return (
-        "  /lab complex <z|z2+1|z3-1|1/z|sin|exp> [zoom]\n"
+        "  /lab complex [{z|z2+1|z3-1|1/z|sin|exp}] [zoom]\n"
         "  /lab newton [degree] [zoom]\n"
         "  /lab ising [T] [sweeps]\n"
         "  /lab percolation [p] [size]\n"
-        "  /lab randommatrix <ginibre|goe> [N]\n"
+        "  /lab randommatrix [{ginibre|goe}] [N]\n"
         "  /lab voronoi [points]\n"
-        "  /lab bloch [theta_deg phi_deg]\n"
+        "  /lab bloch [theta_deg] [phi_deg]\n"
         "  /lab relativity [beta]\n"
-        "  /lab spectrum <sine|square|saw|chirp> [frequency]\n"
+        "  /lab spectrum [{sine|square|saw|chirp}] [frequency]\n"
         "  /lab sandpile [grains]\n"
         "  /lab ant [steps]\n"
         + __import__("doge_v5.visual_lab_more", fromlist=["help_text"]).help_text()

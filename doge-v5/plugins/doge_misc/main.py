@@ -47,10 +47,10 @@ class DogeMisc(Star):
             if action in {"help", "?"}:
                 yield text_result(
                     event,
-                    "`/util encode <url|unicode|hex|base64> <文本>`\n"
-                    "`/util decode <url|unicode|hex|base64> <文本>`\n"
-                    "`/util weather <地点> [1-7天]`\n"
-                    "`/util apod [YYYY-MM-DD]`\n"
+                    "`/util encode {url|unicode|hex|base64} <文本>`\n"
+                    "`/util decode {url|unicode|hex|base64} <文本>`\n"
+                    "`/util weather <place> [days]`\n"
+                    "`/util apod [date]`\n"
                     "`/util bing`",
                 )
                 return
@@ -58,7 +58,7 @@ class DogeMisc(Star):
             if action in {"encode", "decode"}:
                 second = split_head(rest, 1)
                 if len(second) < 2:
-                    raise ValueError("缺少编码类型或文本")
+                    raise ValueError(f"用法：/util {action} {{url|unicode|hex|base64}} <文本>")
                 yield text_result(
                     event,
                     CodecService.run(action, second[0], second[1]),
@@ -68,7 +68,7 @@ class DogeMisc(Star):
 
             if action == "weather":
                 if not rest:
-                    raise ValueError("用法：/util weather <地点> [1-7天]")
+                    raise ValueError("用法：/util weather <place> [days]")
                 toks = rest.rsplit(None, 1)
                 days = 3
                 place = rest

@@ -1,9 +1,11 @@
 {
   "version": 3,
   "syntax": {
-    "required": "<...> 必填",
-    "optional": "[...] 可选",
-    "alternatives": "A|B 表示任选其一",
+    "required": "<arg> 必填位置参数",
+    "optional": "[arg] 可选位置参数；多个可选位置参数分别加方括号",
+    "choices": "{a|b} 必须从候选中选一个；[{a|b}] 表示整项可省略",
+    "repeatable": "[arg ...] 可重复的可选参数",
+    "attachment": "+ <附件> 表示同一条消息必须附带的非文本输入；附件不算命令位置参数",
     "aliases": "别名会参与统计，但不重复算 canonical 功能。"
   },
   "categories": [
@@ -216,10 +218,21 @@
       "id": "help.navigate",
       "path": "help",
       "summary": "分层查看分类、指令和子功能帮助。",
-      "usage": "/help [分类|指令|子功能]",
+      "usage": "/help [topic]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[topic]",
+          "description": "可选。分类、顶层指令或更深的子功能路径，例如 research、math oeis、lang tangut；省略时显示总览。"
+        }
+      ],
+      "examples": [
+        "/help",
+        "/help math oeis",
+        "/help lang tangut"
+      ]
     },
     {
       "id": "core.ver",
@@ -333,10 +346,20 @@
       "id": "admin.provider",
       "path": "admin provider",
       "summary": "查看或切换 provider（管理员）。",
-      "usage": "/admin provider",
+      "usage": "/admin provider [index] [model-index]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[index]",
+          "description": "可选 provider 序号；省略时查看当前/可用 provider。"
+        },
+        {
+          "name": "[model-index]",
+          "description": "可选模型序号；仅在需要进一步选择模型时使用。"
+        }
+      ]
     },
     {
       "id": "admin.dashboard_update",
@@ -348,13 +371,77 @@
       "kind": "command"
     },
     {
+      "id": "admin.modules.list",
+      "path": "admin modules list",
+      "summary": "查看当前群正式 Doge 模块的启停状态。",
+      "usage": "/admin modules list",
+      "aliases": [],
+      "args": "none",
+      "kind": "command",
+      "parameters": []
+    },
+    {
+      "id": "admin.modules.on",
+      "path": "admin modules on",
+      "summary": "由群主/群管理员为当前群启用一个正式 Doge 模块。",
+      "usage": "/admin modules on <module>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<module>",
+          "description": "模块名，例如 games、playground、linguistics、papers、typeset；可先用 /admin modules list 查看。"
+        }
+      ],
+      "examples": [
+        "/admin modules on games"
+      ]
+    },
+    {
+      "id": "admin.modules.off",
+      "path": "admin modules off",
+      "summary": "由群主/群管理员为当前群关闭一个正式 Doge 模块；对应指令与 Agent Tool 同时停用。",
+      "usage": "/admin modules off <module>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<module>",
+          "description": "要关闭的模块名；core/admin 为恢复入口，不能关闭，Legacy 不在正式模块列表。"
+        }
+      ],
+      "examples": [
+        "/admin modules off games"
+      ]
+    },
+    {
+      "id": "admin.modules.reset",
+      "path": "admin modules reset",
+      "summary": "恢复当前群默认模块状态：全部正式非 Legacy 模块开启。",
+      "usage": "/admin modules reset",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
       "id": "math.calc",
       "path": "math calc",
       "summary": "数学表达式计算。",
       "usage": "/math calc <表达式>",
       "aliases": [],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<表达式>",
+          "description": "数学表达式，例如 (2+3)*4、sqrt(2)；由安全数学解析器计算，不执行 Python 代码。"
+        }
+      ],
+      "examples": [
+        "/math calc (2+3)*4"
+      ]
     },
     {
       "id": "math.base",
@@ -365,7 +452,24 @@
         "math system"
       ],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<数>",
+          "description": "待转换的数。"
+        },
+        {
+          "name": "<原进制>",
+          "description": "源进制，2–64。"
+        },
+        {
+          "name": "<目标进制>",
+          "description": "目标进制，2–64。"
+        }
+      ],
+      "examples": [
+        "/math base ff 16 10"
+      ]
     },
     {
       "id": "math.pi",
@@ -374,7 +478,20 @@
       "usage": "/math pi <起点> <位数>",
       "aliases": [],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<起点>",
+          "description": "从 π 小数展开的指定位置开始。"
+        },
+        {
+          "name": "<位数>",
+          "description": "返回多少位；用于查询片段而不是重新计算任意精度。"
+        }
+      ],
+      "examples": [
+        "/math pi 100 50"
+      ]
     },
     {
       "id": "math.oeis",
@@ -383,43 +500,93 @@
       "usage": "/math oeis <数列或关键词>",
       "aliases": [],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<数列或关键词>",
+          "description": "输入若干已知整数项（推荐用逗号或空格分隔），或输入 OEIS 可检索的英文/数学关键词；不需要先知道 A-number。"
+        }
+      ],
+      "examples": [
+        "/math oeis 1,1,2,3,5,8",
+        "/math oeis fibonacci"
+      ]
     },
     {
       "id": "util.encode",
       "path": "util encode",
       "summary": "URL/Unicode/Hex/Base64 编码。",
-      "usage": "/util encode <url|unicode|hex|base64> <文本>",
+      "usage": "/util encode {url|unicode|hex|base64} <文本>",
       "aliases": [],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "{url|unicode|hex|base64}",
+          "description": "必选编码类型。"
+        },
+        {
+          "name": "<文本>",
+          "description": "需要编码的内容。"
+        }
+      ]
     },
     {
       "id": "util.decode",
       "path": "util decode",
       "summary": "URL/Unicode/Hex/Base64 解码。",
-      "usage": "/util decode <url|unicode|hex|base64> <文本>",
+      "usage": "/util decode {url|unicode|hex|base64} <文本>",
       "aliases": [],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "{url|unicode|hex|base64}",
+          "description": "必选解码类型。"
+        },
+        {
+          "name": "<文本>",
+          "description": "需要解码的内容。"
+        }
+      ]
     },
     {
       "id": "util.weather",
       "path": "util weather",
       "summary": "Open-Meteo 天气查询。",
-      "usage": "/util weather <地点> [1-7天]",
+      "usage": "/util weather <place> [days]",
       "aliases": [],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<place>",
+          "description": "地点名称，例如 北京、Tokyo、San Francisco。"
+        },
+        {
+          "name": "[days]",
+          "description": "可选预报天数 1–7，默认 3。"
+        }
+      ],
+      "examples": [
+        "/util weather 北京",
+        "/util weather Tokyo 5"
+      ]
     },
     {
       "id": "util.apod",
       "path": "util apod",
       "summary": "NASA Astronomy Picture of the Day。",
-      "usage": "/util apod [YYYY-MM-DD]",
+      "usage": "/util apod [date]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[date]",
+          "description": "可选日期，格式 YYYY-MM-DD；省略时查询当日 APOD。"
+        }
+      ]
     },
     {
       "id": "util.bing",
@@ -549,504 +716,985 @@
       "id": "lab.mandelbrot",
       "path": "lab fractal mandelbrot",
       "summary": "Mandelbrot 分形。",
-      "usage": "/lab fractal mandelbrot [...]",
+      "usage": "/lab fractal mandelbrot [cx] [cy] [zoom]",
       "aliases": [
         "lab fractal mandel",
         "lab fractal m"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[cx]",
+          "description": "可选中心实部，默认 -0.75。"
+        },
+        {
+          "name": "[cy]",
+          "description": "可选中心虚部，默认 0。"
+        },
+        {
+          "name": "[zoom]",
+          "description": "可选放大倍数，默认 1；实现限制到可读范围。"
+        }
+      ]
     },
     {
       "id": "lab.julia",
       "path": "lab fractal julia",
       "summary": "Julia 分形。",
-      "usage": "/lab fractal julia [...]",
+      "usage": "/lab fractal julia [c_re] [c_im] [zoom]",
       "aliases": [
         "lab fractal j"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[c_re]",
+          "description": "可选 Julia 常数实部，默认 -0.8。"
+        },
+        {
+          "name": "[c_im]",
+          "description": "可选虚部，默认 0.156。"
+        },
+        {
+          "name": "[zoom]",
+          "description": "可选放大倍数，默认 1。"
+        }
+      ]
     },
     {
       "id": "lab.bifurcation",
       "path": "lab chaos bifurcation",
       "summary": "Logistic map 分岔图。",
-      "usage": "/lab chaos bifurcation [...]",
+      "usage": "/lab chaos bifurcation [rmin] [rmax]",
       "aliases": [
         "lab chaos bif",
         "lab chaos logistic",
         "lab chaos"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[rmin]",
+          "description": "可选 Logistic 参数下界，默认 2.5。"
+        },
+        {
+          "name": "[rmax]",
+          "description": "可选上界，默认 4.0；要求 rmin < rmax。"
+        }
+      ]
     },
     {
       "id": "lab.attractor",
       "path": "lab attractor",
       "summary": "Lorenz/Rössler/Clifford 吸引子。",
-      "usage": "/lab attractor [...]",
+      "usage": "/lab attractor [{lorenz|rossler|clifford}]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{lorenz|rossler|clifford}]",
+          "description": "可选吸引子类型，默认 lorenz。"
+        }
+      ]
     },
     {
       "id": "lab.ca",
       "path": "lab ca",
       "summary": "Wolfram 一维元胞自动机。",
-      "usage": "/lab ca [...]",
+      "usage": "/lab ca [rule] [steps]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[rule]",
+          "description": "可选 Wolfram elementary CA 规则号 0–255，默认 30。"
+        },
+        {
+          "name": "[steps]",
+          "description": "可选演化步数，默认 420，内部会限制极端值。"
+        }
+      ]
     },
     {
       "id": "lab.ulam",
       "path": "lab number ulam",
       "summary": "Ulam 素数螺旋。",
-      "usage": "/lab number ulam [...]",
+      "usage": "/lab number ulam [size]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[size]",
+          "description": "可选画布边长，默认 301；偶数会调整为奇数。"
+        }
+      ]
     },
     {
       "id": "lab.modcircle",
       "path": "lab number mod",
       "summary": "模乘圆。",
-      "usage": "/lab number mod [...]",
+      "usage": "/lab number mod [multiplier] [points]",
       "aliases": [
         "lab number circle",
         "lab number modcircle"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[multiplier]",
+          "description": "可选模乘因子，默认 2。"
+        },
+        {
+          "name": "[points]",
+          "description": "可选圆周点数，默认 360。"
+        }
+      ]
     },
     {
       "id": "lab.lsystem",
       "path": "lab lsys",
       "summary": "L-system 分形。",
-      "usage": "/lab lsys [...]",
+      "usage": "/lab lsys [{dragon|hilbert|koch|plant}] [iterations]",
       "aliases": [
         "lab l-system"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{dragon|hilbert|koch|plant}]",
+          "description": "可选 L-system 预设，默认 dragon。"
+        },
+        {
+          "name": "[iterations]",
+          "description": "可选迭代次数；省略时使用该预设的安全默认值。"
+        }
+      ]
     },
     {
       "id": "lab.penrose",
       "path": "lab tiling penrose",
       "summary": "Penrose 铺砌。",
-      "usage": "/lab tiling penrose [...]",
+      "usage": "/lab tiling penrose [depth]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[depth]",
+          "description": "可选细分深度，默认 7。"
+        }
+      ]
     },
     {
       "id": "lab.wave",
       "path": "lab wave",
       "summary": "双源波干涉",
-      "usage": "/lab wave [...]",
+      "usage": "/lab wave [separation] [wavelength]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[separation]",
+          "description": "可选双源间距，默认 1.0。"
+        },
+        {
+          "name": "[wavelength]",
+          "description": "可选波长，默认 0.35。"
+        }
+      ]
     },
     {
       "id": "lab.field",
       "path": "lab field",
       "summary": "电场线",
-      "usage": "/lab field [...]",
+      "usage": "/lab field [{dipole|quadrupole|triple}]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{dipole|quadrupole|triple}]",
+          "description": "可选电荷布局，默认 dipole。"
+        }
+      ]
     },
     {
       "id": "lab.pendulum",
       "path": "lab pendulum",
       "summary": "双摆",
-      "usage": "/lab pendulum [...]",
+      "usage": "/lab pendulum [initial_angle_deg]",
       "aliases": [
         "lab doublependulum"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[initial_angle_deg]",
+          "description": "可选初始角度（度），默认 120。"
+        }
+      ]
     },
     {
       "id": "lab.orbit",
       "path": "lab orbit",
       "summary": "三体 figure-eight 轨道",
-      "usage": "/lab orbit [...]",
+      "usage": "/lab orbit [figure8]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[figure8]",
+          "description": "当前仅支持 figure8；省略时同样使用 figure8。"
+        }
+      ]
     },
     {
       "id": "lab.reaction",
       "path": "lab reaction",
       "summary": "Gray-Scott 反应扩散",
-      "usage": "/lab reaction [...]",
+      "usage": "/lab reaction [{spots|worms|mitosis|coral}]",
       "aliases": [
         "lab grayscott"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{spots|worms|mitosis|coral}]",
+          "description": "可选 Gray–Scott 预设，默认 spots。"
+        }
+      ]
     },
     {
       "id": "lab.linear",
       "path": "lab linear",
       "summary": "二维线性映射",
-      "usage": "/lab linear [...]",
+      "usage": "/lab linear <a> <b> <c> <d>",
       "aliases": [],
-      "args": "optional",
-      "kind": "command"
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<a>",
+          "description": "二维矩阵第一行第一列。"
+        },
+        {
+          "name": "<b>",
+          "description": "第一行第二列。"
+        },
+        {
+          "name": "<c>",
+          "description": "第二行第一列。"
+        },
+        {
+          "name": "<d>",
+          "description": "第二行第二列。"
+        }
+      ]
     },
     {
       "id": "lab.complex",
       "path": "lab complex",
       "summary": "复函数域着色",
-      "usage": "/lab complex [...]",
+      "usage": "/lab complex [{z|z2+1|z3-1|1/z|sin|exp}] [zoom]",
       "aliases": [
         "lab domain"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{z|z2+1|z3-1|1/z|sin|exp}]",
+          "description": "可选复函数，默认 z3-1。"
+        },
+        {
+          "name": "[zoom]",
+          "description": "可选放大倍数，默认 1，允许 0.2–20。"
+        }
+      ]
     },
     {
       "id": "lab.newton",
       "path": "lab newton",
       "summary": "Newton 分形",
-      "usage": "/lab newton [...]",
+      "usage": "/lab newton [degree] [zoom]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[degree]",
+          "description": "可选 z^n−1 的次数，默认 3，支持 2–8。"
+        },
+        {
+          "name": "[zoom]",
+          "description": "可选放大倍数，默认 1。"
+        }
+      ]
     },
     {
       "id": "lab.ising",
       "path": "lab ising",
       "summary": "二维 Ising 模型",
-      "usage": "/lab ising [...]",
+      "usage": "/lab ising [T] [sweeps]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[T]",
+          "description": "可选温度，默认 2.269。"
+        },
+        {
+          "name": "[sweeps]",
+          "description": "可选 Monte Carlo 扫描轮数，默认 180。"
+        }
+      ]
     },
     {
       "id": "lab.percolation",
       "path": "lab percolation",
       "summary": "渗流模型",
-      "usage": "/lab percolation [...]",
+      "usage": "/lab percolation [p] [size]",
       "aliases": [
         "lab perc"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[p]",
+          "description": "可选点开放概率，默认 0.5927，范围 0–1。"
+        },
+        {
+          "name": "[size]",
+          "description": "可选网格边长，默认 180。"
+        }
+      ]
     },
     {
       "id": "lab.randommatrix",
       "path": "lab randommatrix",
       "summary": "随机矩阵谱",
-      "usage": "/lab randommatrix [...]",
+      "usage": "/lab randommatrix [{ginibre|goe}] [N]",
       "aliases": [
         "lab rmt"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{ginibre|goe}]",
+          "description": "可选随机矩阵系综，默认 ginibre。"
+        },
+        {
+          "name": "[N]",
+          "description": "可选矩阵阶数，默认 180。"
+        }
+      ]
     },
     {
       "id": "lab.voronoi",
       "path": "lab voronoi",
       "summary": "Voronoi 几何",
-      "usage": "/lab voronoi [...]",
+      "usage": "/lab voronoi [points]",
       "aliases": [
         "lab geometry"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[points]",
+          "description": "可选种子点数量，默认 32。"
+        }
+      ]
     },
     {
       "id": "lab.bloch",
       "path": "lab bloch",
       "summary": "Bloch 球",
-      "usage": "/lab bloch [...]",
+      "usage": "/lab bloch [theta_deg] [phi_deg]",
       "aliases": [
         "lab quantum"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[theta_deg]",
+          "description": "可选 Bloch 球极角 θ（度），默认 60。"
+        },
+        {
+          "name": "[phi_deg]",
+          "description": "可选方位角 φ（度），默认 45。"
+        }
+      ]
     },
     {
       "id": "lab.relativity",
       "path": "lab relativity",
       "summary": "Minkowski/狭义相对论图",
-      "usage": "/lab relativity [...]",
+      "usage": "/lab relativity [beta]",
       "aliases": [
         "lab minkowski"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[beta]",
+          "description": "可选 β=v/c，默认 0.6；为图形可读性要求 |β|<0.98。"
+        }
+      ]
     },
     {
       "id": "lab.spectrum",
       "path": "lab spectrum",
       "summary": "FFT 频谱",
-      "usage": "/lab spectrum [...]",
+      "usage": "/lab spectrum [{sine|square|saw|chirp}] [frequency]",
       "aliases": [
         "lab fft"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{sine|square|saw|chirp}]",
+          "description": "可选波形，默认 square。"
+        },
+        {
+          "name": "[frequency]",
+          "description": "可选基频 Hz，默认 5。"
+        }
+      ]
     },
     {
       "id": "lab.sandpile",
       "path": "lab sandpile",
       "summary": "Abelian sandpile",
-      "usage": "/lab sandpile [...]",
+      "usage": "/lab sandpile [grains]",
       "aliases": [
         "lab sand"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[grains]",
+          "description": "可选中心初始沙粒数，默认 120000。"
+        }
+      ]
     },
     {
       "id": "lab.ant",
       "path": "lab ant",
       "summary": "Langton 蚂蚁",
-      "usage": "/lab ant [...]",
+      "usage": "/lab ant [steps]",
       "aliases": [
         "lab langton"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[steps]",
+          "description": "可选 Langton 蚂蚁演化步数，默认 18000。"
+        }
+      ]
     },
     {
       "id": "lab.moire",
       "path": "lab moire",
       "summary": "莫尔纹",
-      "usage": "/lab moire [...]",
+      "usage": "/lab moire [angle_deg] [spacing_px]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[angle_deg]",
+          "description": "可选两组条纹夹角（度），默认 5。"
+        },
+        {
+          "name": "[spacing_px]",
+          "description": "可选条纹间距，默认 18。"
+        }
+      ]
     },
     {
       "id": "lab.orbital",
       "path": "lab orbital",
       "summary": "氢样原子轨道切片",
-      "usage": "/lab orbital [...]",
+      "usage": "/lab orbital [{1s|2px|2py|3dxy|3dz2}]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{1s|2px|2py|3dxy|3dz2}]",
+          "description": "可选氢样轨道切片，默认 2px。"
+        }
+      ]
     },
     {
       "id": "lab.lattice",
       "path": "lab lattice",
       "summary": "晶格实空间投影",
-      "usage": "/lab lattice [...]",
+      "usage": "/lab lattice [{sc|bcc|fcc|diamond}] [cells]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{sc|bcc|fcc|diamond}]",
+          "description": "可选晶格类型，默认 fcc。"
+        },
+        {
+          "name": "[cells]",
+          "description": "可选每轴晶胞数量，默认 2。"
+        }
+      ]
     },
     {
       "id": "lab.xrd",
       "path": "lab xrd",
       "summary": "理想晶格 XRD 教学模型",
-      "usage": "/lab xrd [...]",
+      "usage": "/lab xrd [{sc|bcc|fcc|diamond}] [a] [wavelength]",
       "aliases": [
         "lab diffraction-crystal"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{sc|bcc|fcc|diamond}]",
+          "description": "可选理想立方晶格类型，默认 fcc。"
+        },
+        {
+          "name": "[a]",
+          "description": "可选晶格常数 Å，默认 4.05。"
+        },
+        {
+          "name": "[wavelength]",
+          "description": "可选 X 射线波长 Å，默认 1.5406。"
+        }
+      ]
     },
     {
       "id": "lab.knot",
       "path": "lab knot",
       "summary": "数学结可视化",
-      "usage": "/lab knot [...]",
+      "usage": "/lab knot [{trefoil|figure8|torus}] [p] [q]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{trefoil|figure8|torus}]",
+          "description": "可选结类型，默认 trefoil。"
+        },
+        {
+          "name": "[p]",
+          "description": "torus 模式可选 p，默认 2。"
+        },
+        {
+          "name": "[q]",
+          "description": "torus 模式可选 q，默认 3。"
+        }
+      ]
     },
     {
       "id": "lab.brownian",
       "path": "lab brownian",
       "summary": "布朗运动",
-      "usage": "/lab brownian [...]",
+      "usage": "/lab brownian [walkers] [steps]",
       "aliases": [
         "lab walk"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[walkers]",
+          "description": "可选随机游走条数，默认 36。"
+        },
+        {
+          "name": "[steps]",
+          "description": "可选每条步数，默认 700。"
+        }
+      ]
     },
     {
       "id": "lab.sir",
       "path": "lab sir",
       "summary": "SIR 传染病模型",
-      "usage": "/lab sir [...]",
+      "usage": "/lab sir [R0] [infectious_days]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[R0]",
+          "description": "可选基本再生数，默认 2.5。"
+        },
+        {
+          "name": "[infectious_days]",
+          "description": "可选平均感染期（天），默认 7。"
+        }
+      ]
     },
     {
       "id": "lab.predator",
       "path": "lab predator",
       "summary": "Lotka–Volterra 捕食者模型",
-      "usage": "/lab predator [...]",
+      "usage": "/lab predator [alpha] [beta] [delta] [gamma]",
       "aliases": [
         "lab lotka"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[alpha]",
+          "description": "可选猎物增长率，默认 1.1。"
+        },
+        {
+          "name": "[beta]",
+          "description": "可选捕食相遇系数，默认 0.4。"
+        },
+        {
+          "name": "[delta]",
+          "description": "可选捕食转化系数，默认 0.1。"
+        },
+        {
+          "name": "[gamma]",
+          "description": "可选捕食者衰减率，默认 0.4。"
+        }
+      ]
     },
     {
       "id": "lab.lens",
       "path": "lab lens",
       "summary": "薄透镜成像",
-      "usage": "/lab lens [...]",
+      "usage": "/lab lens [focal] [object_distance]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[focal]",
+          "description": "可选焦距，默认 100。"
+        },
+        {
+          "name": "[object_distance]",
+          "description": "可选物距，默认 180。"
+        }
+      ]
     },
     {
       "id": "lab.well",
       "path": "lab well",
       "summary": "量子无限深势阱",
-      "usage": "/lab well [...]",
+      "usage": "/lab well [n]",
       "aliases": [
         "lab quantumwell"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[n]",
+          "description": "可选量子数，默认 1，限制 1–12。"
+        }
+      ]
     },
     {
       "id": "lab.diffraction",
       "path": "lab diffraction",
       "summary": "双缝/单缝衍射",
-      "usage": "/lab diffraction [...]",
+      "usage": "/lab diffraction [slit_sep] [slit_width] [wavelength]",
       "aliases": [
         "lab slit"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[slit_sep]",
+          "description": "可选缝距，默认 4。"
+        },
+        {
+          "name": "[slit_width]",
+          "description": "可选缝宽，默认 1。"
+        },
+        {
+          "name": "[wavelength]",
+          "description": "可选波长，默认 0.5；三者须为正。"
+        }
+      ]
     },
     {
       "id": "lab.replicator",
       "path": "lab replicator",
       "summary": "复制子动力学/RPS",
-      "usage": "/lab replicator [...]",
+      "usage": "/lab replicator [bias]",
       "aliases": [
         "lab rps"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[bias]",
+          "description": "可选复制子动力学偏置，默认 0。"
+        }
+      ]
     },
     {
       "id": "lab.life",
       "path": "lab life",
       "summary": "Conway Game of Life",
-      "usage": "/lab life [...]",
+      "usage": "/lab life [{glider|gun|acorn|random}] [steps]",
       "aliases": [
         "lab conway"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{glider|gun|acorn|random}]",
+          "description": "可选生命游戏初态，默认 glider。"
+        },
+        {
+          "name": "[steps]",
+          "description": "可选演化代数，默认 120。"
+        }
+      ]
     },
     {
       "id": "lab.dla",
       "path": "lab dla",
       "summary": "Diffusion-limited aggregation",
-      "usage": "/lab dla [...]",
+      "usage": "/lab dla [particles]",
       "aliases": [
         "lab aggregate"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[particles]",
+          "description": "可选目标粒子数，默认 850。"
+        }
+      ]
     },
     {
       "id": "lab.beats",
       "path": "lab beats",
       "summary": "拍频",
-      "usage": "/lab beats [...]",
+      "usage": "/lab beats [f1] [f2] [seconds]",
       "aliases": [
         "lab beat"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[f1]",
+          "description": "可选第一频率 Hz，默认 9。"
+        },
+        {
+          "name": "[f2]",
+          "description": "可选第二频率 Hz，默认 10。"
+        },
+        {
+          "name": "[seconds]",
+          "description": "可选显示时长秒，默认 3。"
+        }
+      ]
     },
     {
       "id": "lab.chladni",
       "path": "lab chladni",
       "summary": "Chladni 板振型",
-      "usage": "/lab chladni [...]",
+      "usage": "/lab chladni [m] [n]",
       "aliases": [
         "lab plate"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[m]",
+          "description": "可选第一模态序号，默认 5。"
+        },
+        {
+          "name": "[n]",
+          "description": "可选第二模态序号，默认 3，不能与 m 相同。"
+        }
+      ]
     },
     {
       "id": "lab.phyllotaxis",
       "path": "lab phyllotaxis",
       "summary": "叶序/黄金角",
-      "usage": "/lab phyllotaxis [...]",
+      "usage": "/lab phyllotaxis [angle_deg] [points]",
       "aliases": [
         "lab sunflower"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[angle_deg]",
+          "description": "可选发散角（度），默认约 137.507764。"
+        },
+        {
+          "name": "[points]",
+          "description": "可选点数，默认 1800。"
+        }
+      ]
     },
     {
       "id": "lab.galton",
       "path": "lab galton",
       "summary": "Galton 板",
-      "usage": "/lab galton [...]",
+      "usage": "/lab galton [rows] [balls]",
       "aliases": [
         "lab bean"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[rows]",
+          "description": "可选钉板层数，默认 12。"
+        },
+        {
+          "name": "[balls]",
+          "description": "可选模拟球数，默认 6000。"
+        }
+      ]
     },
     {
       "id": "lab.lissajous",
       "path": "lab lissajous",
       "summary": "Lissajous 曲线",
-      "usage": "/lab lissajous [...]",
+      "usage": "/lab lissajous [fx] [fy] [phase_deg]",
       "aliases": [
         "lab xy"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[fx]",
+          "description": "可选 x 方向频率比整数，默认 3。"
+        },
+        {
+          "name": "[fy]",
+          "description": "可选 y 方向频率比整数，默认 2。"
+        },
+        {
+          "name": "[phase_deg]",
+          "description": "可选相位差（度），默认 90。"
+        }
+      ]
     },
     {
       "id": "eng.circuit.rc",
       "path": "eng circuit rc",
       "summary": "RC 电路图",
-      "usage": "/eng circuit rc [...]",
+      "usage": "/eng circuit rc [R] [C]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[R]",
+          "description": "可选电阻标签，默认 1 kΩ。"
+        },
+        {
+          "name": "[C]",
+          "description": "可选电容标签，默认 10 μF。"
+        }
+      ]
     },
     {
       "id": "eng.circuit.rlc",
       "path": "eng circuit rlc",
       "summary": "RLC 电路图",
-      "usage": "/eng circuit rlc [...]",
+      "usage": "/eng circuit rlc [R] [L] [C]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[R]",
+          "description": "可选电阻，默认 100 Ω。"
+        },
+        {
+          "name": "[L]",
+          "description": "可选电感，默认 10 mH。"
+        },
+        {
+          "name": "[C]",
+          "description": "可选电容，默认 1 μF。"
+        }
+      ]
     },
     {
       "id": "eng.circuit.divider",
       "path": "eng circuit divider",
       "summary": "分压器电路图",
-      "usage": "/eng circuit divider [...]",
+      "usage": "/eng circuit divider [R1] [R2]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[R1]",
+          "description": "可选上臂电阻，默认 10 kΩ。"
+        },
+        {
+          "name": "[R2]",
+          "description": "可选下臂电阻，默认 10 kΩ。"
+        }
+      ]
     },
     {
       "id": "eng.circuit.series",
       "path": "eng circuit series",
       "summary": "自由串联元件电路图",
-      "usage": "/eng circuit series [...]",
+      "usage": "/eng circuit series <component> [component ...]",
       "aliases": [],
-      "args": "optional",
-      "kind": "command"
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<component>",
+          "description": "至少一个串联元件；支持 V/R/C/L/D/LED/GND，标签写作类型:值，例如 V:5V、R:1k。"
+        },
+        {
+          "name": "[component ...]",
+          "description": "可继续追加更多元件。"
+        }
+      ],
+      "examples": [
+        "/eng circuit series V:5V R:1k C:10u GND"
+      ]
     },
     {
       "id": "eng.control.bode",
@@ -1458,23 +2106,50 @@
       "id": "mat.crystal.info",
       "path": "mat crystal info",
       "summary": "真实 CIF/mCIF 晶胞信息。",
-      "usage": "/mat crystal info + CIF/mCIF",
+      "usage": "/mat crystal info",
       "aliases": [
         "mat crystal cell"
       ],
-      "args": "optional",
-      "kind": "command"
+      "args": "none",
+      "kind": "command",
+      "examples": [
+        "/mat crystal info + 附件 example.cif"
+      ],
+      "inputs": [
+        {
+          "name": "<CIF/mCIF 文件附件>",
+          "description": "必须与命令放在同一条消息中；用于读取真实晶胞信息。",
+          "required": true
+        }
+      ]
     },
     {
       "id": "mat.crystal.powder",
       "path": "mat crystal powder",
       "summary": "真实 CIF/mCIF powder XRD。",
-      "usage": "/mat crystal powder [energy width] + CIF/mCIF",
+      "usage": "/mat crystal powder [energy_keV] [width]",
       "aliases": [
         "mat crystal xrd"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[energy_keV]",
+          "description": "可选 X 射线能量 keV，默认 8.0。"
+        },
+        {
+          "name": "[width]",
+          "description": "可选峰宽参数，默认 0.08。"
+        }
+      ],
+      "inputs": [
+        {
+          "name": "<CIF/mCIF 文件附件>",
+          "description": "必须与命令放在同一条消息中；真实 powder XRD 从该结构计算。",
+          "required": true
+        }
+      ]
     },
     {
       "id": "astro.object",
@@ -1547,7 +2222,7 @@
       "id": "game.mine.new",
       "path": "game mine new",
       "summary": "开始扫雷；首次开格保证安全。",
-      "usage": "/game mine [easy|normal|hard]",
+      "usage": "/game mine [{easy|normal|hard}]",
       "aliases": [
         "game mine start",
         "game mine easy",
@@ -1560,43 +2235,79 @@
         "game minesweeper normal",
         "game minesweeper hard"
       ],
-      "args": "none",
-      "kind": "command"
+      "args": "optional",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{easy|normal|hard}]",
+          "description": "可选难度，默认 normal。"
+        }
+      ]
     },
     {
       "id": "game.mine.open",
       "path": "game mine open",
       "summary": "扫雷开格。",
-      "usage": "/game mine open A1 [B2 ...]",
+      "usage": "/game mine open <cell> [cell ...]",
       "aliases": [
         "game minesweeper open",
         "game mine",
         "game minesweeper"
       ],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<cell>",
+          "description": "至少一个格子坐标，例如 A1；执行“打开”。"
+        },
+        {
+          "name": "[cell ...]",
+          "description": "可继续给出更多格子坐标，一次处理多个。"
+        }
+      ]
     },
     {
       "id": "game.mine.mark",
       "path": "game mine mark",
       "summary": "扫雷：标雷",
-      "usage": "/game mine mark A1 [B2 ...]",
+      "usage": "/game mine mark <cell> [cell ...]",
       "aliases": [
         "game minesweeper mark"
       ],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<cell>",
+          "description": "至少一个格子坐标，例如 A1；执行“标记”。"
+        },
+        {
+          "name": "[cell ...]",
+          "description": "可继续给出更多格子坐标，一次处理多个。"
+        }
+      ]
     },
     {
       "id": "game.mine.sweep",
       "path": "game mine sweep",
       "summary": "扫雷：周边清扫",
-      "usage": "/game mine sweep A1 [B2 ...]",
+      "usage": "/game mine sweep <cell> [cell ...]",
       "aliases": [
         "game minesweeper sweep"
       ],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<cell>",
+          "description": "至少一个格子坐标，例如 A1；执行“周边清扫”。"
+        },
+        {
+          "name": "[cell ...]",
+          "description": "可继续给出更多格子坐标，一次处理多个。"
+        }
+      ]
     },
     {
       "id": "game.mine.board",
@@ -1632,7 +2343,7 @@
       "id": "game.sudoku.new",
       "path": "game sudoku new",
       "summary": "开始唯一解数独。",
-      "usage": "/game sudoku [easy|normal|hard]",
+      "usage": "/game sudoku [{easy|normal|hard}]",
       "aliases": [
         "game sudoku start",
         "game sudoku easy",
@@ -1645,14 +2356,20 @@
         "game sdk normal",
         "game sdk hard"
       ],
-      "args": "none",
-      "kind": "command"
+      "args": "optional",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{easy|normal|hard}]",
+          "description": "可选难度，默认 normal。"
+        }
+      ]
     },
     {
       "id": "game.sudoku.set",
       "path": "game sudoku set",
       "summary": "填写数独格子。",
-      "usage": "/game sudoku A1 5",
+      "usage": "/game sudoku set <cell> <digit>",
       "aliases": [
         "game sudoku fill",
         "game sudoku",
@@ -1661,7 +2378,20 @@
         "game sdk"
       ],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<cell>",
+          "description": "格子坐标，例如 A1。"
+        },
+        {
+          "name": "<digit>",
+          "description": "填入 1–9。"
+        }
+      ],
+      "examples": [
+        "/game sudoku set A1 5"
+      ]
     },
     {
       "id": "game.sudoku.show",
@@ -1814,26 +2544,43 @@
       "id": "game.nc.action",
       "path": "game nc",
       "summary": "九子棋放置、移动或吃子动作。",
-      "usage": "/game nc <A1|A1-A2|x B4>",
+      "usage": "/game nc <action>",
       "aliases": [
         "game morris",
         "game nine"
       ],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<action>",
+          "description": "九子棋动作：A1 表示落子；A1-A2 表示移动；x B4 表示成磨坊后的吃子。"
+        }
+      ],
+      "examples": [
+        "/game nc A1",
+        "/game nc A1-A2",
+        "/game nc x B4"
+      ]
     },
     {
       "id": "game.signal.new",
       "path": "game signal new",
       "summary": "创建多层编码信号",
-      "usage": "/game signal new",
+      "usage": "/game signal new [{easy|normal|hard}]",
       "aliases": [
         "game signal start",
         "game sig new",
         "game sig start"
       ],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{easy|normal|hard}]",
+          "description": "可选难度，默认 normal。"
+        }
+      ]
     },
     {
       "id": "game.signal.hint",
@@ -1883,10 +2630,16 @@
       "id": "fuse.book",
       "path": "fuse book",
       "summary": "查看炼金图鉴。",
-      "usage": "/fuse book [数量]",
+      "usage": "/fuse book [count]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[count]",
+          "description": "可选返回条目数。"
+        }
+      ]
     },
     {
       "id": "arena.draw",
@@ -1913,28 +2666,46 @@
       "id": "arena.fight",
       "path": "arena fight",
       "summary": "原 /wp 风格直接对决",
-      "usage": "/arena fight @对手|QQ号",
+      "usage": "/arena fight <@对手或QQ号>",
       "aliases": [],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<@对手或QQ号>",
+          "description": "群聊中 @ 一名对手，或提供其 QQ 号。"
+        }
+      ]
     },
     {
       "id": "arena.duel",
       "path": "arena duel",
       "summary": "带战场目标的竞技场对决",
-      "usage": "/arena duel @对手|QQ号",
+      "usage": "/arena duel <@对手或QQ号>",
       "aliases": [],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<@对手或QQ号>",
+          "description": "群聊中 @ 一名对手，或提供其 QQ 号。"
+        }
+      ]
     },
     {
       "id": "arena.chaos",
       "path": "arena chaos",
       "summary": "组合 2–3 条原始弱能力",
-      "usage": "/arena chaos",
+      "usage": "/arena chaos [{2|3}]",
       "aliases": [],
       "args": "optional",
-      "kind": "command"
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[{2|3}]",
+          "description": "可选组合能力数量；省略时由系统选择 2 或 3。"
+        }
+      ]
     },
     {
       "id": "arena.deck",
@@ -2157,41 +2928,69 @@
       "id": "media.trace.anime",
       "path": "media trace anime",
       "summary": "AnimeTrace 动漫识别。",
-      "usage": "/media trace anime + 图片",
+      "usage": "/media trace anime",
       "aliases": [
         "media trace"
       ],
       "args": "none",
-      "kind": "command"
+      "kind": "command",
+      "inputs": [
+        {
+          "name": "<图片附件>",
+          "description": "必须附带待识别的动漫截图/图片。",
+          "required": true
+        }
+      ]
     },
     {
       "id": "media.trace.gal",
       "path": "media trace gal",
       "summary": "AnimeTrace Galgame 识别。",
-      "usage": "/media trace gal + 图片",
+      "usage": "/media trace gal",
       "aliases": [],
       "args": "none",
-      "kind": "command"
+      "kind": "command",
+      "inputs": [
+        {
+          "name": "<图片附件>",
+          "description": "必须附带待识别的 Galgame 截图/图片。",
+          "required": true
+        }
+      ]
     },
     {
       "id": "media.mirage.gray",
       "path": "media mirage gray",
       "summary": "灰度幻影坦克。",
-      "usage": "/media mirage gray + 两张图",
+      "usage": "/media mirage gray",
       "aliases": [
         "media mirage"
       ],
       "args": "none",
-      "kind": "command"
+      "kind": "command",
+      "inputs": [
+        {
+          "name": "<两张图片附件>",
+          "description": "必须附带两张图片，按消息中的顺序参与灰度幻影坦克合成。",
+          "required": true
+        }
+      ]
     },
     {
       "id": "media.mirage.color",
       "path": "media mirage color",
       "summary": "彩色幻影坦克。",
-      "usage": "/media mirage color + 两张图",
+      "usage": "/media mirage color",
       "aliases": [],
       "args": "none",
-      "kind": "command"
+      "kind": "command",
+      "inputs": [
+        {
+          "name": "<两张图片附件>",
+          "description": "必须附带两张图片，按消息中的顺序参与彩色幻影坦克合成。",
+          "required": true
+        }
+      ]
     },
     {
       "id": "run.execute",

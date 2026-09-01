@@ -23,8 +23,8 @@ HELP = (
     "Doge Materials /mat\n"
     "  /mat find <formula/filter>       OPTIMADE 跨材料数据库查询\n"
     "  /mat providers                   OPTIMADE provider 列表\n"
-    "  /mat crystal info + CIF/mCIF     晶胞信息\n"
-    "  /mat crystal powder [E] [width] + CIF/mCIF  真实 powder XRD\n"
+    "  /mat crystal info                晶胞信息；同一条消息附带 CIF/mCIF 文件\n"
+    "  /mat crystal powder [energy_keV] [width]  真实 powder XRD；同一条消息附带 CIF/mCIF 文件\n"
     "晶体文件计算使用 Dans_Diffraction；/lab xrd 是快速教学模型。"
 )
 

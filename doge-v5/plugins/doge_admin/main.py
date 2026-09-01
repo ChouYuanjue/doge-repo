@@ -12,8 +12,15 @@ from astrbot.builtin_stars.builtin_commands.commands import (
 )
 from astrbot.core.star.filter.command import GreedyStr
 
+from data.plugins.doge_shared.module_control import (
+    is_group_admin,
+    list_modules,
+    reset_modules,
+    set_module_enabled,
+)
 
-@register("doge_admin", "runnel", "AstrBot 默认命令的 /admin 命名空间", "5.5.0")
+
+@register("doge_admin", "runnel", "AstrBot 默认命令的 /admin 命名空间", "5.6.0")
 class DogeAdmin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -37,7 +44,8 @@ class DogeAdmin(Star):
             "/admin set <key> <value> · /admin unset <key>\n"
             "/admin name <alias> [admin]\n"
             "/admin provider [index] [model-index] [admin]\n"
-            "/admin dashboard_update [admin]"
+            "/admin dashboard_update [admin]\n"
+            "/admin modules list|on <module>|off <module>|reset  [group admin]"
         )
 
     @admin.command("sid")
@@ -67,6 +75,45 @@ class DogeAdmin(Star):
     @admin.command("unset")
     async def unset_variable(self, event: AstrMessageEvent, key: str):
         await self.setunset_c.unset_variable(event, key)
+
+    async def _require_group_admin(self, event: AstrMessageEvent) -> None:
+        if not event.get_group_id():
+            raise PermissionError("模块热插拔只在群聊中提供")
+        if not await is_group_admin(event):
+            raise PermissionError("只有当前群的群主或群管理员可以修改模块")
+
+    @admin.command_group("modules")
+    def modules(self):
+        """AstrBot native per-session plugin switches for the current group."""
+
+    @modules.command("list")
+    async def modules_list(self, event: AstrMessageEvent):
+        await self._require_group_admin(event)
+        rows = await list_modules(self.context, event.unified_msg_origin)
+        lines = ["Doge modules · 当前群", "默认全部开启；Legacy 不在此列表。"]
+        for row in rows:
+            state = "LOCK" if row.locked else ("ON" if row.enabled else "OFF")
+            lines.append(f"  {state:<4} {row.short_name:<14} {row.description}")
+        lines += ["", "/admin modules off <module>", "/admin modules on <module>", "/admin modules reset"]
+        yield event.plain_result("\n".join(lines))
+
+    @modules.command("on")
+    async def modules_on(self, event: AstrMessageEvent, module: GreedyStr):
+        await self._require_group_admin(event)
+        row = await set_module_enabled(self.context, event.unified_msg_origin, str(module), True)
+        yield event.plain_result(f"当前群已启用模块：{row.short_name}")
+
+    @modules.command("off")
+    async def modules_off(self, event: AstrMessageEvent, module: GreedyStr):
+        await self._require_group_admin(event)
+        row = await set_module_enabled(self.context, event.unified_msg_origin, str(module), False)
+        yield event.plain_result(f"当前群已关闭模块：{row.short_name}\n对应指令和 Agent Tools 会同时在本群停用。")
+
+    @modules.command("reset")
+    async def modules_reset(self, event: AstrMessageEvent):
+        await self._require_group_admin(event)
+        await reset_modules(event.unified_msg_origin)
+        yield event.plain_result("当前群模块已恢复默认：所有正式非 Legacy 模块开启。")
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @admin.command("name")

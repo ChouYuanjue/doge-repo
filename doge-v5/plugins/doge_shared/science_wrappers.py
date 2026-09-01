@@ -31,10 +31,11 @@ def _value(token: str) -> tuple[str,str]:
 def circuit_help() -> str:
     return (
         "Doge Circuit /circuit\n"
-        "  /circuit rc [R C]\n"
-        "  /circuit rlc [R L C]\n"
-        "  /circuit divider [R1 R2]\n"
-        "  /circuit series V:5V R:1k C:10u GND\n"
+        "  /circuit rc [R] [C]\n"
+        "  /circuit rlc [R] [L] [C]\n"
+        "  /circuit divider [R1] [R2]\n"
+        "  /circuit series <component> [component ...]\n"
+        "    例：/circuit series V:5V R:1k C:10u GND\n"
         "series 支持 V/R/C/L/D/LED/GND；标签写在冒号后。"
     )
 

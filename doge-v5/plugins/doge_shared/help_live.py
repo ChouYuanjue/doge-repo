@@ -7,8 +7,8 @@ from pathlib import Path
 from threading import Lock
 
 from .capabilities import formal_operations, operations_for_prefix, registry
+from .help_card import render_geek_help_card
 from .help_service import render_help
-from .markdown_typeset import render_markdown
 
 _STYLE_ALIASES = {
     "image": "image",
@@ -32,6 +32,9 @@ _SECTION_LABELS = {
     "FUNCTIONS": "功能",
     "DIRECT": "直接用法",
     "ABOUT": "说明",
+    "PARAMETERS": "参数",
+    "INPUTS": "附加输入",
+    "EXAMPLES": "示例",
     "ALIASES": "兼容写法",
     "NEXT": "继续查看",
     "BACK": "返回",
@@ -190,8 +193,9 @@ def render_live_root(rng: random.Random | random.SystemRandom | None = None) -> 
         "",
         "SYNTAX",
         "  /help 后接分类、指令或子功能即可逐层查看。",
-        "  <arg> 必填    [arg] 可选    A|B 任选其一",
-        "  /help style image|text  切换当前群的帮助显示；默认 image。",
+        "  <arg> 必填    [arg] 可选    {a|b} 必选其一    [{a|b}] 可选其一",
+        "  [arg ...] 可重复    + <附件> 表示同一条消息附带的非文本输入",
+        "  /help style {image|text}  切换当前群的帮助显示；默认 image。",
         "  `/` 同时是唤醒符；没有命中注册表的 `/anything` 不会被算作指令。",
     ]
     return "\n".join(lines)
@@ -245,7 +249,5 @@ def help_to_markdown(text: str) -> str:
 
 
 def render_help_card(output_dir: Path, text: str) -> Path:
-    """Render help locally with the existing Typst/cmarker pipeline; no generative image service is involved."""
-    markdown = help_to_markdown(text)
-    paths, _ = render_markdown(Path(output_dir), markdown, mode="card", ppi=210.0, max_pages=1)
-    return paths[0]
+    """Render Help as a dedicated local Typst UI card; no generative image service is involved."""
+    return render_geek_help_card(Path(output_dir), text, ppi=210.0)

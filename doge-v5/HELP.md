@@ -25,7 +25,7 @@ GROUPS
              小游戏、解谜、概念炼金和荒诞竞技场。
   media        9  媒体 / 小工具
              图片识别、幻影坦克和少量不值得单独成域的小工具。
-  admin       11  管理
+  admin       15  管理
              AstrBot 框架级会话与管理指令，统一收在 /admin 下。
   legacy      81  Legacy / 历史博物馆（默认不加载）
              v2-v4 旧入口、迁移状态与仍可追溯的历史子功能。
@@ -41,12 +41,13 @@ QUICK START
 
 SCALE
   顶层指令       29
-  正式叶子功能   195
-  正式调用形式   449  （含 254 个兼容别名）
+  正式叶子功能   199
+  正式调用形式   453  （含 254 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
-  <arg> 必填    [arg] 可选    A|B 任选其一
+  <arg> 必填    [arg] 可选    {a|b} 必选其一    [{a|b}] 可选其一
+  [arg ...] 可重复    + <附件> 表示同一条消息附带的非文本输入
   帮助只推荐 canonical 写法；旧别名仍可调用，但统计会归一到同一个功能。
   `/` 同时是唤醒符；没有命中本表的 `/anything` 不会被算作指令。
 ```
@@ -62,7 +63,16 @@ COMMAND  /help
 分层帮助导航。
 
 USAGE
-  /help [分类|指令|子功能]
+  /help [topic]
+
+PARAMETERS
+  [topic]
+    可选。分类、顶层指令或更深的子功能路径，例如 research、math oeis、lang tangut；省略时显示总览。
+
+EXAMPLES
+  /help
+  /help math oeis
+  /help lang tangut
 
 ABOUT
   分层查看分类、指令和子功能帮助。
@@ -289,9 +299,9 @@ COMMAND  /mat crystal
 
 SUBCOMMANDS
   info             真实 CIF/mCIF 晶胞信息。
-    /mat crystal info + CIF/mCIF
+    /mat crystal info
   powder           真实 CIF/mCIF powder XRD。
-    /mat crystal powder [energy width] + CIF/mCIF
+    /mat crystal powder [energy_keV] [width]
 
 NEXT
   /help mat crystal info
@@ -554,13 +564,13 @@ COMMAND  /eng circuit
 
 SUBCOMMANDS
   rc               RC 电路图
-    /eng circuit rc [...]
+    /eng circuit rc [R] [C]
   rlc              RLC 电路图
-    /eng circuit rlc [...]
+    /eng circuit rlc [R] [L] [C]
   divider          分压器电路图
-    /eng circuit divider [...]
+    /eng circuit divider [R1] [R2]
   series           自由串联元件电路图
-    /eng circuit series [...]
+    /eng circuit series <component> [component ...]
 
 NEXT
   /help eng circuit rc
@@ -603,88 +613,88 @@ COMMAND  /lab
 SUBCOMMANDS
   fractal           2 功能  分形
   chaos            Logistic map 分岔图。
-    /lab chaos bifurcation [...]
+    /lab chaos bifurcation [rmin] [rmax]
   attractor        Lorenz/Rössler/Clifford 吸引子。
-    /lab attractor [...]
+    /lab attractor [{lorenz|rossler|clifford}]
   ca               Wolfram 一维元胞自动机。
-    /lab ca [...]
+    /lab ca [rule] [steps]
   number            2 功能  数论图形
   lsys             L-system 分形。
-    /lab lsys [...]
+    /lab lsys [{dragon|hilbert|koch|plant}] [iterations]
   tiling           Penrose 铺砌。
-    /lab tiling penrose [...]
+    /lab tiling penrose [depth]
   wave             双源波干涉
-    /lab wave [...]
+    /lab wave [separation] [wavelength]
   field            电场线
-    /lab field [...]
+    /lab field [{dipole|quadrupole|triple}]
   pendulum         双摆
-    /lab pendulum [...]
+    /lab pendulum [initial_angle_deg]
   orbit            三体 figure-eight 轨道
-    /lab orbit [...]
+    /lab orbit [figure8]
   reaction         Gray-Scott 反应扩散
-    /lab reaction [...]
+    /lab reaction [{spots|worms|mitosis|coral}]
   linear           二维线性映射
-    /lab linear [...]
+    /lab linear <a> <b> <c> <d>
   complex          复函数域着色
-    /lab complex [...]
+    /lab complex [{z|z2+1|z3-1|1/z|sin|exp}] [zoom]
   newton           Newton 分形
-    /lab newton [...]
+    /lab newton [degree] [zoom]
   ising            二维 Ising 模型
-    /lab ising [...]
+    /lab ising [T] [sweeps]
   percolation      渗流模型
-    /lab percolation [...]
+    /lab percolation [p] [size]
   randommatrix     随机矩阵谱
-    /lab randommatrix [...]
+    /lab randommatrix [{ginibre|goe}] [N]
   voronoi          Voronoi 几何
-    /lab voronoi [...]
+    /lab voronoi [points]
   bloch            Bloch 球
-    /lab bloch [...]
+    /lab bloch [theta_deg] [phi_deg]
   relativity       Minkowski/狭义相对论图
-    /lab relativity [...]
+    /lab relativity [beta]
   spectrum         FFT 频谱
-    /lab spectrum [...]
+    /lab spectrum [{sine|square|saw|chirp}] [frequency]
   sandpile         Abelian sandpile
-    /lab sandpile [...]
+    /lab sandpile [grains]
   ant              Langton 蚂蚁
-    /lab ant [...]
+    /lab ant [steps]
   moire            莫尔纹
-    /lab moire [...]
+    /lab moire [angle_deg] [spacing_px]
   orbital          氢样原子轨道切片
-    /lab orbital [...]
+    /lab orbital [{1s|2px|2py|3dxy|3dz2}]
   lattice          晶格实空间投影
-    /lab lattice [...]
+    /lab lattice [{sc|bcc|fcc|diamond}] [cells]
   xrd              理想晶格 XRD 教学模型
-    /lab xrd [...]
+    /lab xrd [{sc|bcc|fcc|diamond}] [a] [wavelength]
   knot             数学结可视化
-    /lab knot [...]
+    /lab knot [{trefoil|figure8|torus}] [p] [q]
   brownian         布朗运动
-    /lab brownian [...]
+    /lab brownian [walkers] [steps]
   sir              SIR 传染病模型
-    /lab sir [...]
+    /lab sir [R0] [infectious_days]
   predator         Lotka–Volterra 捕食者模型
-    /lab predator [...]
+    /lab predator [alpha] [beta] [delta] [gamma]
   lens             薄透镜成像
-    /lab lens [...]
+    /lab lens [focal] [object_distance]
   well             量子无限深势阱
-    /lab well [...]
+    /lab well [n]
   diffraction      双缝/单缝衍射
-    /lab diffraction [...]
+    /lab diffraction [slit_sep] [slit_width] [wavelength]
   replicator       复制子动力学/RPS
-    /lab replicator [...]
+    /lab replicator [bias]
   life             Conway Game of Life
-    /lab life [...]
+    /lab life [{glider|gun|acorn|random}] [steps]
   dla              Diffusion-limited aggregation
-    /lab dla [...]
+    /lab dla [particles]
   beats            拍频
-    /lab beats [...]
+    /lab beats [f1] [f2] [seconds]
   chladni          Chladni 板振型
-    /lab chladni [...]
+    /lab chladni [m] [n]
   phyllotaxis      叶序/黄金角
-    /lab phyllotaxis [...]
+    /lab phyllotaxis [angle_deg] [points]
   galton           Galton 板
-    /lab galton [...]
+    /lab galton [rows] [balls]
   lissajous        Lissajous 曲线
-    /lab lissajous [...]
+    /lab lissajous [fx] [fy] [phase_deg]
 
 NEXT
   /help lab fractal
@@ -701,9 +711,9 @@ COMMAND  /lab fractal
 
 SUBCOMMANDS
   mandelbrot       Mandelbrot 分形。
-    /lab fractal mandelbrot [...]
+    /lab fractal mandelbrot [cx] [cy] [zoom]
   julia            Julia 分形。
-    /lab fractal julia [...]
+    /lab fractal julia [c_re] [c_im] [zoom]
 
 NEXT
   /help lab fractal mandelbrot
@@ -720,9 +730,9 @@ COMMAND  /lab number
 
 SUBCOMMANDS
   ulam             Ulam 素数螺旋。
-    /lab number ulam [...]
+    /lab number ulam [size]
   mod              模乘圆。
-    /lab number mod [...]
+    /lab number mod [multiplier] [points]
 
 NEXT
   /help lab number ulam
@@ -858,13 +868,13 @@ COMMAND  /game mine
 
 SUBCOMMANDS
   new              开始扫雷；首次开格保证安全。
-    /game mine [easy|normal|hard]
+    /game mine [{easy|normal|hard}]
   open             扫雷开格。
-    /game mine open A1 [B2 ...]
+    /game mine open <cell> [cell ...]
   mark             扫雷：标雷
-    /game mine mark A1 [B2 ...]
+    /game mine mark <cell> [cell ...]
   sweep            扫雷：周边清扫
-    /game mine sweep A1 [B2 ...]
+    /game mine sweep <cell> [cell ...]
   board            扫雷：查看棋盘
     /game mine board
   end              扫雷：结束扫雷
@@ -885,9 +895,9 @@ COMMAND  /game sudoku
 
 SUBCOMMANDS
   new              开始唯一解数独。
-    /game sudoku [easy|normal|hard]
+    /game sudoku [{easy|normal|hard}]
   set              填写数独格子。
-    /game sudoku A1 5
+    /game sudoku set <cell> <digit>
   show             查看数独棋盘
     /game sudoku show
   reveal           显示答案并结束
@@ -932,7 +942,7 @@ COMMAND  /game nc
 九子棋
 
 DIRECT
-  /game nc <A1|A1-A2|x B4>
+  /game nc <action>
     九子棋放置、移动或吃子动作。
 
 SUBCOMMANDS
@@ -960,7 +970,7 @@ Signal 解密
 
 SUBCOMMANDS
   new              创建多层编码信号
-    /game signal new
+    /game signal new [{easy|normal|hard}]
   hint             获取下一层提示
     /game signal hint
   show             查看当前信号
@@ -987,7 +997,7 @@ DIRECT
 
 SUBCOMMANDS
   book             查看炼金图鉴。
-    /fuse book [数量]
+    /fuse book [count]
 
 NEXT
   /help fuse book
@@ -1008,11 +1018,11 @@ SUBCOMMANDS
   show             查看当前能力
     /arena show
   fight            原味弱能力直接对决
-    /arena fight @对手|QQ号
+    /arena fight <@对手或QQ号>
   duel             带战场目标的竞技场对决
-    /arena duel @对手|QQ号
+    /arena duel <@对手或QQ号>
   chaos            原 /wp 多能力组合
-    /arena chaos
+    /arena chaos [{2|3}]
   deck             查看卡池/组合空间
     /arena deck
 
@@ -1051,9 +1061,9 @@ COMMAND  /media trace
 
 SUBCOMMANDS
   anime            AnimeTrace 动漫识别。
-    /media trace anime + 图片
+    /media trace anime
   gal              AnimeTrace Galgame 识别。
-    /media trace gal + 图片
+    /media trace gal
 
 NEXT
   /help media trace anime
@@ -1070,9 +1080,9 @@ COMMAND  /media mirage
 
 SUBCOMMANDS
   gray             灰度幻影坦克。
-    /media mirage gray + 两张图
+    /media mirage gray
   color            彩色幻影坦克。
-    /media mirage color + 两张图
+    /media mirage color
 
 NEXT
   /help media mirage gray
@@ -1089,13 +1099,13 @@ COMMAND  /util
 
 SUBCOMMANDS
   encode           URL/Unicode/Hex/Base64 编码。
-    /util encode <url|unicode|hex|base64> <文本>
+    /util encode {url|unicode|hex|base64} <文本>
   decode           URL/Unicode/Hex/Base64 解码。
-    /util decode <url|unicode|hex|base64> <文本>
+    /util decode {url|unicode|hex|base64} <文本>
   weather          Open-Meteo 天气查询。
-    /util weather <地点> [1-7天]
+    /util weather <place> [days]
   apod             NASA Astronomy Picture of the Day。
-    /util apod [YYYY-MM-DD]
+    /util apod [date]
   bing             Bing 当日壁纸。
     /util bing
 
@@ -1118,11 +1128,33 @@ GROUP  admin
 AstrBot 框架级会话与管理指令，统一收在 /admin 下。
 
 COMMANDS
-  /admin        11  AstrBot 框架级指令命名空间；普通 Doge 功能不放这里。
+  /admin        15  AstrBot 框架级指令命名空间；普通 Doge 功能不放这里。
 
 NEXT
   /help admin
   /help
+```
+
+#### `/help admin modules`
+
+```text
+COMMAND  /admin modules
+
+SUBCOMMANDS
+  list             查看当前群正式 Doge 模块的启停状态。
+    /admin modules list
+  on               由群主/群管理员为当前群启用一个正式 Doge 模块。
+    /admin modules on <module>
+  off              由群主/群管理员为当前群关闭一个正式 Doge 模块；对应指令与 Agent Tool 同时停用。
+    /admin modules off <module>
+  reset            恢复当前群默认模块状态：全部正式非 Legacy 模块开启。
+    /admin modules reset
+
+NEXT
+  /help admin modules list
+
+BACK
+  /help admin
 ```
 
 ## Legacy
