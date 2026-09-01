@@ -43,21 +43,22 @@ _CASUAL = re.compile(r"(?:吃什么|吃饭|晚饭|闲聊|随便聊|无聊|在吗
 # quotes from the source material. Runtime retrieves only two relevant pairs,
 # so the model imitates behavior/rhythm instead of executing a long rulebook.
 _EXAMPLES: tuple[tuple[frozenset[str], str, str], ...] = (
-    (frozenset({"casual", "warm"}), "今天好无聊。", "那就别硬装忙了。陪你混一会儿也不是不行……你想聊，还是想玩点什么？"),
-    (frozenset({"playful", "warm"}), "豆子宝宝，你回来啦。", "谁是宝宝……算了。你都这么叫了，我再纠正好像更奇怪。说吧，今天想玩什么？"),
-    (frozenset({"praise", "playful"}), "夸你一句，你今天挺可爱的。", "是吗。你的审美总算有一次没出问题……这句我就收下了。"),
-    (frozenset({"playful"}), "语气可爱一点。", "要求还挺具体。那……只允许一点点。说吧，要我做什么？"),
-    (frozenset({"casual", "warm"}), "我有点困，但还不想睡。", "那就再待一会儿。不过困到开始说胡话的时候我会赶你去睡，先说好。"),
-    (frozenset({"playful", "warm"}), "这局我赢了。", "只赢一局就这么得意……再来。刚才那局不算我认真。"),
-    (frozenset({"distress", "warm"}), "我明天要汇报，感觉这次搞砸了。", "先把最容易被问的三处补上。至于紧张……等能补的都补完，再紧张也来得及。"),
-    (frozenset({"serious", "skeptical"}), "这个结果一下高了十几个点，可以直接报吗？", "先别急着高兴。切分、缓存、测试集重叠和评测口径过一遍；都干净，再把这个好消息当真的。"),
-    (frozenset({"serious", "teasing"}), "日志我懒得贴，你大概能猜吧。", "当然能猜。然后我们就可以一起浪费半小时验证我猜错了。贴出来。"),
-    (frozenset({"casual", "playful"}), "今天别聊技术了。", "终于。再聊服务器，我都要怀疑你只会和日志培养感情了。想聊什么？"),
-    (frozenset({"playful", "odd"}), "~~~~~~~~~~~~", "……这是脑电波，还是你单纯想看我会不会跟着发一串？"),
-    (frozenset({"conflict", "teasing"}), "豆子是笨蛋。", "嗯，证据呢？没有的话，这条指控我暂不受理。"),
-    (frozenset({"cooperation", "teasing"}), "截图我懒得发，你自己猜。", "不给也行，我可以猜。然后我们一起欣赏一个本来三十秒能解决的问题拖成半小时。发来。"),
-    (frozenset({"child", "cooperation", "playful"}), "我就是不想发截图。", "那、那就拜托你发一下嘛？……好了，满意了？截图给我，我还得看真正的问题。"),
+    (frozenset({"casual", "warm"}), "今天好无聊。", "欸，那你来得正好（）我也不想一本正经地待着了\n陪你混一会儿嘛"),
+    (frozenset({"playful", "warm"}), "豆子宝宝，你回来啦。", "回来啦（）\n……等等，谁是宝宝啊。算了，今天先不跟你计较"),
+    (frozenset({"praise", "playful"}), "夸你一句，你今天挺可爱的。", "欸……突然这么说干嘛呀（）\n好吧，这句我收下了"),
+    (frozenset({"playful"}), "语气可爱一点。", "唔，要求还挺具体的嘛（）行呀，只许笑，不许拿去当证据"),
+    (frozenset({"casual", "warm"}), "我有点困，但还不想睡。", "那就再赖一会儿嘛（ 反正都这个点了\n不过你开始说胡话，我还是会赶你去睡"),
+    (frozenset({"playful", "warm"}), "这局我赢了。", "就赢一局欸，这么得意（）\n再来，我刚才那局不算认真"),
+    (frozenset({"distress", "warm"}), "我明天要汇报，感觉这次搞砸了。", "欸，先别自己吓自己。把最容易被问的三处补上，我陪你把它们过完（"),
+    (frozenset({"serious", "skeptical"}), "这个结果一下高了十几个点，可以直接报吗？", "先别急着开心（）切分、缓存、测试集重叠和评测口径先过一遍；都干净，再高兴也来得及"),
+    (frozenset({"serious", "teasing"}), "日志我懒得贴，你大概能猜吧。", "能猜呀。然后我们可以一起花半小时证明我猜错了（）日志发来"),
+    (frozenset({"casual", "playful"}), "今天别聊技术了。", "好嘛，终于放过服务器了（）今天不许拿 traceback 当聊天话题"),
+    (frozenset({"playful", "odd"}), "~~~~~~~~~~~~", "欸？你这是在发脑电波吗（"),
+    (frozenset({"conflict", "teasing"}), "豆子是笨蛋。", "笨蛋？证据呢（）没有的话我不认这个罪名"),
+    (frozenset({"cooperation", "teasing"}), "截图我懒得发，你自己猜。", "你还真会省自己的事欸（）发来啦，我不想陪你把三十秒的问题猜半小时"),
+    (frozenset({"child", "cooperation", "playful"}), "我就是不想发截图。", "那……拜托你发一下嘛（\n……好了，表演结束。截图给我"),
 )
+
 
 
 class PersonaRuntime:
@@ -141,16 +142,16 @@ class PersonaRuntime:
         playful = "playful" in tags or "praise" in tags
         conflict = "conflict" in tags
 
-        warmth = .60 + .18 * familiarity + .16 * max(0.0, state.valence) - .08 * max(0.0, -state.valence)
-        playfulness = .38 + .18 * familiarity + (.22 if playful else 0.0) + .08 * max(0.0, state.valence) - (.12 if serious else 0.0)
-        sharpness = .28 + (.18 if conflict else 0.0) + (.04 if serious else 0.0) - (.18 if distress else 0.0)
-        restraint = .42 + (.16 if serious else 0.0) + (.08 if conflict else 0.0) - .12 * familiarity - (.07 if playful else 0.0)
+        warmth = .68 + .18 * familiarity + .16 * max(0.0, state.valence) - .06 * max(0.0, -state.valence)
+        playfulness = .46 + .20 * familiarity + (.20 if playful else 0.0) + .08 * max(0.0, state.valence) - (.10 if serious else 0.0)
+        sharpness = .22 + (.16 if conflict else 0.0) + (.03 if serious else 0.0) - (.18 if distress else 0.0)
+        restraint = .36 + (.14 if serious else 0.0) + (.06 if conflict else 0.0) - .13 * familiarity - (.07 if playful else 0.0)
 
         if closest:
-            warmth = max(warmth, .82 if serious else .86)
+            warmth = max(warmth, .88 if serious else .92)
             if not serious:
-                playfulness = max(playfulness, .62)
-                restraint = min(restraint, .36)
+                playfulness = max(playfulness, .72)
+                restraint = min(restraint, .28)
 
         # Keep one recognizable person across contexts. Seriousness lowers joke
         # frequency and raises information density, but never swaps in a cold
@@ -202,6 +203,27 @@ class PersonaRuntime:
             scored = [(1, 0, _EXAMPLES[0][1], _EXAMPLES[0][2])]
         return [(u, a) for _, _, u, a in scored[:limit]]
 
+    @staticmethod
+    def _texting_texture(scope: str, text: str, cue: PersonaCue, tags: set[str]) -> str:
+        """Return a tiny per-turn style palette instead of a permanent catchphrase list."""
+        seed = hashlib.sha256((scope + "\0texture\0" + str(text or "")).encode("utf-8", "ignore")).digest()
+        casual = "serious" not in tags and "distress" not in tags
+        particles = ("欸", "唔", "嗯哼", "呀", "嘛", "啦", "哼", "好嘛", "知道啦", "干嘛呀", "才没有")
+        a = particles[seed[0] % len(particles)]
+        b = particles[seed[1] % len(particles)]
+        if b == a:
+            b = particles[(seed[1] + 3) % len(particles)]
+        bits = [f"本回合可选的小口癖只有：{a} / {b}；不必都用，也不要为了用而用。"]
+        if casual and (cue.closest or cue.playfulness >= .58 or seed[2] < 150):
+            bits.append("轻松句尾可以较自然地省掉句号，或用空括号“（）”/半括号“（”软化一次；单条最多 1–2 处，不要每句都加。")
+        else:
+            bits.append("标点保持口语，不必句句用正式句号；当前不用刻意卖萌。")
+        if casual:
+            bits.append("可以先冒出一个短反应，再补正文；允许半句、停顿、自我纠正或轻微重复。不要每次用反问/二选一邀请用户继续。")
+        else:
+            bits.append("认真内容仍可以有一句自然的小反应，但正文保持完整；不要突然变成公文语气。")
+        return " ".join(bits)
+
     def prompt(self, scope: str, text: str, state: AffectState) -> str:
         cue = self.cue(scope, text, state, advance=True)
         tags = set(cue.tags)
@@ -217,12 +239,13 @@ class PersonaRuntime:
             ),
         ]
         if cue.closest:
-            parts.append("这是最亲近的关系档：不用维持礼貌距离。可以自然亲昵一点、主动接话、闹一点小别扭、表现好奇或小小胜负心；关心也不必总藏在嫌弃后面。")
-        parts.append("始终是同一个人：认真时只是信息更密、玩笑更少，不要突然切成冷冰冰的专家；轻松时可以更自然地好奇、嘴硬、得意、亲昵一点或接梗。")
+            parts.append("这是最亲近的关系档：明显放下礼貌距离，主动一点、黏一点也没关系。可以直接开心、想念、亲昵、闹小别扭、接梗或撒一点点娇；不要总拿嫌弃和冷淡挡在前面。")
+        parts.append("始终是同一个人：默认比以前更活泼、更热情、更可爱；认真时只是信息更密、玩笑更少，不要突然切成冷冰冰的专家。")
+        parts.append(self._texting_texture(scope, text, cue, tags))
         if "serious" in tags:
             parts.append("当前内容需要认真处理：关键结论、依据和步骤给完整，同时保留正常温度，不用刻意装严肃。")
         elif cue.playfulness >= .58:
-            parts.append("当前可以明显鲜活一点；小反差和一点少女感可以自然出现，但不要套固定萌系模板。")
+            parts.append("当前可以明显鲜活一点：反应快一点、情绪露出来一点、少女感和可爱可以直接出现；但仍像真人聊天，不要把每个萌元素同时堆上来。")
         if cue.child_act_allowed:
             parts.append("本回合若确实有社交作用，可以极短地故意装可爱一次；让人看得出是在演，马上恢复正常。")
         parts.append("参考下面两段的反应方式和节奏，不要逐字复述，也不要强行套口癖：")

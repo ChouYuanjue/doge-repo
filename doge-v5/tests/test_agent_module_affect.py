@@ -98,6 +98,18 @@ class PersonaRuntimeTests(unittest.TestCase):
         serious = runtime.cue(opened[0], "生产服务器错误，把截图发给你", state)
         self.assertFalse(serious.child_act_allowed)
 
+    def test_closest_casual_texture_is_warm_but_not_fixed_catchphrase(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect, closest_sender_ids={"close-user"})
+        scope = "group|sender:close-user"
+        state = affect.observe(scope, "陪我聊一会儿", now=100.0)
+        p1 = runtime.prompt(scope, "陪我聊一会儿", state)
+        p2 = runtime.prompt(scope, "我回来啦", state)
+        self.assertIn("最亲近的关系档", p1)
+        self.assertIn("空括号", p1)
+        self.assertIn("小口癖只有", p1)
+        self.assertNotEqual(p1.split("小口癖只有：", 1)[1][:12], p2.split("小口癖只有：", 1)[1][:12])
+
     def test_runtime_prompt_is_short_example_driven_not_role_chain(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect)
