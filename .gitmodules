@@ -1,0 +1,15 @@
+[submodule "doge-v5/vendor/Rlyehian-Cthuvian-Translator"]
+	path = doge-v5/vendor/Rlyehian-Cthuvian-Translator
+	url = https://github.com/ChouYuanjue/Rlyehian-Cthuvian-Translator.git
+[submodule "doge-v5/vendor/codly"]
+	path = doge-v5/plugins/doge_shared/vendor/codly
+	url = https://github.com/Dherse/codly.git
+[submodule "doge-v5/plugins/doge_ai/vendor/micrograd"]
+	path = doge-v5/plugins/doge_ai/vendor/micrograd
+	url = https://github.com/karpathy/micrograd.git
+[submodule "doge-v5/plugins/doge_ai/vendor/minbpe"]
+	path = doge-v5/plugins/doge_ai/vendor/minbpe
+	url = https://github.com/karpathy/minbpe.git
+[submodule "doge-v5/plugins/doge_cs/vendor/pyformlang"]
+	path = doge-v5/plugins/doge_cs/vendor/pyformlang
+	url = https://github.com/Aunsiels/pyformlang.git
