@@ -261,6 +261,15 @@ class PersonaTests(unittest.TestCase):
             self.assertEqual(out["platform"][0]["secret"], "DO_NOT_TOUCH")
             self.assertEqual(out["admins_id"], ["existing-admin", "2700074128"])
             self.assertTrue(out["disable_builtin_commands"])
+            ps = out["platform_settings"]
+            self.assertEqual(ps["forward_threshold"], 1200)
+            seg = ps["segmented_reply"]
+            self.assertTrue(seg["enable"])
+            self.assertTrue(seg["only_llm_result"])
+            self.assertEqual(seg["words_count_threshold"], 1100)
+            self.assertEqual(seg["split_mode"], "regex")
+            self.assertEqual(seg["regex"], r".*?(?:\n{2,}|$)")
+            self.assertEqual(seg["interval"], "0.4,1.0")
             conn = sqlite3.connect(data / "data_v4.db")
             rows = conn.execute("SELECT persona_id,system_prompt,begin_dialogs FROM personas").fetchall(); conn.close()
             self.assertEqual(len(rows), 1); self.assertEqual(rows[0][0], "doge")

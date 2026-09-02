@@ -55,6 +55,26 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     cfg.setdefault("provider_settings", {})["default_personality"] = persona["persona_id"]
     cfg["provider_settings"].setdefault("persona_pool", ["*"])
     cfg["disable_builtin_commands"] = True
+
+    # Chat presentation policy. AstrBot decorates segmented replies before it
+    # evaluates OneBot merged-forward conversion. Its words_count_threshold is
+    # an *upper* bound for segmentation, so keeping it below forward_threshold
+    # yields the intended three zones: ordinary paragraph-like replies can be
+    # split only at blank lines, medium replies stay one message, and genuinely
+    # long OneBot replies become one merged-forward message instead of spam.
+    platform_settings = cfg.setdefault("platform_settings", {})
+    platform_settings["forward_threshold"] = 1200
+    segmented = platform_settings.setdefault("segmented_reply", {})
+    segmented.update({
+        "enable": True,
+        "only_llm_result": True,
+        "interval_method": "random",
+        "interval": "0.4,1.0",
+        "words_count_threshold": 1100,
+        "split_mode": "regex",
+        "regex": r".*?(?:\n{2,}|$)",
+        "content_cleanup_rule": "",
+    })
     write_json_preserve_bom(config_path, cfg)
 
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(sep=" ", timespec="seconds")
