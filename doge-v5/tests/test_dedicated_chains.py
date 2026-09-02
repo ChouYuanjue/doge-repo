@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+import astrbot.api.message_components as Comp
+
 ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
 if str(PLUGINS) not in sys.path:
@@ -71,6 +73,27 @@ class DedicatedProviderTests(unittest.TestCase):
         ctx = _FakeContext(default=object())
         with self.assertRaises(ValueError):
             dedicated_deepseek(ctx)
+
+
+class ArenaRoutingTests(unittest.TestCase):
+    def test_raw_at_fight_is_detected_even_without_wake_flag(self):
+        class Event:
+            message_str = "/arena fight"
+            is_at_or_wake_command = False
+            def get_self_id(self): return "bot"
+            def get_messages(self): return [Comp.Plain("/arena fight "), Comp.At(qq="123")]
+        self.assertTrue(DogeArena._is_raw_at_battle(Event()))
+
+    def test_raw_fallback_is_narrow(self):
+        class Event:
+            def __init__(self, text, chain):
+                self.message_str = text
+                self.chain = chain
+            def get_self_id(self): return "bot"
+            def get_messages(self): return self.chain
+        self.assertFalse(DogeArena._is_raw_at_battle(Event("/arena draw", [Comp.Plain("/arena draw")])))
+        self.assertFalse(DogeArena._is_raw_at_battle(Event("/arena fight 123", [Comp.Plain("/arena fight 123")])))
+        self.assertFalse(DogeArena._is_raw_at_battle(Event("/arena fight", [Comp.Plain("/arena fight "), Comp.At(qq="bot")])))
 
 
 class ArenaDeepSeekTests(unittest.TestCase):

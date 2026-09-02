@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import astrbot.api.message_components as Comp
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
@@ -24,7 +26,7 @@ from .arena_engine import (
 )
 
 
-@register("doge_arena", "runnel", "Doge 荒诞弱能力与组合竞技场", "5.7.0")
+@register("doge_arena", "runnel", "Doge 荒诞弱能力与组合竞技场", "5.7.1")
 class DogeArena(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -42,6 +44,34 @@ class DogeArena(Star):
         # whitespace argument parser.
         token = (rest or "").strip().split()[0] if (rest or "").strip() else ""
         return (token, None) if token.isdigit() else (None, None)
+
+    @staticmethod
+    def _is_raw_at_battle(event: AstrMessageEvent) -> bool:
+        """Catch `/arena fight|duel @user` before AstrBot wake routing can drop it.
+
+        NapCat represents the opponent as a structured At component.  Recent
+        AstrBot wake routing can classify a slash command followed by a non-bot
+        At as a normal message, so CommandFilter never runs.  Keep this fallback
+        deliberately narrow: only fight/duel with an actual At component.
+        """
+        text = re.sub(r"\s+", " ", str(event.message_str or "").strip())
+        if not re.match(r"^/arena\s+(?:fight|duel)(?:\s|$)", text, re.I):
+            return False
+        self_id = str(event.get_self_id() or "")
+        return any(
+            isinstance(seg, Comp.At) and str(seg.qq) and str(seg.qq) != self_id
+            for seg in event.get_messages()
+        )
+
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=9000)
+    async def arena_at_fallback(self, event: AstrMessageEvent):
+        if not self._is_raw_at_battle(event):
+            return
+        async for result in self.arena(event):
+            yield result
+        # The raw fallback owns this exact invocation; do not let the standard
+        # CommandFilter or Agent path execute it a second time.
+        event.stop_event()
 
     def _provider(self):
         provider, provider_id = dedicated_deepseek(self.context)
