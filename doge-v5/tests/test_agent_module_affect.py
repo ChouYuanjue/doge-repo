@@ -62,12 +62,13 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertGreater(close.playfulness - other.playfulness, .30)
         self.assertGreater(other.restraint - close.restraint, .25)
 
-        close_prompt = runtime.prompt(close_scope, "我回来啦", close_state)
-        other_prompt = runtime.prompt(other_scope, "我回来啦", other_state)
-        self.assertIn("更热情、更主动、更有依恋感", close_prompt)
-        self.assertIn("保留一点疏离和自己的边界", other_prompt)
-        self.assertIn("主动说想念", close_prompt)
-        self.assertIn("不主动黏人", other_prompt)
+        close_prompt = runtime.turn_state(close_scope, "我回来啦", close_state)
+        other_prompt = runtime.turn_state(other_scope, "我回来啦", other_state)
+        self.assertIn('relation="closest"', close_prompt)
+        self.assertIn('relation="distant"', other_prompt)
+        policy = runtime.static_policy()
+        self.assertIn("visibly warm, proactive and attached", policy)
+        self.assertIn("keeps social distance", policy)
 
         serious = runtime.cue(close_scope, "生产服务器错误继续查", close_state)
         self.assertTrue(serious.closest)
@@ -114,22 +115,24 @@ class PersonaRuntimeTests(unittest.TestCase):
         runtime = PersonaRuntime(affect, closest_sender_ids={"close-user"})
         scope = "group|sender:close-user"
         state = affect.observe(scope, "陪我聊一会儿", now=100.0)
-        p1 = runtime.prompt(scope, "陪我聊一会儿", state)
-        p2 = runtime.prompt(scope, "我回来啦", state)
-        self.assertIn("这是最亲近档", p1)
-        self.assertIn("空括号", p1)
-        self.assertIn("小口癖只有", p1)
-        self.assertNotEqual(p1.split("小口癖只有：", 1)[1][:12], p2.split("小口癖只有：", 1)[1][:12])
+        p1 = runtime.turn_state(scope, "陪我聊一会儿", state)
+        p2 = runtime.turn_state(scope, "我回来啦", state)
+        self.assertIn('relation="closest"', p1)
+        self.assertIn('paren="1"', p1)
+        self.assertIn('particles="', p1)
+        self.assertNotEqual(p1.split('particles="', 1)[1].split('"',1)[0], p2.split('particles="', 1)[1].split('"',1)[0])
 
     def test_self_reality_questions_use_human_device_interpretation(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect, closest_sender_ids={"close-user"})
         scope = "group|sender:close-user"
         state = affect.observe(scope, "你住服务器里吗", now=100.0)
-        prompt = runtime.prompt(scope, "你住服务器里吗", state)
-        self.assertIn("服务器当你使用的设备", prompt)
-        self.assertIn("不会/没装/这次做不了", prompt)
-        self.assertIn("保留隐私", prompt)
+        prompt = runtime.turn_state(scope, "你住服务器里吗", state)
+        self.assertIn("self-reality", prompt)
+        policy = runtime.static_policy()
+        self.assertIn("servers/computers/tools as devices and software you use", policy)
+        self.assertIn("cannot/do not have it this time", policy)
+        self.assertIn("Do not fabricate age", policy)
 
 
     def test_identity_mapping_is_private_and_stable_id_authoritative(self):
@@ -147,16 +150,31 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn("explicitly asked to inspect their QQ/sender ID", source)
         self.assertIn("do not infer that someone is a newcomer", source)
 
-    def test_runtime_prompt_is_short_example_driven_not_role_chain(self):
+    def test_runtime_state_is_compact_and_examples_move_to_cached_static_policy(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect)
         state = affect.observe("u", "豆子你真可爱", now=100.0)
-        prompt = runtime.prompt("u", "夸你一句，你今天挺可爱的", state)
-        self.assertLess(len(prompt), 800)
-        self.assertIn("参考下面两段", prompt)
-        self.assertIn("豆子：", prompt)
+        turn = runtime.turn_state("u", "夸你一句，你今天挺可爱的", state)
+        policy = runtime.static_policy()
+        self.assertLess(len(turn), 280)
+        self.assertIn("example_ids=", turn)
+        self.assertIn("Examples library", policy)
+        self.assertIn("豆子：", policy)
+        self.assertIn("clearly malicious toward the bot/service", policy)
+        self.assertIn("refuse briefly and confidently", policy)
         for marker in ("Anchoring", "Selecting", "Bounding", "Enacting"):
-            self.assertNotIn(marker, prompt)
+            self.assertNotIn(marker, turn + policy)
+
+    def test_compact_turn_state_is_persistable_for_prefix_cache(self):
+        from astrbot.core.agent.message import Message, TextPart, dump_messages_with_checkpoints
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect)
+        state = affect.observe("u", "继续", now=100.0)
+        turn = runtime.turn_state("u", "继续", state)
+        msg = Message(role="user", content=[TextPart(text="继续"), TextPart(text=turn)])
+        dumped = dump_messages_with_checkpoints([msg])
+        self.assertEqual(dumped[0]["content"][1]["text"], turn)
+        self.assertNotIn("_no_save", dumped[0]["content"][1])
 
 
 class AgentBridgeMetadataTests(unittest.TestCase):
