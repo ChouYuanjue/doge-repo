@@ -71,6 +71,25 @@ async def _capture_image(event, comp: Image, asset_root: Path, assets: dict) -> 
     return asset_id
 
 
+async def _capture_file(event, comp: File, asset_root: Path, assets: dict) -> str:
+    asset_id = "file-" + uuid.uuid4().hex[:10]
+    source = await comp.get_file()
+    if not source:
+        raise ValueError(f"文件产物 {getattr(comp, 'name', '') or asset_id} 无法读取")
+    src = Path(source)
+    suffix = src.suffix or Path(str(getattr(comp, "name", "") or "")).suffix
+    asset_root.mkdir(parents=True, exist_ok=True)
+    dst = asset_root / f"{asset_id}{suffix}"
+    shutil.copy2(src, dst)
+    event.track_temporary_local_file(str(dst))
+    assets[asset_id] = {
+        "kind": "file",
+        "path": str(dst),
+        "name": str(getattr(comp, "name", "") or src.name or dst.name),
+    }
+    return asset_id
+
+
 async def _capture_chain(event, chain, asset_root: Path, assets: dict, texts: list[str], media: list[dict]) -> None:
     if chain is None:
         return
@@ -85,10 +104,8 @@ async def _capture_chain(event, chain, asset_root: Path, assets: dict, texts: li
             aid = await _capture_image(event, comp, asset_root, assets)
             media.append({"id": aid, "type": "image"})
         elif isinstance(comp, File):
-            # Files can be large and have platform-specific lifetime semantics.
-            # Keep the raw command as the escape hatch rather than silently
-            # uploading everything through an Agent tool.
-            media.append({"type": "file", "note": "Use the direct command to receive this file output."})
+            aid = await _capture_file(event, comp, asset_root, assets)
+            media.append({"id": aid, "type": "file", "name": assets[aid].get("name", "")})
         else:
             media.append({"type": comp.__class__.__name__.lower(), "note": "Use the direct command for this rich output."})
 
@@ -215,6 +232,23 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         else:
             event._extras.pop("parsed_params", None)
 
+    # File-producing capabilities are explicit user requests for an artifact.
+    # Send captured files immediately instead of asking the user to repeat the
+    # raw command. Images remain selectable through doge_present.
+    sent_files: list[str] = []
+    for item in media:
+        if item.get("type") != "file" or not item.get("id"):
+            continue
+        asset = assets.get(str(item["id"])) if isinstance(assets, dict) else None
+        if not asset or asset.get("kind") != "file":
+            continue
+        path = Path(str(asset.get("path") or ""))
+        if not path.exists():
+            continue
+        name = str(asset.get("name") or path.name)
+        await old_send(MessageChain([File(name=name, file=str(path))]))
+        sent_files.append(str(item["id"]))
+
     # De-duplicate text because generator yield + residual event result can point
     # to the same MessageEventResult in wrapper-heavy plugins.
     deduped: list[str] = []
@@ -233,11 +267,13 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         "summary": op.get("summary", ""),
         "text": joined,
         "media": media,
+        "files_sent": sent_files,
         "direct_command": command,
         "guidance": (
             "Synthesize the useful parts instead of dumping this object. "
-            "Only call doge_present for media that materially improves the answer. "
-            "Mention direct_command only when raw output or an explicit command would genuinely help the user."
+            "File outputs listed in files_sent have already been delivered to the user; do not ask them to repeat the command. "
+            "Only call doge_present for image media that materially improves the answer. "
+            "Mention direct_command only when an explicit raw command would genuinely help the user."
         ),
     }
     return json.dumps(payload, ensure_ascii=False)
@@ -290,7 +326,7 @@ class DogeCapabilitySearchTool(FunctionTool[AstrAgentContext]):
 class DogeCapabilityTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_capability"
     description: str = (
-        "调用任意已安装且非 Legacy 的 Doge 正式指令，并把文本/媒体作为上层 Agent 可筛选的原始结果返回。"
+        "调用任意已安装且非 Legacy 的 Doge 正式指令。文本/图片返回给上层 Agent；文件产物会自动发送给用户并在结果中标记 files_sent。"
         "command 必须是 capability inventory 中的完整可执行指令并包含必要参数。"
     )
     parameters: dict = Field(default_factory=lambda: {

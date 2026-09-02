@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,7 +12,7 @@ PLUGINS = ROOT / "plugins"
 sys.path.insert(0, str(PLUGINS))
 
 from doge_shared.affect import TransientAffect
-from doge_shared.agent_bridge import DogeCapabilitySearchTool, DogeCapabilityTool, DogePresentTool, _likely_help, _normalize_command
+from doge_shared.agent_bridge import DogeCapabilitySearchTool, DogeCapabilityTool, DogePresentTool, _capture_file, _likely_help, _normalize_command
 from doge_shared.capabilities import agent_capability_prompt, search_capabilities
 from doge_shared.module_control import available_doge_plugins, is_group_admin, resolve_module
 from doge_shared.persona_runtime import PersonaRuntime
@@ -159,7 +160,7 @@ class PersonaRuntimeTests(unittest.TestCase):
 
 
 class AgentBridgeMetadataTests(unittest.TestCase):
-    def test_bridge_tools_are_explicit_and_media_is_deferred(self):
+    def test_bridge_tools_are_explicit_and_files_auto_deliver(self):
         search = DogeCapabilitySearchTool()
         capability = DogeCapabilityTool()
         present = DogePresentTool()
@@ -168,9 +169,35 @@ class AgentBridgeMetadataTests(unittest.TestCase):
         self.assertEqual(present.name, "doge_present")
         self.assertIn("自然语言检索", search.description)
         self.assertIn("正式指令", capability.description)
+        self.assertIn("文件产物会自动发送", capability.description)
         self.assertIn("精选", present.description)
         self.assertEqual(_normalize_command("math oeis 1,1,2,3"), "/math oeis 1,1,2,3")
         self.assertEqual(_likely_help("/math oeis"), "/help math oeis")
+
+    def test_file_outputs_are_copied_before_handler_cleanup(self):
+        from astrbot.core.message.components import File
+
+        class Event:
+            def __init__(self):
+                self.tracked = []
+            def track_temporary_local_file(self, path):
+                self.tracked.append(path)
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            src = root / "report.pdf"
+            src.write_bytes(b"%PDF-1.7\nDoge")
+            assets = {}
+            event = Event()
+            aid = asyncio.run(
+                _capture_file(event, File(name="report.pdf", file=str(src)), root / "captured", assets)
+            )
+            copied = Path(assets[aid]["path"])
+            self.assertEqual(assets[aid]["kind"], "file")
+            self.assertEqual(assets[aid]["name"], "report.pdf")
+            self.assertTrue(copied.exists())
+            self.assertTrue(copied.read_bytes().startswith(b"%PDF"))
+            self.assertIn(str(copied), event.tracked)
 
     def test_agent_inventory_is_compact_and_leaf_details_are_searchable(self):
         prompt = agent_capability_prompt()
