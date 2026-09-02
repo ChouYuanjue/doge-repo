@@ -186,12 +186,17 @@ class DogeTrialTool(FunctionTool[AstrAgentContext]):
 @dataclass
 class DogeLookupTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_lookup"
-    description: str = "Grounded 通用查询：Wikipedia 摘要、Wikidata 结构化实体事实，以及可选 Wolfram|Alpha LLM API。"
-    parameters: dict = Field(default_factory=lambda: {"type":"object","properties":{"action":{"type":"string","enum":["auto","wiki","entity","wolfram"]},"query":{"type":"string"},"lang":{"type":"string","default":"zh"}},"required":["action","query"]})
+    description: str = (
+        "Grounded 通用查询：百科、Wikidata，以及无需付费 API key 的实时网页检索/公开网页正文提取。"
+        "当问题涉及最新进展、近期论文/证明/反例、新闻、当前人物/产品/规则，或你怀疑参数知识可能过时时，优先 action=web 检索后再回答；来源冲突时明确呈现不确定性，不把单条网页当定论。"
+    )
+    parameters: dict = Field(default_factory=lambda: {"type":"object","properties":{"action":{"type":"string","enum":["auto","wiki","entity","web","read","wolfram"]},"query":{"type":"string"},"lang":{"type":"string","default":"zh"},"max_results":{"type":"integer","minimum":2,"maximum":10},"freshness":{"type":"string","description":"可选时效筛选，如 day/week/month/year，按上游支持解释"}},"required":["action","query"]})
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
         action=str(kwargs.get("action") or "auto"); query=str(kwargs.get("query") or ""); lang=str(kwargs.get("lang") or "zh")
         if action=="wiki": return (await LookupService.wikipedia(query,lang)).format()
         if action=="entity": return await LookupService.wikidata(query,lang)
+        if action=="web": return await LookupService.web_search(query,int(kwargs.get("max_results",6)),str(kwargs.get("freshness") or ""))
+        if action=="read": return await LookupService.web_extract(query)
         if action=="wolfram": return await LookupService.wolfram(query)
         return await LookupService.auto(query,lang)
 

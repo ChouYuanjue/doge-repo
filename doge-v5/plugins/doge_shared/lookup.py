@@ -5,10 +5,13 @@ import html
 import json
 import os
 import re
+import ipaddress
+import socket
 from dataclasses import dataclass
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import aiohttp
+from bs4 import BeautifulSoup
 
 
 class LookupError(RuntimeError):
@@ -41,6 +44,89 @@ async def _text(url, params=None, headers=None, timeout=15):
             if r.status >= 400:
                 raise LookupError(f"HTTP {r.status}: {body[:500]}")
             return body
+
+
+ANYSEARCH_ENDPOINT = "https://api.anysearch.com/mcp"
+
+
+async def _anysearch_call(tool_name: str, arguments: dict, timeout: int = 22) -> str:
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": tool_name, "arguments": arguments},
+    }
+    t = aiohttp.ClientTimeout(total=timeout, connect=min(6, timeout), sock_read=max(8, timeout - 2))
+    async with aiohttp.ClientSession(timeout=t, headers={"Content-Type": "application/json", "User-Agent": UA}) as session:
+        try:
+            async with session.post(ANYSEARCH_ENDPOINT, json=payload) as response:
+                body = await response.text()
+                if response.status >= 400:
+                    raise LookupError(f"AnySearch HTTP {response.status}: {body[:500]}")
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            raise LookupError(f"AnySearch unavailable: {exc}") from exc
+    try:
+        data = json.loads(body)
+    except Exception as exc:
+        raise LookupError("AnySearch returned invalid JSON") from exc
+    if data.get("error"):
+        err = data["error"]
+        msg = err.get("message") if isinstance(err, dict) else str(err)
+        raise LookupError(f"AnySearch error: {msg}")
+    for item in ((data.get("result") or {}).get("content") or []):
+        if isinstance(item, dict) and item.get("type") == "text":
+            return str(item.get("text") or "").strip()
+    raise LookupError("AnySearch returned no text results")
+
+
+def _validate_public_url(url: str) -> str:
+    raw = str(url or "").strip()
+    parsed = urlparse(raw)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise LookupError("网页提取只接受公开 http/https URL")
+    host = parsed.hostname.lower().strip(".")
+    if host in {"localhost", "localhost.localdomain"} or host.endswith(".local"):
+        raise LookupError("拒绝访问本地/私有地址")
+    try:
+        infos = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)
+    except OSError as exc:
+        raise LookupError("网页域名无法解析") from exc
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if not ip.is_global:
+            raise LookupError("拒绝访问本地、私网、链路本地或保留地址")
+    return raw
+
+
+async def _bing_web_search(query: str, max_results: int = 6) -> str:
+    body = await _text(
+        "https://cn.bing.com/search",
+        {"q": query, "count": max(3, min(int(max_results), 10)), "setlang": "en-US"},
+        headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36"},
+        timeout=12,
+    )
+    soup = BeautifulSoup(body, "lxml")
+    rows = []
+    for li in soup.select("li.b_algo"):
+        a = li.select_one("h2 a")
+        if not a or not a.get("href"):
+            continue
+        title = a.get_text(" ", strip=True)
+        url = str(a.get("href") or "").strip()
+        p = li.select_one(".b_caption p") or li.select_one("p")
+        snippet = p.get_text(" ", strip=True) if p else ""
+        if title and url.startswith(("http://", "https://")):
+            rows.append((title, url, snippet))
+        if len(rows) >= max_results:
+            break
+    if not rows:
+        raise LookupError("Bing public search returned no usable results")
+    lines = [f"Web search · Bing public fallback · {len(rows)} results"]
+    for i, (title, url, snippet) in enumerate(rows, 1):
+        lines += ["", f"{i}. {title}", url]
+        if snippet:
+            lines.append(snippet[:700])
+    return "\n".join(lines)
 
 
 @dataclass
@@ -239,6 +325,32 @@ SELECT ?p ?value ?valueLabel WHERE {{
         lines += [f"{k}：{'；'.join(v[:6])}" for k, v in grouped.items()]
         lines += ["", f"QLever: https://qlever.dev/wikidata · entity {qid}"]
         return "\n".join(lines)
+
+    @staticmethod
+    async def web_search(q: str, max_results: int = 6, freshness: str = "") -> str:
+        q = str(q or "").strip()
+        if not q or len(q) > 600:
+            raise LookupError("网页查询需为 1-600 字符")
+        count = max(2, min(int(max_results), 10))
+        arguments = {"query": q, "max_results": count}
+        if freshness:
+            arguments["freshness"] = str(freshness)[:32]
+        try:
+            out = await _anysearch_call("search", arguments)
+            return "Web search · AnySearch anonymous (no API key)\n" + out[:14000]
+        except LookupError as primary:
+            try:
+                return await _bing_web_search(q, count)
+            except LookupError as fallback:
+                raise LookupError(f"网页检索失败：{primary}；fallback：{fallback}") from fallback
+
+    @staticmethod
+    async def web_extract(url: str) -> str:
+        url = _validate_public_url(url)
+        out = await _anysearch_call("extract", {"url": url}, timeout=26)
+        if len(out) > 16000:
+            out = out[:16000] + "\n…[正文截断]"
+        return "Web extract · AnySearch anonymous (no API key)\n" + out
 
     @staticmethod
     async def wolfram(q, maxchars=3500, appid: str | None = None):

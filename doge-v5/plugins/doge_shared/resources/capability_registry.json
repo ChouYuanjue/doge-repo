@@ -3428,6 +3428,27 @@
       "kind": "command"
     },
     {
+      "id": "lookup.web",
+      "path": "lookup web",
+      "summary": "实时网页搜索：匿名 AnySearch，无需付费 API key；失败自动回退公开 Bing 搜索页。",
+      "usage": "/lookup web <query>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "agent_notes": "涉及最新进展、近期证明/反例、新闻、当前人物/产品/规则或参数知识可能过时时优先使用；必须保留来源，来源冲突时说明不确定性。"
+    },
+    {
+      "id": "lookup.read",
+      "path": "lookup read",
+      "summary": "提取公开网页正文；拒绝本机、私网、链路本地和保留地址。",
+      "usage": "/lookup read <url>",
+      "aliases": [
+        "lookup extract"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
       "id": "lookup.wa",
       "path": "lookup wa",
       "summary": "Wolfram|Alpha 查询（配置可用时）。",

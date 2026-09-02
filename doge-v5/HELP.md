@@ -13,7 +13,7 @@ USAGE
 GROUPS
   system       4  系统 / 状态
              认识当前实例、查看运行状态与使用统计。
-  research    47  检索 / 科研
+  research    49  检索 / 科研
              论文、知识检索，以及生化环材、天文和临床数据。
   compute     25  数学 / 计算机 / AI
              精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
@@ -41,8 +41,8 @@ QUICK START
 
 SCALE
   顶层指令       31
-  正式叶子功能   227
-  正式调用形式   488  （含 261 个兼容别名）
+  正式叶子功能   229
+  正式调用形式   491  （含 262 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -148,6 +148,10 @@ SUBCOMMANDS
     /lookup wiki <query>
   entity           Wikidata/QLever 结构化事实。
     /lookup entity <query>
+  web              实时网页搜索：匿名 AnySearch，无需付费 API key；失败自动回退公开 Bing 搜索页。
+    /lookup web <query>
+  read             提取公开网页正文；拒绝本机、私网、链路本地和保留地址。
+    /lookup read <url>
   wa               Wolfram|Alpha 查询（配置可用时）。
     /lookup wa <query>
   en               英文百科 + Wikidata 查询。

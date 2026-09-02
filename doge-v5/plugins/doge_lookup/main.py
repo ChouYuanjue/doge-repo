@@ -16,13 +16,15 @@ HELP = (
     "  /lookup <query>                 可达百科 + Wikidata/QLever 双来源\n"
     "  /lookup wiki <query>            Wikipedia；不可达时明确切到真实百科后端\n"
     "  /lookup entity <query>          Wikidata 结构化事实（QLever 镜像）\n"
+    "  /lookup web <query>             实时网页搜索：匿名 AnySearch；失败自动 Bing 公开页 fallback\n"
+    "  /lookup read <url>               提取公开网页正文（拒绝私网/本机地址）\n"
     "  /lookup wa <query>              Wolfram|Alpha LLM API（需 AppID）\n"
     "  /lookup en <query>              英文百科 + Wikidata/QLever\n"
     "输出保留来源链接；旧 DeepWiki 非正式接口不进入正式模块。"
 )
 
 
-@register('doge_lookup','runnel','Doge grounded 通用知识与计算查询','5.6.0')
+@register('doge_lookup','runnel','Doge grounded 通用知识与实时网页查询','5.7.0')
 class DogeLookup(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -43,6 +45,12 @@ class DogeLookup(Star):
             elif action in {'entity','wikidata'}:
                 if not rest: raise ValueError('缺少查询内容')
                 out = await LookupService.wikidata(rest)
+            elif action == 'web':
+                if not rest: raise ValueError('缺少查询内容')
+                out = await LookupService.web_search(rest)
+            elif action in {'read','extract'}:
+                if not rest: raise ValueError('缺少公开网页 URL')
+                out = await LookupService.web_extract(rest)
             elif action in {'wa','wolfram'}:
                 if not rest: raise ValueError('缺少查询内容')
                 out = await LookupService.wolfram(rest)
