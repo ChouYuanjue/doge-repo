@@ -262,7 +262,7 @@ class PersonaTests(unittest.TestCase):
             self.assertEqual(out["admins_id"], ["existing-admin", "2700074128"])
             self.assertTrue(out["disable_builtin_commands"])
             ps = out["platform_settings"]
-            self.assertEqual(ps["forward_threshold"], 1200)
+            self.assertEqual(ps["forward_threshold"], 800)
             seg = ps["segmented_reply"]
             self.assertTrue(seg["enable"])
             self.assertTrue(seg["only_llm_result"])

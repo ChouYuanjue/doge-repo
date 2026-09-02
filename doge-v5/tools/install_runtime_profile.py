@@ -63,7 +63,7 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     # split only at blank lines, medium replies stay one message, and genuinely
     # long OneBot replies become one merged-forward message instead of spam.
     platform_settings = cfg.setdefault("platform_settings", {})
-    platform_settings["forward_threshold"] = 1200
+    platform_settings["forward_threshold"] = 800
     segmented = platform_settings.setdefault("segmented_reply", {})
     segmented.update({
         "enable": True,
