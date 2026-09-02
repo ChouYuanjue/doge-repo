@@ -299,7 +299,8 @@ class DogeCapabilitySearchTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_capability_search"
     description: str = (
         "按自然语言检索 Doge 正式能力 registry，返回最相关的精确指令语法、参数、附件要求和示例。"
-        "当你知道用户想做什么但不确定 Doge 的具体命令时先调用它；不要凭记忆编造命令。先用用户原语言搜索一次，只有候选不明确时才换词再次搜索，不要中英文重复搜同一件事。"
+        "询问 Doge 当前是否支持某功能、功能是否已完善/升级、当前参数或限制时，registry 是当前真值并覆盖旧会话中的历史说法；不要凭记忆回答旧版本能力。"
+        "当你知道用户想做什么但不确定 Doge 的具体命令时先调用它；先用用户原语言搜索一次，只有候选不明确时才换词再次搜索，不要中英文重复搜同一件事。"
     )
     parameters: dict = Field(default_factory=lambda: {
         "type": "object",

@@ -213,6 +213,15 @@ class PersonaRuntimeTests(unittest.TestCase):
             state = affect.observe("g|sender:x", text, now=100.0)
             self.assertIn("benchmark-test", runtime.turn_state("g|sender:x", text, state))
 
+    def test_current_capability_status_context_overrides_stale_history(self):
+        from doge_shared.capabilities import current_capability_context
+        grounded = current_capability_context("你的生命游戏完善了吗")
+        self.assertIn("authoritative live registry", grounded)
+        self.assertIn("5000", grounded)
+        self.assertIn("life continue", grounded)
+        self.assertIn("overrides stale capability claims", grounded)
+        self.assertEqual(current_capability_context("今天吃什么"), "")
+
     def test_compact_turn_state_is_persistable_for_prefix_cache(self):
         from astrbot.core.agent.message import Message, TextPart, dump_messages_with_checkpoints
         affect = TransientAffect()

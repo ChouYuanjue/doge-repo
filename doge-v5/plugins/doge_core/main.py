@@ -14,7 +14,7 @@ from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 from data.plugins.doge_shared.agent_bridge import DogeCapabilitySearchTool, DogeCapabilityTool, DogePresentTool
 from data.plugins.doge_shared.agent_tools import DogeWeatherTool, register_domain_tools
 from data.plugins.doge_shared.affect import TransientAffect
-from data.plugins.doge_shared.capabilities import agent_capability_prompt, capability_display
+from data.plugins.doge_shared.capabilities import agent_capability_prompt, capability_display, current_capability_context
 from data.plugins.doge_shared.help_live import (
     HelpPreferenceStore,
     normalize_help_style_topic,
@@ -263,6 +263,9 @@ class DogeCore(Star):
             self.persona_runtime.turn_state(affect_scope, event.message_str or "", mood),
             self._speaker_context(event, sender),
         ]
+        capability_truth = current_capability_context(event.message_str or "")
+        if capability_truth:
+            dynamic_parts.append(capability_truth)
         material_context = MATERIALS.context_summary(event)
         if material_context:
             dynamic_parts.append(material_context)

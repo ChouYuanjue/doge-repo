@@ -1816,7 +1816,7 @@
     {
       "id": "lab.life",
       "path": "lab life",
-      "summary": "可配置 Life-like cellular automaton 动态 GIF：自定义初态、规则与边界。",
+      "summary": "可配置且可接续的 Life-like cellular automaton 动态 GIF：自定义初态、任意合法 B/S 规则、dead/wrap 边界与 per-group/session 最终棋盘状态。",
       "usage": "/lab life [seed] [steps] [rule] [dead|wrap] [size]",
       "aliases": [
         "lab conway"
@@ -1849,7 +1849,54 @@
         "/lab life glider 120",
         "/lab life gun 240 B3/S23 dead 161",
         "/lab life rle:bo$2bo$3o! 80 B36/S23 wrap 101"
-      ]
+      ],
+      "agent_notes": "以当前 registry 为准：支持 RLE/cells 自定义初态、任意合法 B.../S... Life-like 规则、dead/wrap、41..301 棋盘、每次最多 5000 代真实演化；普通运行会保存当前群/会话最终棋盘，可用 /lab life continue 接续。历史聊天里的功能描述可能来自旧版本，不应覆盖当前 registry。"
+    },
+    {
+      "id": "lab.life.continue",
+      "path": "lab life continue",
+      "summary": "从当前群/会话最近一次 Life 最终棋盘继续真实演化；默认继承规则与边界，也可本次覆盖。",
+      "usage": "/lab life continue [steps] [rule] [dead|wrap]",
+      "aliases": [
+        "lab life resume"
+      ],
+      "args": "optional",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[steps]",
+          "description": "本次继续演化代数，默认 120，每次最大 5000。"
+        },
+        {
+          "name": "[rule]",
+          "description": "可选覆盖当前规则；省略则继承保存状态，例如 B36/S23。"
+        },
+        {
+          "name": "[dead|wrap]",
+          "description": "可选覆盖边界；省略则继承保存状态。"
+        }
+      ],
+      "examples": [
+        "/lab life continue 120",
+        "/lab life continue 300 B36/S23 wrap"
+      ],
+      "agent_notes": "状态按 AstrBot 群/会话隔离并持久化；重启 AstrBot 后仍可接续。没有保存状态时先运行一次 /lab life。"
+    },
+    {
+      "id": "lab.life.status",
+      "path": "lab life status",
+      "summary": "查看当前群/会话保存的 Life generation、活细胞数、棋盘尺寸、规则与边界。",
+      "usage": "/lab life status",
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "lab.life.clear",
+      "path": "lab life clear",
+      "summary": "清除当前群/会话保存的 Life 接续状态。",
+      "usage": "/lab life clear",
+      "args": "none",
+      "kind": "command"
     },
     {
       "id": "lab.dla",

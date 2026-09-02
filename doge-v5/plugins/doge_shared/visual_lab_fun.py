@@ -190,25 +190,50 @@ def _life_step(a: np.ndarray, birth=frozenset({3}), survive=frozenset({2,3}), bo
     return born | (a & kept)
 
 
-def life(output_dir: Path, kind: str="glider", steps: int=120, rule: str="B3/S23", boundary: str="dead", size: int=121) -> tuple[Path,str]:
-    """Render a configurable Life-like cellular automaton as a real GIF."""
-    steps=max(1,min(int(steps),5000)); size=max(41,min(int(size)|1,301)); rng=np.random.default_rng(20260831)
+def life_stateful(
+    output_dir: Path,
+    kind: str = "glider",
+    steps: int = 120,
+    rule: str = "B3/S23",
+    boundary: str = "dead",
+    size: int = 121,
+    *,
+    initial: np.ndarray | None = None,
+    seed_label: str | None = None,
+    generation_offset: int = 0,
+) -> tuple[Path, str, np.ndarray, str, str]:
+    """Run and render a Life-like CA, returning the exact final board for continuation."""
+    steps = max(1, min(int(steps), 5000))
     birth, survive, rule_name = _life_rule(rule)
     boundary_name = {"torus":"wrap", "periodic":"wrap", "fixed":"dead", "zero":"dead"}.get(str(boundary).lower(), str(boundary).lower())
-    if boundary_name not in {"dead", "wrap"}: raise FunLabError("life boundary 支持 dead / wrap")
-    a, seed_label = _life_seed(kind,size,rng)
+    if boundary_name not in {"dead", "wrap"}:
+        raise FunLabError("life boundary 支持 dead / wrap")
+    if initial is None:
+        size = max(41, min(int(size) | 1, 301))
+        rng = np.random.default_rng(20260831)
+        a, resolved_label = _life_seed(kind, size, rng)
+        seed_label = seed_label or resolved_label
+    else:
+        a = np.asarray(initial, dtype=bool).copy()
+        if a.ndim != 2 or a.shape[0] != a.shape[1]:
+            raise FunLabError("保存的 Life 棋盘不是方阵")
+        size = int(a.shape[0])
+        if not 41 <= size <= 301 or size % 2 == 0:
+            raise FunLabError("保存的 Life 棋盘尺寸无效")
+        seed_label = seed_label or "continued"
     initial_alive = int(a.sum())
-    frame_count=min(72,max(2,min(steps+1,48 if steps<=120 else 72)))
-    marks=sorted(set(int(x) for x in np.linspace(0,steps,frame_count)))
-    shots={0:a.copy()}; wanted=set(marks)
-    for t in range(1,steps+1):
-        a=_life_step(a,birth,survive,boundary_name)
-        if t in wanted: shots[t]=a.copy()
+    frame_count = min(72, max(2, min(steps + 1, 48 if steps <= 120 else 72)))
+    marks = sorted(set(int(x) for x in np.linspace(0, steps, frame_count)))
+    shots = {0: a.copy()}; wanted = set(marks)
+    for t in range(1, steps + 1):
+        a = _life_step(a, birth, survive, boundary_name)
+        if t in wanted:
+            shots[t] = a.copy()
 
-    coords=[]
+    coords = []
     for arr in shots.values():
-        yy,xx=np.nonzero(arr)
-        if len(xx): coords.append((int(yy.min()),int(yy.max()),int(xx.min()),int(xx.max())))
+        yy, xx = np.nonzero(arr)
+        if len(xx): coords.append((int(yy.min()), int(yy.max()), int(xx.min()), int(xx.max())))
     if coords:
         y0=max(0,min(v[0] for v in coords)-7); y1=min(size,max(v[1] for v in coords)+8)
         x0=max(0,min(v[2] for v in coords)-7); x1=min(size,max(v[3] for v in coords)+8)
@@ -219,21 +244,33 @@ def life(output_dir: Path, kind: str="glider", steps: int=120, rule: str="B3/S23
     y0=max(0,min(max(0,size-side),cy-side//2)); x0=max(0,min(max(0,size-side),cx-side//2))
     y1=min(size,y0+side); x1=min(size,x0+side)
 
-    panel=480; frames=[]
+    panel=480; frames=[]; total_generation = int(generation_offset) + steps
     for idx,t in enumerate(marks,1):
         arr=shots[t][y0:y1,x0:x1]
         small=np.where(arr,24,246).astype(np.uint8)
         rgb=np.stack([small,small,small],axis=-1)
         board=Image.fromarray(rgb,"RGB").resize((panel,panel),Image.Resampling.NEAREST)
         canvas=Image.new("RGB",(panel+32,panel+92),(245,245,242)); canvas.paste(board,(16,68))
-        _title(canvas,f"Life · {seed_label} · {rule_name} · {boundary_name} · gen {t}/{steps}")
+        absolute_generation = int(generation_offset) + t
+        _title(canvas,f"Life · {seed_label} · {rule_name} · {boundary_name} · gen {absolute_generation}/{total_generation}")
         d=ImageDraw.Draw(canvas)
         d.text((22,panel+72),f"alive = {int(shots[t].sum())} · frame {idx}/{len(marks)}",fill=(75,75,82),font=_font(15))
         frames.append(canvas.convert("P",palette=Image.Palette.ADAPTIVE,colors=16))
     safe_rule=rule_name.replace('/','_')
-    path=_out(output_dir,f"life-{seed_label}-{steps}-{size}-{safe_rule}-{boundary_name}",suffix=".gif")
+    path=_out(output_dir,f"life-{seed_label}-{total_generation}-{size}-{safe_rule}-{boundary_name}",suffix=".gif")
     frames[0].save(path,save_all=True,append_images=frames[1:],format="GIF",duration=120,loop=0,disposal=2,optimize=True)
-    return path,(f"Life-like CA GIF：初态 {seed_label}（{initial_alive} cells），规则 {rule_name}，边界 {boundary_name}，棋盘 {size}×{size}，真实模拟 {steps} 代，展示 {len(frames)} 帧。长模拟只减少 GIF 采样帧，不跳过任何演化代。")
+    caption=(
+        f"Life-like CA GIF：初态 {seed_label}（本段起始 {initial_alive} cells），规则 {rule_name}，边界 {boundary_name}，"
+        f"棋盘 {size}×{size}，本段真实模拟 {steps} 代，当前累计 generation {total_generation}，展示 {len(frames)} 帧。"
+        "长模拟只减少 GIF 采样帧，不跳过任何演化代。当前最终棋盘可由 /lab life continue 接续。"
+    )
+    return path, caption, a.copy(), rule_name, boundary_name
+
+
+def life(output_dir: Path, kind: str="glider", steps: int=120, rule: str="B3/S23", boundary: str="dead", size: int=121) -> tuple[Path,str]:
+    """Backward-compatible stateless entrypoint; the plugin persists returned state."""
+    path, caption, _board, _rule, _boundary = life_stateful(output_dir, kind, steps, rule, boundary, size)
+    return path, caption
 
 
 def _parse_life_cli(tokens: list[str]) -> tuple[str,int,str,str,int]:
@@ -321,6 +358,8 @@ def beats(output_dir: Path, f1: float=9.0, f2: float=10.0, seconds: float=3.0) -
 def help_text() -> str:
     return (
         "  /lab life [seed] [steps] [rule] [dead|wrap] [size]    # animated GIF; seed 可为 glider/blinker/rpentomino/gun/acorn/random/rle:/cells:\n"
+        "  /lab life continue [steps] [rule] [dead|wrap]          # 接着当前群/会话上一次最终棋盘继续演化\n"
+        "  /lab life status | clear                               # 查看/清除当前群的保存状态\n"
         "  /lab dla [particles]\n"
         "  /lab beats [f1] [f2] [seconds]\n"
         + __import__("doge_v5.visual_lab_fun2", fromlist=["help_text"]).help_text()

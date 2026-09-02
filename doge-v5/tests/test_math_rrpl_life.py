@@ -17,7 +17,7 @@ from doge_shared.capabilities import agent_capability_prompt, operation_by_id, r
 from doge_shared.help_service import render_help
 from doge_shared.lookup import LookupService
 from doge_shared.services import MathService
-from doge_shared.visual_lab_fun import life
+from doge_shared.visual_lab_fun import life, life_stateful
 from doge_linguistics.rrpl_py import RRPL_SYNTAX_GUIDE, explain
 
 
@@ -104,6 +104,43 @@ class MathExpansionTests(unittest.TestCase):
                 self.assertTrue(path.exists()); self.assertGreater(path.stat().st_size, 1000)
                 self.assertIn("真实模拟", caption)
                 path.unlink()
+
+    def test_life_continuation_matches_one_shot_exactly(self):
+        import numpy as np
+        with TemporaryDirectory() as td:
+            p1, _c1, board5, rule, boundary = life_stateful(Path(td), "glider", 5, "B3/S23", "wrap", 81)
+            p2, c2, board12, rule2, boundary2 = life_stateful(
+                Path(td), "glider", 7, rule, boundary, 81,
+                initial=board5, seed_label="glider", generation_offset=5,
+            )
+            p3, _c3, direct12, _r3, _b3 = life_stateful(Path(td), "glider", 12, "B3/S23", "wrap", 81)
+            self.assertTrue(np.array_equal(board12, direct12))
+            self.assertEqual((rule2, boundary2), ("B3/S23", "wrap"))
+            self.assertIn("generation 12", c2)
+            for pth in (p1, p2, p3): pth.unlink(missing_ok=True)
+
+    def test_life_session_state_persists_across_store_instances(self):
+        import numpy as np
+        from doge_shared.life_state import LifeSessionStore
+        key = "napcat:GroupMessage:life-test-group"
+        with TemporaryDirectory() as td:
+            board = np.zeros((81,81), dtype=bool); board[40,39:42] = True
+            LifeSessionStore(Path(td)).save(key, board, rule="B3/S23", boundary="wrap", label="blinker", generation=42)
+            state = LifeSessionStore(Path(td)).load(key)
+            self.assertIsNotNone(state)
+            self.assertTrue(np.array_equal(state["board"], board))
+            self.assertEqual((state["rule"], state["boundary"], state["generation"]), ("B3/S23", "wrap", 42))
+            self.assertTrue(LifeSessionStore(Path(td)).clear(key))
+            self.assertIsNone(LifeSessionStore(Path(td)).load(key))
+
+    def test_life_current_status_query_is_grounded_in_registry(self):
+        results = search_capabilities("你的生命游戏完善了吗", 4)
+        self.assertEqual(results[0]["id"], "lab.life")
+        text = str(results[0])
+        for marker in ("自定义初态", "5000", "B36/S23", "wrap", "continue"):
+            self.assertIn(marker, text)
+        resume = search_capabilities("生命游戏接着上次继续跑", 4)
+        self.assertTrue(any(x["id"] == "lab.life.continue" for x in resume))
 
     def test_life_rejects_bad_rule_and_boundary(self):
         from doge_shared.visual_lab_fun import FunLabError, _life_rule, life

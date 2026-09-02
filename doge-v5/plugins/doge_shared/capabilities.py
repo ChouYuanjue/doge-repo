@@ -285,6 +285,25 @@ def search_capabilities(query: str, limit: int = 8) -> list[dict]:
     return out
 
 
+def current_capability_context(message: str) -> str:
+    """Return authoritative live-registry context for current feature-status questions."""
+    text = str(message or "").strip()
+    if not text:
+        return ""
+    if not re.search(r"(?:现在|目前|如今|已经|还没|是否|有没有|能不能|可不可以|支持|完善|升级|实现|功能|能力|上限|限制|参数|选项|版本)", text, re.I):
+        return ""
+    results = search_capabilities(text, limit=3)
+    if not results or float(results[0].get("score") or 0.0) < 18.0:
+        return ""
+    payload = json.dumps(results, ensure_ascii=False, separators=(",", ":"))
+    return (
+        "# Current Doge capability truth (authoritative live registry)\n"
+        "The user is asking about Doge's current implementation/status. The following registry match is current runtime truth and overrides stale capability claims in older conversation turns. "
+        "Answer from it; do not repeat an old limitation merely because it appears in history. If the requested subfeature is not stated here, say that precisely rather than guessing.\n"
+        + payload
+    )
+
+
 @lru_cache(maxsize=1)
 def agent_capability_prompt() -> str:
     """Compact capability map injected into every Agent request.
@@ -299,6 +318,7 @@ def agent_capability_prompt() -> str:
         "# Doge capability map",
         "Capability truth comes from the same registry as /help. Do not guess that a function is unavailable.",
         f"Installed formal surface: {c['top_level']} top-level groups / {c['functions']} canonical leaf functions / {c['forms']} callable forms.",
+        "When the user asks whether a Doge feature currently exists, has been upgraded/completed, what options it supports, or what its current limits are, current registry truth overrides older conversation claims from previous versions. Use the supplied current-capability context or doge_capability_search before answering; never repeat a stale historical limitation as present fact.",
         "For a specific function or exact syntax, call doge_capability_search once in the user's language, then call doge_capability using the returned documented command. Search again only if candidates are ambiguous; do not duplicate the same search bilingually. Prefer a dedicated domain tool when it already matches the task.",
         "doge_capability may return deferred media asset IDs; call doge_present only for images that materially improve the answer.",
         "Current session module switches take precedence. Legacy is historical and is not callable by default.",

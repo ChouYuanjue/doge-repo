@@ -17,7 +17,7 @@ GROUPS
              论文、知识检索，以及生化环材、天文和临床数据。
   compute     25  数学 / 计算机 / AI
              精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
-  create      74  排版 / 图形 / 工程
+  create      77  排版 / 图形 / 工程
              排版、结构图、工程系统，以及以图像/动画展示机制的科学实验。
   language    14  语言学
              西夏文、汉字历史音系、RRPL 与构造语言。
@@ -41,8 +41,8 @@ QUICK START
 
 SCALE
   顶层指令       31
-  正式叶子功能   229
-  正式调用形式   491  （含 262 个兼容别名）
+  正式叶子功能   232
+  正式调用形式   495  （含 263 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -737,8 +737,7 @@ SUBCOMMANDS
     /lab diffraction [slit_sep] [slit_width] [wavelength]
   replicator       复制子动力学/RPS
     /lab replicator [bias]
-  life             可配置 Life-like cellular automaton 动态 GIF：自定义初态、规则与边界。
-    /lab life [seed] [steps] [rule] [dead|wrap] [size]
+  life              4 功能  可配置且可接续的 Life-like cellular automaton 动态 GIF：自定义初态、任意合法 B/S 规则、dead/wrap 边界与 per-group/session 最终棋盘状态。
   dla              Diffusion-limited aggregation
     /lab dla [particles]
   beats            拍频
@@ -792,6 +791,30 @@ SUBCOMMANDS
 
 NEXT
   /help lab number ulam
+
+BACK
+  /help lab
+```
+
+#### `/help lab life`
+
+```text
+COMMAND  /lab life
+
+DIRECT
+  /lab life [seed] [steps] [rule] [dead|wrap] [size]
+    可配置且可接续的 Life-like cellular automaton 动态 GIF：自定义初态、任意合法 B/S 规则、dead/wrap 边界与 per-group/session 最终棋盘状态。
+
+SUBCOMMANDS
+  continue         从当前群/会话最近一次 Life 最终棋盘继续真实演化；默认继承规则与边界，也可本次覆盖。
+    /lab life continue [steps] [rule] [dead|wrap]
+  status           查看当前群/会话保存的 Life generation、活细胞数、棋盘尺寸、规则与边界。
+    /lab life status
+  clear            清除当前群/会话保存的 Life 接续状态。
+    /lab life clear
+
+NEXT
+  /help lab life continue
 
 BACK
   /help lab
