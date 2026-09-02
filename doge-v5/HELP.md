@@ -17,7 +17,7 @@ GROUPS
              论文、知识检索，以及生化环材、天文和临床数据。
   compute     25  数学 / 计算机 / AI
              精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
-  create      73  排版 / 图形 / 工程
+  create      74  排版 / 图形 / 工程
              排版、结构图、工程系统，以及以图像/动画展示机制的科学实验。
   language    14  语言学
              西夏文、汉字历史音系、RRPL 与构造语言。
@@ -41,8 +41,8 @@ QUICK START
 
 SCALE
   顶层指令       30
-  正式叶子功能   221
-  正式调用形式   482  （含 261 个兼容别名）
+  正式叶子功能   222
+  正式调用形式   483  （含 261 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -529,8 +529,10 @@ COMMAND  /tex
 TeX/LaTeX 公式与文档渲染。
 
 SUBCOMMANDS
-  smart            TeX 智能渲染。
-    /tex smart <TeX>
+  smart            TeX 智能渲染：完整文档自动 Tectonic，公式/片段轻量渲染。
+    /tex smart <TeX公式、片段或完整文档>
+  doc              完整 LaTeX 文档用本机 Tectonic 编译为 PDF。
+    /tex doc <完整 LaTeX 文档>
   native           TeX 原生路径渲染。
     /tex native <TeX>
   local            TeX 本地路径渲染。

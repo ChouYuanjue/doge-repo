@@ -170,7 +170,8 @@ class AgentBridgeMetadataTests(unittest.TestCase):
         self.assertIn("自然语言检索", search.description)
         self.assertIn("正式指令", capability.description)
         self.assertIn("文件产物会自动发送", capability.description)
-        self.assertIn("精选", present.description)
+        self.assertIn("文字→图片→文字", present.description)
+        self.assertIn("blocks", present.parameters["properties"])
         self.assertEqual(_normalize_command("math oeis 1,1,2,3"), "/math oeis 1,1,2,3")
         self.assertEqual(_likely_help("/math oeis"), "/help math oeis")
 
@@ -198,6 +199,34 @@ class AgentBridgeMetadataTests(unittest.TestCase):
             self.assertTrue(copied.exists())
             self.assertTrue(copied.read_bytes().startswith(b"%PDF"))
             self.assertIn(str(copied), event.tracked)
+
+    def test_present_blocks_preserve_text_image_text_order(self):
+        from types import SimpleNamespace
+        from astrbot.core.message.components import Image, Plain
+
+        class Event:
+            def __init__(self, assets): self.assets=assets
+            def get_extra(self, key, default=None): return self.assets if key == "_doge_agent_assets" else default
+
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            a=root/'a.png'; b=root/'b.png'
+            a.write_bytes(b'\x89PNG\r\n\x1a\nA')
+            b.write_bytes(b'\x89PNG\r\n\x1a\nB')
+            assets={
+                'img-a': {'kind':'image','path':str(a)},
+                'img-b': {'kind':'image','path':str(b)},
+            }
+            ctx=SimpleNamespace(context=SimpleNamespace(event=Event(assets)))
+            result=asyncio.run(DogePresentTool().call(ctx, blocks=[
+                {'type':'text','text':'先看第一步'},
+                {'type':'image','asset_id':'img-a'},
+                {'type':'text','text':'然后代入'},
+                {'type':'image','asset_id':'img-b'},
+            ]))
+            self.assertEqual([type(x).__name__ for x in result.chain], ['Plain','Image','Plain','Image'])
+            self.assertEqual(result.chain[0].text, '先看第一步')
+            self.assertEqual(result.chain[2].text, '然后代入')
 
     def test_agent_inventory_is_compact_and_leaf_details_are_searchable(self):
         prompt = agent_capability_prompt()

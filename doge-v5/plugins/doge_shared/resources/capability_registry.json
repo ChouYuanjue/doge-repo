@@ -985,11 +985,20 @@
     {
       "id": "tex.smart",
       "path": "tex smart",
-      "summary": "TeX 智能渲染。",
-      "usage": "/tex smart <TeX>",
+      "summary": "TeX 智能渲染：完整文档自动 Tectonic，公式/片段轻量渲染。",
+      "usage": "/tex smart <TeX公式、片段或完整文档>",
       "aliases": [
         "tex"
       ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "tex.doc",
+      "path": "tex doc",
+      "summary": "完整 LaTeX 文档用本机 Tectonic 编译为 PDF。",
+      "usage": "/tex doc <完整 LaTeX 文档>",
+      "aliases": [],
       "args": "required",
       "kind": "command"
     },

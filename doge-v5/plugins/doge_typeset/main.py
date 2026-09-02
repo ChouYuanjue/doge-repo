@@ -10,7 +10,7 @@ from data.plugins.doge_shared.typeset import TypesetDependencyError,TypesetError
 from data.plugins.doge_shared.markdown_typeset import markdown_help,render_markdown,render_snippet,snippet_help
 from data.plugins.doge_shared.help_service import format_cli_error
 
-@register('doge_typeset','runnel','TeX 与 Typst 群聊排版','5.3.0')
+@register('doge_typeset','runnel','TeX 与 Typst 群聊排版','5.4.0')
 class DogeTypeset(Star):
  def __init__(self,context:Context): super().__init__(context); self.data_dir=StarTools.get_data_dir('doge_typeset')
 
@@ -75,11 +75,13 @@ class DogeTypeset(Star):
    payload=command_payload(event.message_str,'tex')
    if not payload.strip() or payload.strip().lower() in {'help','?'}: yield text_result(event,tex_help(),markdown=False); return
    mode='smart'; parts=split_head(payload,1)
-   if parts and parts[0].lower() in {'smart','native','local'}:
+   if parts and parts[0].lower() in {'smart','doc','native','local'}:
     mode=parts[0].lower()
     if len(parts)<2: yield text_result(event,tex_help(),markdown=False); return
     payload=parts[1]
-   path,caption=await render_tex(self.data_dir,payload,mode); yield image_result(event,path,caption)
+   path,caption=await render_tex(self.data_dir,payload,mode)
+   if Path(path).suffix.lower()=='.pdf': yield file_result(event,path,name='doge-tex.pdf',caption=caption)
+   else: yield image_result(event,path,caption)
   except (TypesetError,TypesetDependencyError,ValueError) as e: yield text_result(event,str(e),markdown=False)
   except Exception as e: logger.warning(f'doge tex failed: {e}'); yield text_result(event,format_cli_error('tex', e),markdown=False)
   finally:

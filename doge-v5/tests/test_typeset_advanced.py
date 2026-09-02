@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import asyncio
+import shutil
 import unittest
 from pathlib import Path
 
@@ -9,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "plugins"))
 
 from doge_shared.markdown_typeset import render_markdown, render_snippet
-from doge_shared.typeset import TypesetError
+from doge_shared.typeset import TypesetError, _is_tex_document, render_tex
 
 
 class MarkdownTypesetTests(unittest.TestCase):
@@ -30,6 +32,43 @@ class MarkdownTypesetTests(unittest.TestCase):
             paths, _ = render_markdown(Path(td), "# Report\n\nA short document.", "pdf")
             self.assertEqual(len(paths), 1)
             self.assertTrue(paths[0].read_bytes().startswith(b"%PDF"))
+
+    def test_full_latex_document_is_detected(self):
+        self.assertTrue(_is_tex_document(r"\documentclass{article}\begin{document}Hi\end{document}"))
+        self.assertTrue(_is_tex_document(r"\begin{document}Hi\end{document}"))
+        self.assertFalse(_is_tex_document(r"\frac{a}{b}"))
+
+    @unittest.skipUnless((shutil.which("tectonic") or (Path.home()/".local/bin/tectonic").exists()) and shutil.which("bwrap"), "Tectonic+bwrap not installed")
+    def test_full_latex_document_compiles_to_real_pdf(self):
+        source = r"""\documentclass{article}
+\usepackage{amsmath}
+\begin{document}
+A complete document.
+\[\int_0^1 x^2\,dx=\frac13\]
+\end{document}"""
+        with tempfile.TemporaryDirectory() as td:
+            path, caption = asyncio.run(render_tex(Path(td), source, "smart"))
+            try:
+                self.assertEqual(path.suffix, ".pdf")
+                self.assertTrue(path.read_bytes().startswith(b"%PDF"))
+                self.assertIn("Tectonic", caption)
+            finally:
+                path.unlink(missing_ok=True)
+
+    @unittest.skipUnless((shutil.which("tectonic") or (Path.home()/".local/bin/tectonic").exists()) and shutil.which("bwrap"), "Tectonic+bwrap not installed")
+    def test_full_latex_document_cannot_read_host_files(self):
+        secret = Path("/tmp/doge-typeset-host-secret.tex")
+        secret.write_text("HOST_SECRET_SHOULD_NEVER_BE_READ", encoding="utf-8")
+        source = r"""\documentclass{article}
+\begin{document}
+Before.\input{/tmp/doge-typeset-host-secret.tex}After.
+\end{document}"""
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                with self.assertRaises(TypesetError):
+                    asyncio.run(render_tex(Path(td), source, "doc"))
+        finally:
+            secret.unlink(missing_ok=True)
 
     def test_raw_typst_injection_is_disabled(self):
         with tempfile.TemporaryDirectory() as td:

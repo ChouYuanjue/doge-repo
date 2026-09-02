@@ -90,7 +90,7 @@ async def _capture_file(event, comp: File, asset_root: Path, assets: dict) -> st
     return asset_id
 
 
-async def _capture_chain(event, chain, asset_root: Path, assets: dict, texts: list[str], media: list[dict]) -> None:
+async def _capture_chain(event, chain, asset_root: Path, assets: dict, texts: list[str], media: list[dict], content: list[dict] | None = None) -> None:
     if chain is None:
         return
     components = getattr(chain, "chain", chain)
@@ -99,15 +99,27 @@ async def _capture_chain(event, chain, asset_root: Path, assets: dict, texts: li
     for comp in components:
         if isinstance(comp, Plain):
             if comp.text:
-                texts.append(str(comp.text))
+                value = str(comp.text)
+                texts.append(value)
+                if content is not None:
+                    content.append({"type": "text", "text": value})
         elif isinstance(comp, Image):
             aid = await _capture_image(event, comp, asset_root, assets)
-            media.append({"id": aid, "type": "image"})
+            item = {"id": aid, "type": "image"}
+            media.append(item)
+            if content is not None:
+                content.append(dict(item))
         elif isinstance(comp, File):
             aid = await _capture_file(event, comp, asset_root, assets)
-            media.append({"id": aid, "type": "file", "name": assets[aid].get("name", "")})
+            item = {"id": aid, "type": "file", "name": assets[aid].get("name", "")}
+            media.append(item)
+            if content is not None:
+                content.append(dict(item))
         else:
-            media.append({"type": comp.__class__.__name__.lower(), "note": "Use the direct command for this rich output."})
+            item = {"type": comp.__class__.__name__.lower(), "note": "Use the direct command for this rich output."}
+            media.append(item)
+            if content is not None:
+                content.append(dict(item))
 
 
 async def _find_handler(event, plugin_context, body: str, target_capability: str):
@@ -168,6 +180,7 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
 
     texts: list[str] = []
     media: list[dict] = []
+    content: list[dict] = []
     assets = event.get_extra(_ASSET_KEY)
     if not isinstance(assets, dict):
         assets = {}
@@ -181,7 +194,7 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         asset_root = Path("/tmp/doge-agent-assets")
 
     async def capture_send(message) -> None:
-        await _capture_chain(event, message, asset_root, assets, texts, media)
+        await _capture_chain(event, message, asset_root, assets, texts, media, content)
 
     try:
         event.message_str = body
@@ -201,13 +214,13 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         if inspect.isasyncgen(ready):
             async for ret in ready:
                 if isinstance(ret, MessageEventResult):
-                    await _capture_chain(event, ret, asset_root, assets, texts, media)
+                    await _capture_chain(event, ret, asset_root, assets, texts, media, content)
                 elif isinstance(ret, str):
                     texts.append(ret)
         elif inspect.isawaitable(ready):
             ret = await ready
             if isinstance(ret, MessageEventResult):
-                await _capture_chain(event, ret, asset_root, assets, texts, media)
+                await _capture_chain(event, ret, asset_root, assets, texts, media, content)
             elif isinstance(ret, str):
                 texts.append(ret)
         elif ready is not None:
@@ -216,7 +229,7 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         # Some wrappers communicate only through event.set_result().
         residual = event.get_result()
         if residual is not None and residual is not old_result:
-            await _capture_chain(event, residual, asset_root, assets, texts, media)
+            await _capture_chain(event, residual, asset_root, assets, texts, media, content)
     finally:
         event.send = old_send
         event.message_str = old_message
@@ -267,13 +280,15 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         "summary": op.get("summary", ""),
         "text": joined,
         "media": media,
+        "content": content,
         "files_sent": sent_files,
         "direct_command": command,
         "guidance": (
             "Synthesize the useful parts instead of dumping this object. "
             "File outputs listed in files_sent have already been delivered to the user; do not ask them to repeat the command. "
-            "Only call doge_present for image media that materially improves the answer. "
-            "Mention direct_command only when an explicit raw command would genuinely help the user."
+            "The content field preserves the original text/media order. "
+            "For explanations with multiple rendered images, use doge_present.blocks to send a true text-image-text sequence instead of batching all images at the end. "
+            "Only present image media that materially improves the answer. Mention direct_command only when an explicit raw command would genuinely help the user."
         ),
     }
     return json.dumps(payload, ensure_ascii=False)
@@ -348,7 +363,8 @@ class DogeCapabilityTool(FunctionTool[AstrAgentContext]):
 class DogePresentTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_present"
     description: str = (
-        "展示 doge_capability 捕获的少量精选媒体。只有当图片确实有助于当前回答时调用；不要把所有 asset 无脑发出。"
+        "展示 doge_capability 捕获的精选图片，并支持 blocks 按顺序组织文字→图片→文字。"
+        "多公式解释优先用 blocks 保留交替结构；不要把所有图片无脑堆到答案末尾。"
     )
     parameters: dict = Field(default_factory=lambda: {
         "type": "object",
@@ -357,36 +373,70 @@ class DogePresentTool(FunctionTool[AstrAgentContext]):
                 "type": "array",
                 "items": {"type": "string"},
                 "minItems": 1,
-                "maxItems": 4,
-                "description": "doge_capability 返回的 image asset id",
+                "maxItems": 6,
+                "description": "兼容模式：按给定顺序展示 image asset id",
             },
-            "caption": {"type": "string", "description": "可选的简短说明"},
+            "blocks": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "type": {"type": "string", "enum": ["text", "image"]},
+                        "text": {"type": "string"},
+                        "asset_id": {"type": "string"},
+                    },
+                    "required": ["type"],
+                },
+                "description": "有序混合块；text 用 text 字段，image 用 asset_id。适合文字/公式图交替。",
+            },
+            "caption": {"type": "string", "description": "可选的最后一行简短说明"},
         },
-        "required": ["asset_ids"],
+        "required": [],
     })
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         event = context.context.event
         assets = event.get_extra(_ASSET_KEY, {})
-        ids = [str(x) for x in (kwargs.get("asset_ids") or [])][:4]
+        ids = [str(x) for x in (kwargs.get("asset_ids") or [])][:6]
+        blocks = list(kwargs.get("blocks") or [])[:16]
         chain = []
         missing = []
-        for aid in ids:
+
+        def append_image(aid: str) -> None:
             item = assets.get(aid) if isinstance(assets, dict) else None
             if not item or item.get("kind") != "image":
                 missing.append(aid)
-                continue
+                return
             if item.get("path") and Path(item["path"]).exists():
                 chain.append(Image.fromFileSystem(item["path"]))
             elif item.get("url"):
                 chain.append(Image.fromURL(item["url"]))
             else:
                 missing.append(aid)
+
+        if blocks:
+            for block in blocks:
+                if not isinstance(block, dict):
+                    continue
+                kind = str(block.get("type") or "").lower()
+                if kind == "text":
+                    text = str(block.get("text") or "").strip()
+                    if text:
+                        chain.append(Plain(text))
+                elif kind == "image":
+                    aid = str(block.get("asset_id") or "")
+                    if aid:
+                        append_image(aid)
+        else:
+            for aid in ids:
+                append_image(aid)
         caption = str(kwargs.get("caption") or "").strip()
         if caption:
             chain.append(Plain(caption))
         if not chain:
-            return "No selected media asset is still available: " + ", ".join(missing or ids)
+            return "No selected presentation content is available: " + ", ".join(missing or ids)
         result = MessageEventResult(chain=chain)
         result.use_markdown(False)
         return result

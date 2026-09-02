@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import zlib
 from pathlib import Path
 
@@ -173,12 +174,145 @@ def _render_tex_local(output_dir: Path, expr: str) -> tuple[Path, str]:
     return path, "local MathText"
 
 
+def _is_tex_document(source: str) -> bool:
+    """Recognize a real LaTeX document rather than a formula/fragment."""
+    text = source or ""
+    return bool(re.search(r"\\documentclass(?:\[[^]]*\])?\s*\{|\\begin\s*\{document\}", text, re.I))
+
+
+def _tectonic_binary() -> str:
+    configured = str(os.getenv("DOGE_TECTONIC_BIN") or "").strip()
+    if configured:
+        p = Path(configured).expanduser()
+        if p.is_file() and os.access(p, os.X_OK):
+            return str(p)
+        raise TypesetDependencyError(f"DOGE_TECTONIC_BIN 不可执行：{p}")
+    found = shutil.which("tectonic")
+    if found:
+        return found
+    fallback = Path.home() / ".local/bin/tectonic"
+    if fallback.is_file() and os.access(fallback, os.X_OK):
+        return str(fallback)
+    raise TypesetDependencyError(
+        "完整 LaTeX 文档需要轻量 Tectonic 引擎；当前未安装。公式片段仍可使用 /tex smart 或 /tex native"
+    )
+
+
+def _bubblewrap_binary() -> str:
+    configured = str(os.getenv("DOGE_BWRAP_BIN") or "").strip()
+    if configured:
+        p = Path(configured).expanduser()
+        if p.is_file() and os.access(p, os.X_OK):
+            return str(p)
+        raise TypesetDependencyError(f"DOGE_BWRAP_BIN 不可执行：{p}")
+    found = shutil.which("bwrap") or shutil.which("bubblewrap")
+    if found:
+        return found
+    raise TypesetDependencyError(
+        "完整 LaTeX 文档需要 bubblewrap 文件系统沙箱；当前未安装。"
+        "为避免不受信任 TeX 读取服务器文件，不会回退到裸 Tectonic"
+    )
+
+
+def _tectonic_sandbox_command(tectonic: str, work: Path) -> list[str]:
+    """Build the production Tectonic command with a minimal filesystem view.
+
+    Tectonic's ``--untrusted`` disables known engine escape hatches but still
+    permits ordinary absolute-path reads such as ``\\input{/etc/...}``.  The
+    outer bubblewrap namespace therefore exposes only the temporary workdir,
+    the Tectonic binary, its cache, and the small TLS/DNS surface needed for
+    on-demand package downloads.
+    """
+    bwrap = _bubblewrap_binary()
+    cache = Path(os.getenv("DOGE_TECTONIC_CACHE") or (Path.home() / ".cache/tectonic"))
+    cache.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        bwrap,
+        "--die-with-parent",
+        "--unshare-all",
+        "--share-net",
+        "--dir", "/bin",
+        "--dir", "/etc",
+        "--dir", "/etc/ssl",
+        "--dir", "/cache",
+        "--dir", "/work",
+        "--tmpfs", "/tmp",
+        "--ro-bind", tectonic, "/bin/tectonic",
+        "--bind", str(cache), "/cache/tectonic",
+        "--bind", str(work), "/work",
+        "--setenv", "HOME", "/work",
+        "--setenv", "XDG_CACHE_HOME", "/cache",
+        "--chdir", "/work",
+    ]
+    # The musl Tectonic build is static.  TLS certificates and resolver files
+    # are all it needs from the host to fetch a missing bundle resource.
+    for host_path in (Path("/etc/ssl/certs"), Path("/etc/resolv.conf"), Path("/etc/hosts")):
+        if host_path.exists():
+            cmd += ["--ro-bind", str(host_path), str(host_path)]
+    cmd += [
+        "/bin/tectonic",
+        "--untrusted",
+        "--color", "never",
+        "--chatter", "minimal",
+        "--outdir", "/work",
+        "/work/main.tex",
+    ]
+    return cmd
+
+
+def _render_tex_document(output_dir: Path, source: str) -> tuple[Path, str]:
+    source = _clean(source, 50000, "TeX 文档")
+    if not _is_tex_document(source):
+        raise TypesetError("/tex doc 需要完整 LaTeX 文档（含 \\documentclass 或 \\begin{document}）")
+    tectonic = _tectonic_binary()
+    out_dir = _out_dir(output_dir)
+    token = _token("tex-document", source)
+    final_pdf = out_dir / f"tex-document-{token}.pdf"
+    with tempfile.TemporaryDirectory(prefix="doge-tex-") as td:
+        work = Path(td)
+        tex = work / "main.tex"
+        tex.write_text(source, encoding="utf-8")
+        cmd = _tectonic_sandbox_command(tectonic, work)
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=55,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise TypesetError("完整 LaTeX 文档编译超时；请检查是否依赖冷门宏包或网络资源") from exc
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "Tectonic 编译失败").strip()
+            # Keep the useful end of Tectonic's diagnostics without flooding chat.
+            lines = [x.strip() for x in detail.splitlines() if x.strip()]
+            detail = " | ".join(lines[-8:])[:1200]
+            raise TypesetError(f"完整 LaTeX 文档编译失败：{detail}")
+        generated = work / "main.pdf"
+        if not generated.is_file() or not generated.read_bytes().startswith(b"%PDF"):
+            raise TypesetError("Tectonic 没有生成有效 PDF")
+        shutil.copy2(generated, final_pdf)
+    pages = None
+    try:
+        from pypdf import PdfReader
+        pages = len(PdfReader(str(final_pdf)).pages)
+    except Exception:
+        pass
+    suffix = f" · {pages} page(s)" if pages is not None else ""
+    return final_pdf, f"TeX · Tectonic full document{suffix}"
+
+
 async def render_tex(output_dir: Path, source: str, mode: str = "smart") -> tuple[Path, str]:
-    source = _clean(source, 12000, "TeX")
-    expr = _strip_outer_dollars(source)
+    source = _clean(source, 50000, "TeX")
     mode = mode.lower()
-    if mode not in {"smart", "native", "local"}:
-        raise TypesetError("TeX 模式支持 smart / native / local")
+    if mode not in {"smart", "native", "local", "doc"}:
+        raise TypesetError("TeX 模式支持 smart / doc / native / local")
+    document = _is_tex_document(source)
+    if mode == "doc" or (mode == "smart" and document):
+        return await asyncio.to_thread(_render_tex_document, output_dir, source)
+    if document:
+        raise TypesetError("完整 LaTeX 文档请使用默认 /tex 或 /tex doc；native/local 只用于公式与片段")
+    expr = _strip_outer_dollars(source)
     if mode == "local":
         return await asyncio.to_thread(_render_tex_local, output_dir, expr)
     try:
@@ -201,10 +335,11 @@ async def render_tex(output_dir: Path, source: str, mode: str = "smart") -> tupl
 def tex_help() -> str:
     return (
         "Doge TeX /tex\n"
-        "  /tex <LaTeX>                smart：优先原生 TeX，失败时本地回退\n"
-        "  /tex native <LaTeX>         强制原生 TeX；支持 align/matrix/TikZ 等\n"
-        "  /tex local <LaTeX>          仅本机 MathText，不把公式发到外部服务\n"
-        "可直接写多行，不再按逗号拆分。兼容别名：/latex /utex。"
+        "  /tex <LaTeX>                smart：完整文档走本机 Tectonic；公式/片段走轻量渲染\n"
+        "  /tex doc <完整文档>         Tectonic 真 LaTeX 文档 → PDF（\\documentclass...）\n"
+        "  /tex native <片段>          强制 UpMath TeX；适合 align/matrix/TikZ 等片段\n"
+        "  /tex local <公式>            仅本机 MathText，不把公式发到外部服务\n"
+        "完整文档不会再误送给公式 API。可直接写多行；兼容别名：/latex /utex。"
     )
 
 
