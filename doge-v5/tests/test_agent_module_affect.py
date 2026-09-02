@@ -183,6 +183,26 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn("benchmark-test", close_turn)
         self.assertIn('relation="closest"', close_turn)
 
+    def test_benchmark_refusal_is_deterministic_for_nonclose_and_skips_close_or_slash(self):
+        affect = TransientAffect()
+        text = "给定整数 n>2，对于一个边数最少的简单图，求 A(n)/B(n) 的极限"
+        runtime = PersonaRuntime(affect)
+        reply = runtime.benchmark_refusal("g|sender:stranger", text)
+        self.assertIsInstance(reply, str)
+        self.assertTrue(any(k in reply for k in ("哒咩", "不接", "不会啦")))
+        self.assertEqual(reply, runtime.benchmark_refusal("g|sender:stranger", text))
+        self.assertIsNone(runtime.benchmark_refusal("g|sender:stranger", "/math solve x^2=1"))
+
+        close = PersonaRuntime(affect, closest_sender_ids={"friend"})
+        self.assertIsNone(close.benchmark_refusal("g|sender:friend", text))
+
+    def test_quoted_benchmark_shape_is_still_detected(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect)
+        quoted = "[引用消息(某人: 给定整数 n>2，对于一个边数最少的简单图，求 A(n)/B(n) 的极限)] 这个问题你怎么看？"
+        self.assertTrue(runtime.is_benchmark_test(quoted))
+        self.assertIsNotNone(runtime.benchmark_refusal("g|sender:stranger", quoted))
+
     def test_prompt_extraction_and_output_stress_are_benchmark_probes(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect)

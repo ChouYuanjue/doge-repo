@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
+import astrbot.api.message_components as Comp
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.provider import LLMResponse, ProviderRequest
@@ -115,6 +117,51 @@ class DogeCore(Star):
         except Exception:
             platform = "unknown"
         return scope_key(str(platform or "unknown"), str(group_id) if group_id else None, event.unified_msg_origin)
+
+    @staticmethod
+    def _benchmark_text(event: AstrMessageEvent) -> str:
+        parts = [str(event.message_str or "")]
+        for seg in event.get_messages():
+            if isinstance(seg, Comp.Reply):
+                quoted = str(getattr(seg, "message_str", "") or "")
+                if quoted and quoted not in parts[0]:
+                    parts.append(quoted)
+        return "\n".join(x for x in parts if x).strip()
+
+    @staticmethod
+    def _benchmark_addressed_to_doge(event: AstrMessageEvent, text: str) -> bool:
+        # Registered slash commands are explicit product use, not an ambient
+        # benchmark probe, and have their own permission/argument handling.
+        if str(text or "").lstrip().startswith("/"):
+            return False
+        if not event.get_group_id():
+            return True
+        if bool(getattr(event, "is_at_or_wake_command", False)):
+            return True
+        self_id = str(event.get_self_id() or "")
+        if any(isinstance(seg, Comp.At) and str(seg.qq) == self_id for seg in event.get_messages()):
+            return True
+        # NapCat can occasionally surface a textual @ mention as Plain instead of
+        # an At component. Keep this narrow and start-of-message only.
+        head = re.sub(r"\s+", " ", str(text or "").strip())[:48].lower()
+        return bool(re.match(r"^(?:@?豆子(?:\s*doge)?|doge)(?:\s|[:,，：]|$)", head, re.I))
+
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=9500)
+    async def reject_obvious_benchmark_probe(self, event: AstrMessageEvent):
+        text = self._benchmark_text(event)
+        if not self._benchmark_addressed_to_doge(event, text):
+            return
+        try:
+            sender = str(event.get_sender_id() or "")
+        except Exception:
+            sender = ""
+        scope = event.unified_msg_origin + (f"|sender:{sender}" if sender else "")
+        reply = self.persona_runtime.benchmark_refusal(scope, text)
+        if not reply:
+            return
+        logger.info("Doge benchmark probe refused before LLM/tool execution.")
+        yield event.plain_result(reply)
+        event.stop_event()
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=10000)
     async def count_usage(self, event: AstrMessageEvent):

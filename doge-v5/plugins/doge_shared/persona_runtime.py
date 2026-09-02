@@ -139,6 +139,40 @@ class PersonaRuntime:
         return sender in self.closest_sender_ids
 
     @staticmethod
+    def is_benchmark_test(text: str) -> bool:
+        """High-precision check for benchmark/problem-set shaped probes."""
+        return bool(_BENCHMARK_TEST.search(str(text or "")))
+
+    def benchmark_refusal(self, scope: str, text: str) -> str | None:
+        """Return a deterministic boundary reply for non-close benchmark probes.
+
+        This runs before the provider so an obvious benchmark cannot consume LLM
+        or tool budget and cannot rely on the model voluntarily following a soft
+        persona instruction. Explicit Doge slash commands stay available.
+        """
+        msg = str(text or "").strip()
+        if not msg or msg.startswith("/") or not self.is_benchmark_test(msg):
+            return None
+        if self._is_closest(scope):
+            return None
+        rel = self._relationship(scope, advance=False)
+        familiarity = self._familiarity(rel.turns)
+        digest = hashlib.sha256((scope + "\0benchmark-refusal\0" + msg).encode("utf-8", "ignore")).digest()
+        if familiarity >= .50:
+            options = (
+                "哎呀，这种题一展开就没完了（）我们关系还没好到让我现在陪你肝一整道竞赛题的程度啦。真想聊的话，挑一个具体思路来问嘛",
+                "哒咩（）这种完整题面太耗时间了，我才不要被你抓来当竞赛题机。拆一个具体步骤出来，我倒可以听听",
+                "欸，这种一整道拿来测能力的题我不接啦（）想认真聊就问某个关键点，别整套往我头上砸嘛",
+            )
+        else:
+            options = (
+                "哒咩（）这种整套竞赛题一看就很像拿我做测试的，我才不花这么久替你跑 benchmark。换个正常点的话题啦",
+                "哎呀不会啦，这种题太耗时间了（）而且我们还没熟到让我陪你肝一整道测试题的程度嘛",
+                "这题我不接（）完整题面丢过来测我也太明显了吧。想聊天就正常聊，别拿我当公开 benchmark 啦",
+            )
+        return options[digest[0] % len(options)]
+
+    @staticmethod
     def _familiarity(turns: int) -> float:
         # Fast initial thaw, then diminishing returns. 0, 5, 15, 40 turns ->
         # roughly 0, .28, .56, .82.
