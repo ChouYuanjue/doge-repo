@@ -241,6 +241,7 @@ class PersonaTests(unittest.TestCase):
             cfg = {
                 "provider_settings": {"default_personality": "default", "persona_pool": ["*"], "default_provider_id": "keep-me"},
                 "platform": [{"id": "napcat", "secret": "DO_NOT_TOUCH"}],
+                "provider": [{"id": "keep-me", "model": "deepseek-v4-flash", "max_context_tokens": 0}],
                 "admins_id": ["existing-admin"],
                 "disable_builtin_commands": False,
             }
@@ -258,6 +259,7 @@ class PersonaTests(unittest.TestCase):
             out = json.loads((data / "cmd_config.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(out["provider_settings"]["default_personality"], "doge")
             self.assertEqual(out["provider_settings"]["default_provider_id"], "keep-me")
+            self.assertEqual(out["provider"][0]["max_context_tokens"], 262144)
             self.assertEqual(out["platform"][0]["secret"], "DO_NOT_TOUCH")
             self.assertEqual(out["admins_id"], ["existing-admin", "2700074128"])
             self.assertTrue(out["disable_builtin_commands"])
@@ -270,6 +272,15 @@ class PersonaTests(unittest.TestCase):
             self.assertEqual(seg["split_mode"], "regex")
             self.assertEqual(seg["regex"], r".*?(?:\n{2,}|\Z)")
             self.assertEqual(seg["interval"], "0.4,1.0")
+            self.assertFalse(ps["unique_session"])
+            ltm = out["provider_ltm_settings"]
+            self.assertTrue(ltm["group_message_history_enable"])
+            self.assertFalse(ltm["group_icl_enable"])
+            self.assertEqual(ltm["group_message_history_max_cnt"], 10000)
+            prov_settings = out["provider_settings"]
+            self.assertEqual(prov_settings["context_limit_reached_strategy"], "llm_compress")
+            self.assertEqual(prov_settings["llm_compress_keep_recent_ratio"], 0.16)
+            self.assertIn("group chat", prov_settings["llm_compress_instruction"])
             conn = sqlite3.connect(data / "data_v4.db")
             rows = conn.execute("SELECT persona_id,system_prompt,begin_dialogs FROM personas").fetchall(); conn.close()
             self.assertEqual(len(rows), 1); self.assertEqual(rows[0][0], "doge")

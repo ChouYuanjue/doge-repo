@@ -249,7 +249,11 @@ def product_counts(v5_root: Path) -> dict[str, int]:
 
 
 def provider_aggregates(db_path: Path) -> dict[str, int | float]:
-    out: dict[str, int | float] = {"requests": 0, "tokens": 0, "output_tokens": 0, "avg_latency": 0.0}
+    out: dict[str, int | float] = {
+        "requests": 0, "tokens": 0, "output_tokens": 0, "avg_latency": 0.0,
+        "cached_input_tokens": 0, "uncached_input_tokens": 0, "cache_hit_ratio": 0.0,
+        "recent_cached_input_tokens": 0, "recent_uncached_input_tokens": 0, "recent_cache_hit_ratio": 0.0,
+    }
     if not db_path.exists():
         return out
     try:
@@ -259,7 +263,20 @@ def provider_aggregates(db_path: Path) -> dict[str, int | float]:
             "coalesce(sum(token_output),0), coalesce(avg(end_time-start_time),0) from provider_stats"
         ).fetchone()
         if row:
-            out = {"requests": int(row[0]), "tokens": int(row[1]), "output_tokens": int(row[2]), "avg_latency": float(row[3])}
+            out.update({"requests": int(row[0]), "tokens": int(row[1]), "output_tokens": int(row[2]), "avg_latency": float(row[3])})
+        cache = c.execute(
+            "select coalesce(sum(token_input_cached),0), coalesce(sum(token_input_other),0) from provider_stats"
+        ).fetchone()
+        if cache:
+            hit, miss = int(cache[0]), int(cache[1]); total = hit + miss
+            out.update({"cached_input_tokens": hit, "uncached_input_tokens": miss, "cache_hit_ratio": (hit / total if total else 0.0)})
+        recent = c.execute(
+            "select coalesce(sum(token_input_cached),0), coalesce(sum(token_input_other),0) "
+            "from provider_stats where created_at >= datetime('now','-1 hour')"
+        ).fetchone()
+        if recent:
+            hit, miss = int(recent[0]), int(recent[1]); total = hit + miss
+            out.update({"recent_cached_input_tokens": hit, "recent_uncached_input_tokens": miss, "recent_cache_hit_ratio": (hit / total if total else 0.0)})
         c.close()
     except Exception:
         pass

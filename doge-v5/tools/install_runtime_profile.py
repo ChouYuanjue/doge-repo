@@ -63,6 +63,10 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     # split only at blank lines, medium replies stay one message, and genuinely
     # long OneBot replies become one merged-forward message instead of spam.
     platform_settings = cfg.setdefault("platform_settings", {})
+    # One group = one durable conversational session. Keeping unique_session
+    # disabled avoids fragmenting a group into sender-specific histories and
+    # mirrors coding-agent harnesses where one task/workspace owns one session.
+    platform_settings["unique_session"] = False
     platform_settings["forward_threshold"] = 800
     segmented = platform_settings.setdefault("segmented_reply", {})
     segmented.update({
@@ -75,6 +79,43 @@ def install(runtime: Path, *, backup: bool = True) -> None:
         "regex": r".*?(?:\n{2,}|\Z)",
         "content_cleanup_rule": "",
     })
+
+
+    # Per-group session harness. Persist ambient group messages as a bounded
+    # durable ledger, but do NOT auto-inject them into every model request.
+    # The built-in get_group_message_history tool retrieves this ledger only
+    # when the model actually needs old group context, preserving prompt-cache
+    # locality on ordinary turns.
+    ltm = cfg.setdefault("provider_ltm_settings", {})
+    ltm["group_message_history_enable"] = True
+    ltm["group_message_history_max_cnt"] = 10000
+    ltm["group_icl_enable"] = False
+
+    # Use a coding-agent-style soft context budget instead of waiting for the
+    # full 1M DeepSeek window. AstrBot compresses at ~82% of max_context_tokens;
+    # 256 Ki tokens therefore checkpoints around 215k and keeps an exact recent
+    # tail. The summarizer inherits the current provider/model, allowing its
+    # replay request to reuse the warm prefix cache.
+    provider_settings = cfg.setdefault("provider_settings", {})
+    provider_settings["context_limit_reached_strategy"] = "llm_compress"
+    provider_settings["llm_compress_keep_recent_ratio"] = 0.16
+    provider_settings["llm_compress_provider_id"] = ""
+    provider_settings["llm_compress_instruction"] = (
+        "Create a compact working-memory checkpoint for this long-lived group chat. "
+        "Preserve stable identities and relationships, explicit user preferences, corrections, "
+        "important decisions and factual conclusions, ongoing or unresolved threads, and useful "
+        "tool/research outcomes. Distinguish confirmed facts from jokes, temporary nicknames, "
+        "role-play, speculation, and transient mood; do not promote those into durable facts. "
+        "Keep exact names, IDs only when already present and genuinely needed, important numbers, "
+        "URLs, commands, and concrete next steps. Omit disposable small talk unless it is needed "
+        "to understand a relationship or unresolved thread. The raw current-group message ledger "
+        "remains searchable on demand, so prefer a concise checkpoint over copying the transcript."
+    )
+    default_provider_id = str(provider_settings.get("default_provider_id") or "")
+    for provider in cfg.get("provider", []):
+        if str(provider.get("id") or "") == default_provider_id and str(provider.get("model") or "").startswith("deepseek-v4-flash"):
+            provider["max_context_tokens"] = 262144
+            break
     write_json_preserve_bom(config_path, cfg)
 
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(sep=" ", timespec="seconds")
