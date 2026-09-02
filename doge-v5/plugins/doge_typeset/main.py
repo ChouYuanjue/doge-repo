@@ -10,7 +10,7 @@ from data.plugins.doge_shared.typeset import TypesetDependencyError,TypesetError
 from data.plugins.doge_shared.markdown_typeset import markdown_help,render_markdown,render_snippet,snippet_help
 from data.plugins.doge_shared.help_service import format_cli_error
 
-@register('doge_typeset','runnel','TeX 与 Typst 群聊排版','5.4.0')
+@register('doge_typeset','runnel','TeX 与 Typst 群聊排版','5.5.0')
 class DogeTypeset(Star):
  def __init__(self,context:Context): super().__init__(context); self.data_dir=StarTools.get_data_dir('doge_typeset')
 

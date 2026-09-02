@@ -56,6 +56,18 @@ A complete document.
                 path.unlink(missing_ok=True)
 
     @unittest.skipUnless((shutil.which("tectonic") or (Path.home()/".local/bin/tectonic").exists()) and shutil.which("bwrap"), "Tectonic+bwrap not installed")
+    def test_tectonic_sandbox_exposes_persistent_cache_and_minimal_ca_bundle(self):
+        from doge_shared.typeset import _tectonic_binary, _tectonic_sandbox_command
+        with tempfile.TemporaryDirectory() as td:
+            cmd = _tectonic_sandbox_command(_tectonic_binary(), Path(td))
+        joined = " ".join(cmd)
+        self.assertIn("XDG_CACHE_HOME /cache", joined)
+        self.assertIn("/cache/tectonic", joined)
+        # Cold package downloads must have a CA path inside the otherwise-isolated namespace.
+        self.assertTrue("SSL_CERT_FILE" in cmd or "/etc/ssl/certs" in cmd)
+        self.assertIn("--share-net", cmd)
+
+    @unittest.skipUnless((shutil.which("tectonic") or (Path.home()/".local/bin/tectonic").exists()) and shutil.which("bwrap"), "Tectonic+bwrap not installed")
     def test_full_latex_document_cannot_read_host_files(self):
         secret = Path("/tmp/doge-typeset-host-secret.tex")
         secret.write_text("HOST_SECRET_SHOULD_NEVER_BE_READ", encoding="utf-8")

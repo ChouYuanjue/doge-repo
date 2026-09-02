@@ -244,11 +244,29 @@ def _tectonic_sandbox_command(tectonic: str, work: Path) -> list[str]:
         "--setenv", "XDG_CACHE_HOME", "/cache",
         "--chdir", "/work",
     ]
-    # The musl Tectonic build is static.  TLS certificates and resolver files
-    # are all it needs from the host to fetch a missing bundle resource.
+    # The musl Tectonic build is static. Keep the filesystem sandbox small but
+    # expose enough trust/network state for Tectonic's MiKTeX-like lazy bundle
+    # downloads. On RHEL-family hosts /etc/ssl/certs points into /etc/pki; merely
+    # bind-mounting /etc/ssl/certs leaves the CA symlink target invisible and
+    # causes rustls to fail every cold package fetch with UnknownIssuer.
     for host_path in (Path("/etc/ssl/certs"), Path("/etc/resolv.conf"), Path("/etc/hosts")):
         if host_path.exists():
             cmd += ["--ro-bind", str(host_path), str(host_path)]
+    ca_candidates = (
+        Path("/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"),
+        Path("/etc/ssl/certs/ca-certificates.crt"),
+        Path("/etc/ssl/cert.pem"),
+    )
+    ca_bundle = next((x for x in ca_candidates if x.is_file()), None)
+    if ca_bundle is not None:
+        cmd += [
+            "--dir", "/etc/pki",
+            "--dir", "/etc/pki/tls",
+            "--dir", "/etc/pki/tls/certs",
+            "--ro-bind", str(ca_bundle), "/etc/pki/tls/cert.pem",
+            "--ro-bind", str(ca_bundle), "/etc/pki/tls/certs/ca-bundle.crt",
+            "--setenv", "SSL_CERT_FILE", "/etc/pki/tls/cert.pem",
+        ]
     cmd += [
         "/bin/tectonic",
         "--untrusted",
@@ -274,14 +292,19 @@ def _render_tex_document(output_dir: Path, source: str) -> tuple[Path, str]:
         tex.write_text(source, encoding="utf-8")
         cmd = _tectonic_sandbox_command(tectonic, work)
         try:
+            try:
+                timeout_s = int(os.getenv("DOGE_TECTONIC_TIMEOUT", "180"))
+            except ValueError:
+                timeout_s = 180
+            timeout_s = max(30, min(300, timeout_s))
             proc = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=55,
+                timeout=timeout_s,
             )
         except subprocess.TimeoutExpired as exc:
-            raise TypesetError("完整 LaTeX 文档编译超时；请检查是否依赖冷门宏包或网络资源") from exc
+            raise TypesetError("完整 LaTeX 文档编译超时；首次使用冷门宏包时会自动下载依赖并缓存，请稍后重试") from exc
         if proc.returncode != 0:
             detail = (proc.stderr or proc.stdout or "Tectonic 编译失败").strip()
             # Keep the useful end of Tectonic's diagnostics without flooding chat.
@@ -336,7 +359,7 @@ def tex_help() -> str:
     return (
         "Doge TeX /tex\n"
         "  /tex <LaTeX>                smart：完整文档走本机 Tectonic；公式/片段走轻量渲染\n"
-        "  /tex doc <完整文档>         Tectonic 真 LaTeX 文档 → PDF（\\documentclass...）\n"
+        "  /tex doc <完整文档>         Tectonic 真 LaTeX 文档 → PDF（\\documentclass...）；缺宏包会自动按需下载并缓存\n"
         "  /tex native <片段>          强制 UpMath TeX；适合 align/matrix/TikZ 等片段\n"
         "  /tex local <公式>            仅本机 MathText，不把公式发到外部服务\n"
         "完整文档不会再误送给公式 API。可直接写多行；兼容别名：/latex /utex。"
