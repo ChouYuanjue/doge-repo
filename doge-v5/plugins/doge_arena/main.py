@@ -15,10 +15,8 @@ from data.plugins.doge_shared.help_service import format_cli_error
 from .arena_engine import (
     ArenaCard,
     ArenaStore,
-    arena_plan_prompts,
     arena_judge_prompts,
     capacity,
-    classic_plan_prompts,
     classic_judge_prompts,
     draw_chaos,
     draw_legacy,
@@ -77,6 +75,61 @@ class DogeArena(Star):
         provider, provider_id = dedicated_deepseek(self.context)
         return provider, provider_id
 
+    @staticmethod
+    async def _target_name(
+        event: AstrMessageEvent,
+        target: str,
+        hinted_name: str | None,
+    ) -> str:
+        """Resolve a readable opponent name when At metadata is absent."""
+        if hinted_name and hinted_name.strip():
+            return hinted_name.strip()
+        try:
+            if (
+                event.get_platform_name() == "aiocqhttp"
+                and event.get_group_id()
+                and str(target).isdigit()
+            ):
+                routing = {}
+                self_id = getattr(event.message_obj, "self_id", None)
+                if self_id:
+                    routing["self_id"] = self_id
+                info = await event.bot.call_action(
+                    "get_group_member_info",
+                    group_id=int(event.get_group_id()),
+                    user_id=int(target),
+                    no_cache=False,
+                    **routing,
+                )
+                if info:
+                    name = str(
+                        info.get("card")
+                        or info.get("nickname")
+                        or info.get("nick")
+                        or ""
+                    ).strip()
+                    if name:
+                        return name
+        except Exception as exc:
+            logger.info(f"Arena opponent nickname lookup skipped: {exc}")
+        return f"玩家{target}"
+
+    @staticmethod
+    def _normalize_battle_names(text: str, a_name: str, b_name: str) -> str:
+        """Replace leaked internal A/B labels without touching Latin words."""
+        out = str(text or "")
+        out = re.sub(
+            r"(?<![A-Za-z0-9])A(?![A-Za-z0-9])",
+            lambda _m: a_name,
+            out,
+        )
+        out = re.sub(
+            r"(?<![A-Za-z0-9])B(?![A-Za-z0-9])",
+            lambda _m: b_name,
+            out,
+        )
+        return out
+
     async def _deepseek_battle(
         self,
         a_name: str,
@@ -85,40 +138,24 @@ class DogeArena(Star):
         theirs: ArenaCard,
         battlefield=None,
     ) -> str:
-        """Two-stage deadpan battle chain: tactical causality, then narration."""
+        """One-call deadpan battle judge with silent tactical reasoning."""
         provider, provider_id = self._provider()
         if battlefield is None:
-            plan_system, plan_prompt = classic_plan_prompts(a_name, mine, b_name, theirs)
+            system, prompt = classic_judge_prompts(a_name, mine, b_name, theirs)
+            max_tokens = 800
         else:
-            plan_system, plan_prompt = arena_plan_prompts(a_name, mine, b_name, theirs, battlefield)
-        tactical_plan = ""
-        try:
-            plan_resp = await provider.text_chat(
-                prompt=plan_prompt,
-                system_prompt=plan_system,
-                temperature=0.45,
-                max_tokens=900,
-            )
-            tactical_plan = (plan_resp.completion_text or "").strip()
-        except Exception as exc:
-            # The second stage still has the complete original rules and can
-            # produce a valid fight; never fall back to a different provider.
-            logger.info(f"Arena DeepSeek planning skipped ({provider_id}): {exc}")
-
-        if battlefield is None:
-            system, prompt = classic_judge_prompts(a_name, mine, b_name, theirs, tactical_plan)
-        else:
-            system, prompt = arena_judge_prompts(a_name, mine, b_name, theirs, battlefield, tactical_plan)
+            system, prompt = arena_judge_prompts(a_name, mine, b_name, theirs, battlefield)
+            max_tokens = 900
         resp = await provider.text_chat(
             prompt=prompt,
             system_prompt=system,
-            temperature=0.72,
-            max_tokens=1200,
+            temperature=0.68,
+            max_tokens=max_tokens,
         )
         result = (resp.completion_text or "").strip()
         if not result:
             raise ValueError(f"DeepSeek 裁判（{provider_id}）没有给出结果")
-        return result
+        return self._normalize_battle_names(result, a_name, b_name)
 
     @filter.command("arena")
     async def arena(self, event: AstrMessageEvent):
@@ -210,7 +247,7 @@ class DogeArena(Star):
                 raise ValueError("对手还没有能力")
 
             a = event.get_sender_name() or uid
-            b = tname or f"玩家{target}"
+            b = await self._target_name(event, target, tname)
             if action == "fight":
                 heading = "⚔️ 弱能力直接对决"
                 result = await self._deepseek_battle(a, mine, b, theirs)

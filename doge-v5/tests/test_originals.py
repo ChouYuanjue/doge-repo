@@ -61,6 +61,8 @@ class ArenaTests(unittest.TestCase):
         self.assertIn(a.powers[0].description,prompt)
         self.assertIn(b.powers[0].description,prompt)
         self.assertIn("不得擅自增加能力",prompt)
+        self.assertIn("结果：甲胜",prompt)
+        self.assertIn("结果：乙胜",prompt)
         self.assertIn("原文字面",system)
 
     def test_store_roundtrip_and_v53_migration(self):

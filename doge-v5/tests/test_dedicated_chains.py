@@ -97,7 +97,7 @@ class ArenaRoutingTests(unittest.TestCase):
 
 
 class ArenaDeepSeekTests(unittest.TestCase):
-    def test_old_wp_semantics_are_creatively_planned_then_narrated(self):
+    def test_old_wp_semantics_use_one_fast_named_judge_call(self):
         a = draw_legacy(__import__("random").Random(1))
         b = draw_legacy(__import__("random").Random(2))
         system, prompt = classic_plan_prompts("甲", a, "乙", b)
@@ -107,17 +107,30 @@ class ArenaDeepSeekTests(unittest.TestCase):
         self.assertIn(b.powers[0].description, prompt)
 
         fake = _FakeProvider([
-            "利用前置条件制造误判；副作用反而封锁路线；最后由普通动作完成反转。",
-            "甲先试图触发能力，乙却利用副作用迫使其改线。双方绕着荒诞条件认真周旋，最终普通动作成为决定因素。\n结果：A胜",
+            "A先试图触发能力，B却利用副作用迫使其改线。双方绕着荒诞条件认真周旋，最终普通动作成为决定因素。\n结果：A胜",
         ])
         obj = object.__new__(DogeArena)
         obj.context = _FakeContext(direct=fake)
         result = asyncio.run(obj._deepseek_battle("甲", a, "乙", b))
-        self.assertEqual(len(fake.calls), 2)
-        self.assertIn("内部战术草案", fake.calls[1]["prompt"])
-        self.assertIn("严肃、专业、平静", fake.calls[1]["system_prompt"])
-        self.assertIn("荒谬", fake.calls[1]["system_prompt"])
-        self.assertTrue(result.endswith("结果：A胜"))
+        self.assertEqual(len(fake.calls), 1)
+        self.assertIn("严肃、专业、平静", fake.calls[0]["system_prompt"])
+        self.assertIn("荒谬", fake.calls[0]["system_prompt"])
+        self.assertIn("禁止用A/B", fake.calls[0]["prompt"])
+        self.assertIn("甲先", result)
+        self.assertIn("乙却", result)
+        self.assertTrue(result.endswith("结果：甲胜"))
+
+    def test_ab_cleanup_does_not_corrupt_normal_latin_words(self):
+        got = DogeArena._normalize_battle_names(
+            "A先行动，B的策略随后生效；BPE 与 ABC 不应被改。\n结果：B胜",
+            "小甲",
+            "小乙",
+        )
+        self.assertIn("小甲先行动", got)
+        self.assertIn("小乙的策略", got)
+        self.assertIn("BPE", got)
+        self.assertIn("ABC", got)
+        self.assertTrue(got.endswith("结果：小乙胜"))
 
 
 class CthuvianDeepSeekTests(unittest.TestCase):

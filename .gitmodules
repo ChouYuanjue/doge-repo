@@ -25,3 +25,12 @@
 [submodule "doge-v5/plugins/doge_media/vendor/mirage_upstream"]
 	path = doge-v5/plugins/doge_media/vendor/mirage_upstream
 	url = git@github.com:Yuzi-Liang/astrbot_plugin_mirage_tank.git
+[submodule "doge-v5/external_plugins/astrbot_plugin_meme_generator"]
+	path = doge-v5/external_plugins/astrbot_plugin_meme_generator
+	url = https://github.com/SodaSizzle/astrbot_plugin_meme_generator.git
+[submodule "doge-v5/external_plugins/astrbot_plugin_group_chat_plus"]
+	path = doge-v5/external_plugins/astrbot_plugin_group_chat_plus
+	url = https://github.com/Him666233/astrbot_plugin_group_chat_plus.git
+[submodule "doge-v5/external_plugins/astrbot_plugin_stealer"]
+	path = doge-v5/external_plugins/astrbot_plugin_stealer
+	url = https://github.com/nagatoquin33/astrbot_plugin_stealer.git
