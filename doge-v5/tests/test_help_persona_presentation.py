@@ -34,14 +34,14 @@ class CapabilityRegistryTests(unittest.TestCase):
         expected = {
             "help", "ver", "status", "statics", "admin",
             "math", "util", "paper", "bio", "chem", "mat", "astro", "trial",
-            "lab", "fourier", "tex", "typst", "md", "snippet", "game", "fuse", "arena",
+            "lab", "fourier", "tex", "typst", "md", "snippet", "game", "fuse", "arena", "social",
             "lang", "media", "run", "lookup", "diagram", "ai", "cs", "eng",
         }
         self.assertEqual(commands, expected)
         listed = {c for cat in r["categories"] for c in cat["commands"]}
         self.assertEqual(listed, expected)
         c = counts()
-        self.assertEqual(c["top_level"], 30)
+        self.assertEqual(c["top_level"], 31)
         self.assertEqual(c["functions"], len(r["operations"]))
         self.assertEqual(c["forms"], c["functions"] + c["aliases"])
         self.assertEqual(c["aliases"], sum(len(op.get("aliases", [])) for op in r["operations"]))

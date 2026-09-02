@@ -21,8 +21,8 @@ GROUPS
              排版、结构图、工程系统，以及以图像/动画展示机制的科学实验。
   language    14  语言学
              西夏文、汉字历史音系、RRPL 与构造语言。
-  play        33  游戏 / 群聊实验
-             小游戏、解谜、概念炼金和荒诞竞技场。
+  play        38  游戏 / 群聊实验
+             小游戏、解谜、概念炼金、荒诞竞技场与可按群开启的社交增强。
   media        9  媒体 / 小工具
              图片识别、幻影坦克和少量不值得单独成域的小工具。
   admin       15  管理
@@ -40,9 +40,9 @@ QUICK START
   /help legacy          历史功能状态
 
 SCALE
-  顶层指令       30
-  正式叶子功能   222
-  正式调用形式   483  （含 261 个兼容别名）
+  顶层指令       31
+  正式叶子功能   227
+  正式调用形式   488  （含 261 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -933,7 +933,7 @@ BACK
 
 ## 游戏 / 群聊实验 (`play`)
 
-小游戏、解谜、概念炼金和荒诞竞技场。
+小游戏、解谜、概念炼金、荒诞竞技场与可按群开启的社交增强。
 
 ### `/game`
 
@@ -1128,6 +1128,46 @@ NEXT
 
 BACK
   /help
+```
+
+### `/social`
+
+```text
+COMMAND  /social
+群聊社交增强：读空气主动发言、语义大表情和模板 meme；自动能力默认按群关闭。
+
+SUBCOMMANDS
+  air              按群控制 AI 读空气回复与合适时机主动发言。
+    /social air [{on|off|status}]
+  emoji            按群控制自动收集、标签检索并发送大表情包。
+    /social emoji [{on|off|status}]
+  meme              3 功能  列出 v4 同路线 meme-generator 模板关键词。
+
+NEXT
+  /help social air
+
+BACK
+  /help
+```
+
+#### `/help social meme`
+
+```text
+COMMAND  /social meme
+
+SUBCOMMANDS
+  list             列出 v4 同路线 meme-generator 模板关键词。
+    /social meme list [过滤词]
+  info             查看 meme 模板所需图片、文字与标签。
+    /social meme info <模板关键词>
+  make             用成熟 meme-generator 引擎生成模板图；支持当前/引用图片、@用户与头像参数。
+    /social meme make <模板关键词> [文字参数]
+
+NEXT
+  /help social meme list
+
+BACK
+  /help social
 ```
 
 ## 媒体 / 小工具 (`media`)

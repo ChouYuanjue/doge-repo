@@ -1,0 +1,1 @@
+# Engines are pinned as external AstrBot plugins; Doge social itself adds no dependency.

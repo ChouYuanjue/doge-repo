@@ -82,6 +82,11 @@
       "source": "238 exact v4 /wp cards + explicit arena modifiers + configured chat provider for narration",
       "fallback": "no replacement cards; provider failure is explicit"
     },
+    "doge_social": {
+      "kind": "pinned-upstream-social-engines",
+      "source": "pinned AstrBot meme-generator, tagged meme library, and group-chat air-reading plugins",
+      "fallback": "fail closed by group allow-list; explicit engine error instead of simulated output"
+    },
     "doge_linguistics": {
       "kind": "grounded+provenance-labeled",
       "source": "Tangut dictionary/Yindian/RRPL/pinned Cthuvian translator",

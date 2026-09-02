@@ -71,11 +71,12 @@
     {
       "id": "play",
       "title": "游戏 / 群聊实验",
-      "summary": "小游戏、解谜、概念炼金和荒诞竞技场。",
+      "summary": "小游戏、解谜、概念炼金、荒诞竞技场与可按群开启的社交增强。",
       "commands": [
         "game",
         "fuse",
-        "arena"
+        "arena",
+        "social"
       ]
     },
     {
@@ -216,6 +217,10 @@
     "fourier": {
       "title": "Fourier Epicycles",
       "summary": "图片/SVG/文本轮廓的傅里叶旋转向量动画；延续 v4 Fourier，不是普通 FFT 频谱图。"
+    },
+    "social": {
+      "summary": "群聊社交增强：读空气主动发言、语义大表情和模板 meme；自动能力默认按群关闭。",
+      "category": "play"
     }
   },
   "operations": [
@@ -3592,6 +3597,51 @@
         }
       ],
       "agent_notes": "这是 v4 Fourier 轮廓动画的图片增强版；需要原始像素，不能用 vision caption 替代。"
+    },
+    {
+      "id": "social.air",
+      "path": "social air",
+      "summary": "按群控制 AI 读空气回复与合适时机主动发言。",
+      "usage": "/social air [{on|off|status}]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji",
+      "path": "social emoji",
+      "summary": "按群控制自动收集、标签检索并发送大表情包。",
+      "usage": "/social emoji [{on|off|status}]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "social.meme.list",
+      "path": "social meme list",
+      "summary": "列出 v4 同路线 meme-generator 模板关键词。",
+      "usage": "/social meme list [过滤词]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "social.meme.info",
+      "path": "social meme info",
+      "summary": "查看 meme 模板所需图片、文字与标签。",
+      "usage": "/social meme info <模板关键词>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "social.meme.make",
+      "path": "social meme make",
+      "summary": "用成熟 meme-generator 引擎生成模板图；支持当前/引用图片、@用户与头像参数。",
+      "usage": "/social meme make <模板关键词> [文字参数]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
     }
   ],
   "legacy": {

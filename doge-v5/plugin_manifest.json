@@ -98,9 +98,8 @@
     },
     {
       "name": "doge_social",
-      "status": "merged",
-      "default": false,
-      "merged_into": "doge_misc"
+      "status": "formal",
+      "default": true
     },
     {
       "name": "doge_linguistics",
