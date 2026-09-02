@@ -10,6 +10,7 @@ from .academic import AstroService, BioService, MaterialService, PaperService, R
 from .services import BingService, ChartService, ChemService, CodecService, MathService, NasaService
 from .weather import WeatherService
 from .lookup import LookupService
+from .chaoli import ChaoliService
 
 @dataclass
 class DogeMathTool(FunctionTool[AstrAgentContext]):
@@ -200,7 +201,39 @@ class DogeLookupTool(FunctionTool[AstrAgentContext]):
         if action=="wolfram": return await LookupService.wolfram(query)
         return await LookupService.auto(query,lang)
 
-TOOLS=(DogeMathTool,DogeChemTool,DogeCodecTool,DogeWeatherTool,DogeNasaTool,DogeBingTool,DogeChartTool,DogePaperTool,DogeBioTool,DogeMaterialTool,DogeAstroTool,DogeTrialTool,DogeLookupTool)
+@dataclass
+class DogeChaoliTool(FunctionTool[AstrAgentContext]):
+    name: str = "doge_chaoli"
+    description: str = (
+        "超理论坛只读工具。不依赖站内搜索：可读取最新/分板主题流、帖子全文或具体楼层与上下文、"
+        "用户公开活动、帖子中的超理引用链和链接预览。遇到超理帖子链接或用户明确询问论坛近期内容时优先使用。"
+    )
+    parameters: dict = Field(default_factory=lambda: {
+        "type":"object",
+        "properties":{
+            "action":{"type":"string","enum":["latest","channel","read","floor","context","outline","user","links","preview","status"]},
+            "target":{"type":"string","description":"板块名、帖子号/链接或用户ID/链接，按 action 解释"},
+            "floor":{"type":"integer","minimum":1},
+            "context":{"type":"integer","minimum":0,"maximum":3},
+            "limit":{"type":"integer","minimum":1,"maximum":30}
+        },
+        "required":["action"]
+    })
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+        a=str(kwargs.get("action") or ""); target=str(kwargs.get("target") or "").strip()
+        if a=="latest": return await ChaoliService.latest("all",int(kwargs.get("limit",10)))
+        if a=="channel": return await ChaoliService.latest(target or "all",int(kwargs.get("limit",10)))
+        if a=="read": return await ChaoliService.read(target)
+        if a=="floor": return await ChaoliService.read(target,int(kwargs.get("floor",1)),0)
+        if a=="context": return await ChaoliService.read(target,int(kwargs.get("floor",1)),int(kwargs.get("context",1)))
+        if a=="outline": return await ChaoliService.outline(target,int(kwargs.get("limit",40)))
+        if a=="user": return await ChaoliService.user(target,int(kwargs.get("limit",8)))
+        if a=="links": return await ChaoliService.links(target,int(kwargs.get("limit",12)))
+        if a=="preview": return await ChaoliService.preview(target)
+        if a=="status": return await ChaoliService.status()
+        raise ValueError("unknown chaoli action")
+
+TOOLS=(DogeMathTool,DogeChemTool,DogeCodecTool,DogeWeatherTool,DogeNasaTool,DogeBingTool,DogeChartTool,DogePaperTool,DogeBioTool,DogeMaterialTool,DogeAstroTool,DogeTrialTool,DogeLookupTool,DogeChaoliTool)
 
 
 def register_domain_tools(context, plugin_name: str, *tools):

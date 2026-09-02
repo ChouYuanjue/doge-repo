@@ -26,6 +26,7 @@
       "summary": "论文、知识检索，以及生化环材、天文和临床数据。",
       "commands": [
         "lookup",
+        "chaoli",
         "paper",
         "bio",
         "chem",
@@ -221,6 +222,10 @@
     "social": {
       "summary": "群聊社交增强：读空气主动发言、语义大表情和模板 meme；自动能力默认按群关闭。",
       "category": "play"
+    },
+    "chaoli": {
+      "summary": "超理论坛只读浏览：最新/分板主题、帖子与楼层上下文、用户公开活动、帖子引用链；首版不依赖站内搜索。",
+      "category": "research"
     }
   },
   "operations": [
@@ -3722,6 +3727,113 @@
       "usage": "/social meme make <模板关键词> [文字参数]",
       "aliases": [],
       "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "chaoli.latest",
+      "path": "chaoli latest",
+      "summary": "查看超理最新主题流，可指定板块和数量。",
+      "usage": "/chaoli latest [板块] [数量]",
+      "aliases": [
+        "chaoli new"
+      ],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "chaoli.channel",
+      "path": "chaoli channel",
+      "summary": "按数学、物理、化学、生物、技术、语言、社科、科幻、合集等板块浏览主题。",
+      "usage": "/chaoli channel <板块> [数量]",
+      "aliases": [
+        "chaoli board"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chaoli.read",
+      "path": "chaoli read",
+      "summary": "读取超理帖子；长楼保留首部与末部，避免一次刷屏。",
+      "usage": "/chaoli read <帖子号|链接>",
+      "aliases": [
+        "chaoli thread"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chaoli.floor",
+      "path": "chaoli floor",
+      "summary": "精确读取指定楼层。",
+      "usage": "/chaoli floor <帖子号> <楼层>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chaoli.context",
+      "path": "chaoli context",
+      "summary": "读取指定楼层及前后 1-3 层上下文。",
+      "usage": "/chaoli context <帖子号> <楼层> [1-3]",
+      "aliases": [
+        "chaoli ctx"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chaoli.outline",
+      "path": "chaoli outline",
+      "summary": "长帖楼层提纲：列出楼层作者、时间和短摘要，便于再用 context 深读。",
+      "usage": "/chaoli outline <帖子号|链接>",
+      "aliases": [
+        "chaoli toc"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chaoli.user",
+      "path": "chaoli user",
+      "summary": "查看超理用户公开主页与近期公开活动。",
+      "usage": "/chaoli user <用户ID|链接>",
+      "aliases": [
+        "chaoli member"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chaoli.links",
+      "path": "chaoli links",
+      "summary": "抽取帖子正文中引用的其他超理帖子，沿引用链继续阅读。",
+      "usage": "/chaoli links <帖子号|链接>",
+      "aliases": [
+        "chaoli refs",
+        "chaoli related"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chaoli.preview",
+      "path": "chaoli preview",
+      "summary": "一屏预览超理帖子；群聊中的纯 Chaoli 帖子链接也会自动轻量展开。",
+      "usage": "/chaoli preview <帖子号|链接>",
+      "aliases": [
+        "chaoli peek"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "chaoli.status",
+      "path": "chaoli status",
+      "summary": "检查 Chaoli 专用选择性代理与论坛首页是否可达。",
+      "usage": "/chaoli status",
+      "aliases": [],
+      "args": "none",
       "kind": "command"
     }
   ],

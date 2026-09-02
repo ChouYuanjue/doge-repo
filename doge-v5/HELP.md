@@ -13,7 +13,7 @@ USAGE
 GROUPS
   system       4  系统 / 状态
              认识当前实例、查看运行状态与使用统计。
-  research    49  检索 / 科研
+  research    59  检索 / 科研
              论文、知识检索，以及生化环材、天文和临床数据。
   compute     25  数学 / 计算机 / AI
              精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
@@ -40,9 +40,9 @@ QUICK START
   /help legacy          历史功能状态
 
 SCALE
-  顶层指令       31
-  正式叶子功能   232
-  正式调用形式   495  （含 263 个兼容别名）
+  顶层指令       32
+  正式叶子功能   242
+  正式调用形式   514  （含 272 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -159,6 +159,41 @@ SUBCOMMANDS
 
 NEXT
   /help lookup wiki
+
+BACK
+  /help
+```
+
+### `/chaoli`
+
+```text
+COMMAND  /chaoli
+超理论坛只读浏览：最新/分板主题、帖子与楼层上下文、用户公开活动、帖子引用链；首版不依赖站内搜索。
+
+SUBCOMMANDS
+  latest           查看超理最新主题流，可指定板块和数量。
+    /chaoli latest [板块] [数量]
+  channel          按数学、物理、化学、生物、技术、语言、社科、科幻、合集等板块浏览主题。
+    /chaoli channel <板块> [数量]
+  read             读取超理帖子；长楼保留首部与末部，避免一次刷屏。
+    /chaoli read <帖子号|链接>
+  floor            精确读取指定楼层。
+    /chaoli floor <帖子号> <楼层>
+  context          读取指定楼层及前后 1-3 层上下文。
+    /chaoli context <帖子号> <楼层> [1-3]
+  outline          长帖楼层提纲：列出楼层作者、时间和短摘要，便于再用 context 深读。
+    /chaoli outline <帖子号|链接>
+  user             查看超理用户公开主页与近期公开活动。
+    /chaoli user <用户ID|链接>
+  links            抽取帖子正文中引用的其他超理帖子，沿引用链继续阅读。
+    /chaoli links <帖子号|链接>
+  preview          一屏预览超理帖子；群聊中的纯 Chaoli 帖子链接也会自动轻量展开。
+    /chaoli preview <帖子号|链接>
+  status           检查 Chaoli 专用选择性代理与论坛首页是否可达。
+    /chaoli status
+
+NEXT
+  /help chaoli latest
 
 BACK
   /help

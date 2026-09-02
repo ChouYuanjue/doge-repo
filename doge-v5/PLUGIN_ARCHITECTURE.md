@@ -1,4 +1,4 @@
-# Doge v5.7 plugin architecture
+# Doge v5.10 plugin architecture
 
 A plugin is an independently meaningful user capability, not merely a Python folder. Tiny useful features live in `misc`; obsolete or unstable historical surfaces live in the opt-in Legacy museum.
 
@@ -23,6 +23,7 @@ A plugin is an independently meaningful user capability, not merely a Python fol
 | `doge_ai` | `/ai` | autograd and tokenizer internals |
 | `doge_cs` | `/cs` | formal languages and graph algorithms |
 | `doge_lookup` | `/lookup` | grounded Wikipedia/Wikidata/Wolfram lookup |
+| `doge_chaoli` | `/chaoli` | Chaoli read/latest/channel/floor/member/link graph through a selective local VLESS transport; search intentionally excluded from the stable surface |
 | `doge_diagrams` | `/diagram` | Graphviz, Mermaid and Vega-Lite |
 | `doge_code` | `/run` | bounded remote code execution |
 | `doge_games` | `/game` | 24, Nine Men's Morris, Signal, Minesweeper, unique Sudoku and Roll20 dice |

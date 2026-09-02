@@ -121,6 +121,11 @@
       "kind": "algorithmic-demo",
       "source": "pinned pyformlang/NetworkX/Graphviz",
       "fallback": "explicit error"
+    },
+    "doge_chaoli": {
+      "kind": "external-grounded",
+      "source": "chaoli.club via local selective VLESS proxy and curl_cffi Chrome-compatible HTTP fingerprint",
+      "fallback": "explicit error on unavailable/Cloudflare-challenged pages; stable surface does not claim forum search"
     }
   }
 }
