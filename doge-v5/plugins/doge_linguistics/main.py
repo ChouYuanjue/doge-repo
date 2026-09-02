@@ -85,7 +85,7 @@ def _safe_high_english_candidate(source: str, candidate: str) -> bool:
     return True
 
 
-@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.9.0")
+@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.9.1")
 class DogeLinguistics(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -442,32 +442,16 @@ class DogeLinguistics(Star):
             else:
                 result = await asyncio.to_thread(adapter.translate, text, register)
             provenance = result["provenance"]
-            if provenance == "sealed":
-                label = f"RC-1 · {register} · sealed fallback"
-                note = "可逆 sealed 编码；原句未被 RC-1 词典/语法可靠分析，因此这不是词典翻译。"
-            elif provenance == "hybrid":
-                label = f"RC-1 · {register} · hybrid"
-                note = f"语法骨架可分析，但包含 {result['sealed_tokens']} 个 sealed 未收录片段；这些片段是可逆编码，不是词典词。"
-            else:
-                label = f"RC-1 · {register} · lexicon/grammar"
-                note = "由当前 RC-1 词典/语法路径生成。"
-            warnings = ", ".join(result["warnings"]) if result["warnings"] else "none"
-            chain_note = ""
-            if planner_meta is not None:
-                chain_note = (
-                    f"\n高语体链：{planner_meta['provider_id']} English semantic plan → RC-1 deterministic high renderer → round-trip validation"
-                    f" · planner={planner_meta['planner_status']}"
-                )
-                if planner_meta["candidate_english"] != planner_meta["source_english"]:
-                    chain_note += f"\n规划 English：{planner_meta['candidate_english']}"
-                if planner_meta.get("learned_terms"):
-                    learned = ", ".join(f"{item['source']} ↔ {item['rc']}" for item in planner_meta["learned_terms"])
-                    chain_note += f"\n永久词条：{learned}"
-            yield text_result(
-                event,
-                f"{label}\n\n{result['cthuvian']}\n\n来源说明：{note}{chain_note}\nroundtrip: {result['roundtrip_ok']} · warnings: {warnings}",
-                markdown=False,
-            )
+            label = f"RC-1 · {register}"
+            extra = ""
+            if register == "low" and provenance == "sealed":
+                extra = "\n（未能可靠解析，以上为可逆 sealed 编码，不是词典翻译。）"
+            elif register == "low" and provenance == "hybrid":
+                extra = f"\n（含 {result['sealed_tokens']} 个未收录片段；只是本次临时编码，不会入词典。）"
+            elif register == "high" and planner_meta and planner_meta.get("learned_terms"):
+                learned = "，".join(f"{item['source']} ↔ {item['rc']}" for item in planner_meta["learned_terms"])
+                extra = f"\n新词已永久入词典：{learned}"
+            yield text_result(event, f"{label}\n{result['cthuvian']}{extra}", markdown=False)
             return
         if action in {"from", "gloss", "reverse"}:
             result = await asyncio.to_thread(adapter.gloss, text)

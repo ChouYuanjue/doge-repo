@@ -159,7 +159,7 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertLess(len(turn), 280)
         self.assertIn("example_ids=", turn)
         self.assertIn("Examples library", policy)
-        self.assertIn("豆子：", policy)
+        self.assertIn("芽衣子：", policy)
         self.assertIn("clearly malicious toward the bot/service", policy)
         self.assertIn("refuse briefly and confidently", policy)
         for marker in ("Anchoring", "Selecting", "Bounding", "Enacting"):
@@ -174,8 +174,8 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn("benchmark-test", turn)
         self.assertIn('relation="distant"', turn)
         policy = ordinary.static_policy()
-        self.assertIn("do not solve the problem", policy)
-        self.assertIn("relation=closest overrides this automatic refusal", policy)
+        self.assertIn("do not solve the whole probe", policy)
+        self.assertIn("relation=closest may still receive normal technical help", policy)
 
         close = PersonaRuntime(affect, closest_sender_ids={"friend"})
         close_state = affect.observe("g|sender:friend", text, now=101.0)
@@ -189,12 +189,41 @@ class PersonaRuntimeTests(unittest.TestCase):
         runtime = PersonaRuntime(affect)
         reply = runtime.benchmark_refusal("g|sender:stranger", text)
         self.assertIsInstance(reply, str)
-        self.assertTrue(any(k in reply for k in ("哒咩", "不接", "不会啦")))
+        self.assertLessEqual(len(reply), 40)
+        self.assertTrue(any(k in reply for k in ("不接", "就算", "不做")))
         self.assertEqual(reply, runtime.benchmark_refusal("g|sender:stranger", text))
         self.assertIsNone(runtime.benchmark_refusal("g|sender:stranger", "/math solve x^2=1"))
 
         close = PersonaRuntime(affect, closest_sender_ids={"friend"})
         self.assertIsNone(close.benchmark_refusal("g|sender:friend", text))
+
+    def test_full_project_outsource_is_refused_even_for_close_but_review_is_allowed(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect, closest_sender_ids={"friend"})
+        spec = (
+            "用C++和Qt库实现一个自走棋游戏。你需要实现以下功能："
+            "阶段一 棋盘与备战区 GUI；阶段二 战斗状态机、寻路与技能；"
+            "阶段三 商店、羁绊、装备与游戏存档。"
+            + "需要完整实现所有功能并给出工程代码。" * 60
+        )
+        self.assertTrue(runtime.is_full_project_outsource(spec))
+        self.assertEqual(runtime.pre_llm_refusal("g|sender:friend", spec), "这个我不替你整套做。你自己先搭起来，卡在哪一块我再帮你看。")
+        review = "请帮我评审这个课设的架构，指出状态机哪里有问题。" + spec
+        self.assertFalse(runtime.is_full_project_outsource(review))
+        self.assertIsNone(runtime.pre_llm_refusal("g|sender:friend", review))
+
+    def test_reply_density_tracks_context(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect)
+        cases = [
+            ("a", "太阳系有几个行星", 'detail="brief"'),
+            ("b", "这个生产日志报错了，帮我分析", 'detail="normal"'),
+            ("c", "详细解释并给出完整证明", 'detail="deep"'),
+            ("d", "用一句话详细解释这个错误", 'detail="brief"'),
+        ]
+        for scope, text, expected in cases:
+            state = affect.observe(scope, text, now=100.0)
+            self.assertIn(expected, runtime.turn_state(scope, text, state))
 
     def test_quoted_benchmark_shape_is_still_detected(self):
         affect = TransientAffect()

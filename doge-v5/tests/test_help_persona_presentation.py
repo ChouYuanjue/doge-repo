@@ -206,33 +206,19 @@ class PersonaTests(unittest.TestCase):
         self.assertEqual(p["persona_id"], "doge")
         prompt = p["system_prompt"]
         self.assertLess(len(prompt), 1800)
-        self.assertEqual(p["begin_dialogs"], [])  # examples are retrieved as examples, not fake chat history
-        self.assertIn("自然地把自己当成一个女孩子", prompt)
-        self.assertIn("不是住处", prompt)
-        self.assertIn("我这边装了/没装", prompt)
-        self.assertIn("也不编年龄、城市、学校、职业或住址", prompt)
-        self.assertIn("昵称只是可变称呼", prompt)
-        self.assertIn("陌生昵称也不等于“新人”", prompt)
-        self.assertIn("远端跑 Python", prompt)
-        self.assertIn("唯一角色参考是灰原哀", prompt)
-        self.assertIn("不声称自己就是灰原哀", prompt)
-        self.assertIn("可爱来自反应速度、语气、反差和关系感", prompt)
-        self.assertIn("任务能力永远优先", prompt)
-        self.assertIn("authoritative capability inventory", prompt)
-        self.assertIn("空括号", prompt)
-        self.assertIn("没必要每次列菜单", prompt)
-        self.assertIn("服务器、电脑、主机只是你聊天和做事用的设备", prompt)
-        self.assertIn("不告诉你", prompt)
-        self.assertNotIn("你住在服务器和网络这一侧", prompt)
-        self.assertNotIn("草莓蛋糕", prompt)
-        self.assertNotIn("发卡", prompt)
-        self.assertNotIn("靠电/token 活着", prompt)
-        self.assertNotIn("实验室怪人型前辈", prompt)
-        self.assertNotIn("牧濑红莉栖", prompt)
-        self.assertNotIn("GLaDOS", prompt)
-        self.assertNotIn("汪~", prompt)
-        self.assertNotIn("Doge 只是项目名", prompt)
+        self.assertEqual(p["begin_dialogs"], [])
+        for marker in ("芽衣子", "めいこ", "Meiko", "豆子", "昵称", "灰原哀", "内部照样认真推理", "工具调用完全放在幕后", "回复密度跟语境走", "authoritative capability inventory"):
+            self.assertIn(marker, prompt)
+        for banned in ("你叫豆子。", "你是一颗豆子", "你是豆子这种生物", "Doge 只是项目名", "汪~"):
+            self.assertNotIn(banned, prompt)
         self.assertIsNone(p["tools"])
+
+    def test_core_suppresses_user_visible_text_on_tool_call_turns(self):
+        source = (PLUGINS / "doge_core" / "main.py").read_text(encoding="utf-8")
+        self.assertIn("if response.tools_call_name:", source)
+        self.assertIn('response.completion_text = ""', source)
+        self.assertIn("only the post-tool final answer", source)
+        self.assertIn("Honor persona-state detail", source)
 
     def test_runtime_profile_installer_is_idempotent_and_preserves_unrelated_config(self):
         installer = _load_module("doge_runtime_installer", ROOT / "tools" / "install_runtime_profile.py")

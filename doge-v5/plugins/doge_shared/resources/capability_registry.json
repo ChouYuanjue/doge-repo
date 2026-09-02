@@ -3254,7 +3254,7 @@
     {
       "id": "lang.cthuvian.high",
       "path": "lang cthuvian high",
-      "summary": "English→Cthuvian 高语体：DeepSeek 仅做 English 语义规划，RC-1 确定性生成并 round-trip 校验。",
+      "summary": "English→Cthuvian 高语体：已有词走确定性 RC-1；新词由专用 DeepSeek 提案，经规则校验后永久双向入词典，高语体禁止 fallback。",
       "usage": "/lang cthuvian high <English>",
       "aliases": [
         "lang cthuvian chant",
@@ -3267,7 +3267,7 @@
       ],
       "args": "required",
       "kind": "command",
-      "agent_notes": "不要让 Agent 自己生成表面 Cthuvian；该指令内部遵守 LLM proposes / rules decide / reverse validates。"
+      "agent_notes": "高语体最终不得含 sealed fallback。DeepSeek 可做等义 English 规划，并只在真实缺词时提出候选 RC-1 新词；规则校验、冲突检查、持久 registry 和反向 gloss 决定是否接受。"
     },
     {
       "id": "lang.cthuvian.from",

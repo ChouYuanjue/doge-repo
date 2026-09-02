@@ -147,7 +147,7 @@ class DogeCore(Star):
         return bool(re.match(r"^(?:@?豆子(?:\s*doge)?|doge)(?:\s|[:,，：]|$)", head, re.I))
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=9500)
-    async def reject_obvious_benchmark_probe(self, event: AstrMessageEvent):
+    async def reject_obvious_boundary_request(self, event: AstrMessageEvent):
         text = self._benchmark_text(event)
         if not self._benchmark_addressed_to_doge(event, text):
             return
@@ -156,10 +156,10 @@ class DogeCore(Star):
         except Exception:
             sender = ""
         scope = event.unified_msg_origin + (f"|sender:{sender}" if sender else "")
-        reply = self.persona_runtime.benchmark_refusal(scope, text)
+        reply = self.persona_runtime.pre_llm_refusal(scope, text)
         if not reply:
             return
-        logger.info("Doge benchmark probe refused before LLM/tool execution.")
+        logger.info("Doge request refused before LLM/tool execution.")
         yield event.plain_result(reply)
         event.stop_event()
 
@@ -179,6 +179,13 @@ class DogeCore(Star):
         parts = [
             agent_capability_prompt(),
             self.persona_runtime.static_policy(),
+            (
+                "# User-visible reply contract\n"
+                "Act like a person who can quietly use tools, not an agent harness narrating a workflow. "
+                "Think, search, inspect, and call tools silently. If the same assistant turn contains a tool call, emit no visible prose with that call: no plan, progress, '我先看看', '查一下', or explanation of tool choice. "
+                "After tools finish, give only the final answer/result; do not recap the hidden workflow unless explicitly asked. Honor persona-state detail. "
+                "Do not restate the question, add routine summary/结论 labels, generic offers, or a redundant recap after a direct media tool already sent the result."
+            ),
             (
                 "# Doge runtime context contract\n"
                 "The application may append one <doge-runtime-turn>...</doge-runtime-turn> "
@@ -284,12 +291,17 @@ class DogeCore(Star):
         req.extra_user_content_parts.append(TextPart(text=turn_context))
 
     @filter.on_llm_response(priority=100)
-    async def onebot_plain_response(self, event: AstrMessageEvent, response: LLMResponse) -> None:
-        if str(event.get_platform_name() or "").lower() != "aiocqhttp":
+    async def finalize_llm_response(self, event: AstrMessageEvent, response: LLMResponse) -> None:
+        # Prose attached to a tool-call turn is workflow narration. Keep it
+        # backstage; only the post-tool final answer is user-visible.
+        if response.tools_call_name:
+            response.completion_text = ""
+            response.result_chain = None
             return
-        text = response.completion_text or ""
-        if text:
-            response.completion_text = markdown_to_plain(text)
+        if str(event.get_platform_name() or "").lower() == "aiocqhttp":
+            text = response.completion_text or ""
+            if text:
+                response.completion_text = markdown_to_plain(text)
 
     @filter.on_decorating_result(priority=100)
     async def transport_markdown_result(self, event: AstrMessageEvent) -> None:

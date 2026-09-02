@@ -902,7 +902,7 @@ R'lyehian / Cthuvian
 SUBCOMMANDS
   to               English→R’lyehian/Cthuvian 低语体翻译。
     /lang cthuvian to <English>
-  high             English→Cthuvian 高语体：DeepSeek 仅做 English 语义规划，RC-1 确定性生成并 round-trip 校验。
+  high             English→Cthuvian 高语体：已有词走确定性 RC-1；新词由专用 DeepSeek 提案，经规则校验后永久双向入词典，高语体禁止 fallback。
     /lang cthuvian high <English>
   from             R’lyehian/Cthuvian→English gloss。
     /lang cthuvian from <RC-1>
