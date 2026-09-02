@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -143,18 +145,86 @@ class CthuvianDeepSeekTests(unittest.TestCase):
         self.assertFalse(_safe_high_english_candidate("I do not know everything", "I know everything"))
         self.assertTrue(_safe_high_english_candidate("I understand everything", "I know everything"))
 
-    def test_high_register_uses_deepseek_only_as_english_proposal_layer(self):
-        fake = _FakeProvider(['{"candidate_english":"I know everything"}'])
+    def test_high_register_skips_deepseek_when_already_lexicalized(self):
         obj = object.__new__(DogeLinguistics)
-        obj.context = _FakeContext(direct=fake)
+        obj.context = _FakeContext()
         result, meta = asyncio.run(obj._cthuvian_high("I understand everything", self.adapter))
-        self.assertEqual(len(fake.calls), 1)
-        self.assertIn("MUST NOT output Cthuvian", fake.calls[0]["system_prompt"])
         self.assertTrue(result["roundtrip_ok"])
         self.assertEqual(result["provenance"], "lexicon")
-        self.assertEqual(meta["provider_id"], "deepseek/deepseek-v4-flash")
-        self.assertEqual(meta["candidate_english"], "I know everything")
+        self.assertEqual(meta["provider_id"], "not_needed")
+        self.assertEqual(meta["planner_status"], "not_needed")
+        self.assertEqual(meta["candidate_english"], "I understand everything")
         self.assertIn("kadishtu", result["cthuvian"])
+
+    def test_high_register_new_term_is_persisted_reversible_and_reused(self):
+        root = PLUGINS / "doge_linguistics" / "assets" / "Rlyehian-Cthuvian-Translator"
+        with tempfile.TemporaryDirectory() as tmp:
+            registry = Path(tmp) / "learned-registry.json"
+            adapter = CthuvianAdapter(root, registry)
+            proposal = json.dumps({
+                "source_term": "quantumwidget",
+                "concept_type": "object",
+                "selected_roots": [],
+                "literal_gloss": "quantumwidget",
+                "needs_new_root": True,
+                "coined_surface": "zha'thul",
+            })
+            fake = _FakeProvider([
+                '{"candidate_english":"I know quantumwidget"}',
+                proposal,
+            ])
+            obj = object.__new__(DogeLinguistics)
+            obj.context = _FakeContext(direct=fake)
+
+            result, meta = asyncio.run(obj._cthuvian_high("I know quantumwidget", adapter))
+            self.assertEqual(len(fake.calls), 2)
+            self.assertIn("MUST NOT output Cthuvian", fake.calls[0]["system_prompt"])
+            self.assertIn("terminology proposal layer", fake.calls[1]["system_prompt"])
+            self.assertEqual(result["provenance"], "lexicon")
+            self.assertIn("zha'thul", result["cthuvian"])
+            self.assertNotIn("'zhro", result["cthuvian"])
+            self.assertEqual(adapter.learned_count(), 1)
+            self.assertEqual(meta["learned_terms"][0]["source"], "quantumwidget")
+            self.assertTrue(registry.exists())
+
+            reloaded = CthuvianAdapter(root, registry)
+            self.assertEqual(reloaded.learned_count(), 1)
+            self.assertEqual(reloaded.lookup("quantumwidget").rc, "zha'thul")
+            self.assertIn("quantumwidget", reloaded.gloss("zha'thul")["best_gloss"])
+
+            second = object.__new__(DogeLinguistics)
+            second.context = _FakeContext()
+            second_result, second_meta = asyncio.run(second._cthuvian_high("I know quantumwidget", reloaded))
+            self.assertEqual(second_result["cthuvian"], result["cthuvian"])
+            self.assertEqual(second_meta["planner_status"], "not_needed")
+            self.assertEqual(second_meta["provider_id"], "not_needed")
+            self.assertEqual(reloaded.learned_count(), 1)
+
+    def test_high_register_never_returns_sealed_when_term_generation_fails(self):
+        root = PLUGINS / "doge_linguistics" / "assets" / "Rlyehian-Cthuvian-Translator"
+        with tempfile.TemporaryDirectory() as tmp:
+            registry = Path(tmp) / "learned-registry.json"
+            adapter = CthuvianAdapter(root, registry)
+            bad = json.dumps({
+                "source_term": "quantumwidget",
+                "concept_type": "object",
+                "selected_roots": [],
+                "literal_gloss": "quantumwidget",
+                "needs_new_root": True,
+                "coined_surface": "quantumwidget",
+            })
+            fake = _FakeProvider([
+                '{"candidate_english":"I know quantumwidget"}',
+                bad,
+                bad,
+                bad,
+            ])
+            obj = object.__new__(DogeLinguistics)
+            obj.context = _FakeContext(direct=fake)
+            with self.assertRaisesRegex(ValueError, "永久 RC-1 词条"):
+                asyncio.run(obj._cthuvian_high("I know quantumwidget", adapter))
+            self.assertEqual(len(fake.calls), 4)
+            self.assertFalse(registry.exists())
 
 
 if __name__ == "__main__":

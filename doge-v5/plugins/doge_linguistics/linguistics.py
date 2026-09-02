@@ -15,6 +15,11 @@ from typing import Iterable
 
 import aiohttp
 
+try:
+    from .cthuvian_runtime import PersistentCthuvianRegistry, UpstreamProposalRules, normalize_english
+except ImportError:  # standalone unittest loader
+    from cthuvian_runtime import PersistentCthuvianRegistry, UpstreamProposalRules, normalize_english
+
 
 _CJK_RE = re.compile(r"[\u3400-\u9fff\U00020000-\U000323af]")
 _PUNCT_RE = re.compile(r"[，。！？；：、,.;:!?/|]+")
@@ -335,23 +340,53 @@ def render_tangut(text: str, font_path: Path, output_path: Path) -> Path:
 
 
 class CthuvianAdapter:
-    """Thin adapter around the user's pinned R'lyehian/Cthuvian repository."""
+    """Doge adapter around the pinned upstream RC-1 implementation.
 
-    def __init__(self, checkout_root: Path):
+    Upstream grammar/rendering remains authoritative. Doge only supplies a
+    composite registry: immutable upstream seed/generated terms plus one
+    runtime learned layer populated exclusively by accepted high-register
+    proposals.
+    """
+
+    def __init__(self, checkout_root: Path, learned_registry_path: Path | None = None):
         self.root = Path(checkout_root).resolve()
         src = str(self.root / "src")
         if src not in sys.path:
             sys.path.insert(0, src)
         from cthuvian_translator import Translator
         from cthuvian_translator.reverse import ReverseGloss
+        from cthuvian_translator.phonology import strip_role_suffix
+        from cthuvian_translator.sealing import unseal_text
 
         self._translator_cls = Translator
         self._reverse_cls = ReverseGloss
+        self._strip_role_suffix = strip_role_suffix
+        self._unseal_text = unseal_text
+        self.registry = PersistentCthuvianRegistry(self.root, learned_registry_path)
+        self.proposal_rules = UpstreamProposalRules(self.root)
 
     def translate(self, text: str, register: str = "low") -> dict:
-        result = self._translator_cls().translate(text, register=register)
+        result = self._translator_cls(registry=self.registry).translate(text, register=register)
         warnings = list(result.warnings)
         surface = result.cthuvian
+        # The upstream clause parser intentionally requires a predicate. A bare
+        # nominal concept can therefore reach sealed fallback even when that
+        # exact concept already exists in the registry. The registry is the
+        # authoritative terminology layer, so expose an exact accepted term
+        # before presenting a sealed token as translation output.
+        if "sealed_fallback" in warnings:
+            exact_source = normalize_english(str(text or "").strip().rstrip(".?!"))
+            exact = self.registry.lookup(exact_source)
+            if exact is not None:
+                return {
+                    "source": text,
+                    "cthuvian": exact.rc,
+                    "register": register,
+                    "roundtrip_ok": True,
+                    "warnings": [],
+                    "provenance": "lexicon",
+                    "sealed_tokens": 0,
+                }
         # Upstream deliberately supports reversible sealed tokens for material
         # outside its lexicon. That is a useful encoding mechanism, but it must
         # never be presented as if the lexicon/grammar translated the token.
@@ -372,9 +407,69 @@ class CthuvianAdapter:
             "sealed_tokens": len(sealed_tokens),
         }
 
+    def sealed_sources(self, result: dict) -> tuple[str, ...]:
+        """Decode exactly the sealed lexical material still present in a result."""
+        found: list[str] = []
+        for token in str(result.get("cthuvian") or "").split():
+            base, _ = self._strip_role_suffix(token)
+            decoded = self._unseal_text(base)
+            if decoded is not None:
+                normalized = normalize_english(decoded)
+                if normalized and normalized not in found:
+                    found.append(normalized)
+        return tuple(found)
+
+    def lookup(self, source: str):
+        return self.registry.lookup(source)
+
+    def proposal_root_catalog(self) -> dict:
+        return self.proposal_rules.roots
+
+    def validate_proposal(self, proposal: dict) -> dict:
+        return self.proposal_rules.validate(proposal)
+
+    def proposal_prompt(self, source_term: str, context_text: str, rejection_reason: str = "") -> tuple[str, str]:
+        return self.proposal_rules.proposal_prompt(source_term, context_text, rejection_reason)
+
+    def accept_proposal(self, source: str, proposal: dict, model_profile: str | None = None) -> dict:
+        normalized = normalize_english(source)
+        payload = dict(proposal or {})
+        payload["source_term"] = normalized
+        validated = self.proposal_rules.validate(payload)
+        if not validated.get("ok"):
+            raise ValueError(f"invalid RC-1 term proposal: {validated.get('reason', 'unknown')}")
+        # Upstream accepts spaces in a coined surface, but its reverse gloss is
+        # token-based. Doge narrows the learned production layer to one
+        # reversible token; semantic compounds already use hyphens.
+        if re.search(r"\s", str(validated.get("term") or "")):
+            raise ValueError("learned RC-1 term must be a single reversible token")
+        entry, created = self.registry.accept(
+            normalized,
+            validated["term"],
+            strategy=validated["strategy"],
+            literal_gloss=str(payload.get("literal_gloss") or normalized),
+            components=payload.get("selected_roots") or (),
+            concept_type=str(payload.get("concept_type") or "object"),
+            model_profile=model_profile,
+            validator_report=validated,
+        )
+        return {
+            "source": normalized,
+            "rc": entry.rc,
+            "strategy": entry.strategy,
+            "created": created,
+            "literal_gloss": str(entry.metadata.get("literal_gloss") or normalized),
+        }
+
+    def learned_count(self) -> int:
+        return self.registry.learned_count()
+
+    def learned_bytes(self) -> bytes:
+        return self.registry.learned_bytes()
+
     def planner_vocabulary(self) -> tuple[str, ...]:
-        """English words the pinned deterministic translator can currently analyze."""
-        translator = self._translator_cls()
+        """Core English parser vocabulary; not the 4k static noun registry."""
+        translator = self._translator_cls(registry=self.registry)
         words = set(translator._verb_index)
         words.update(translator._terms)
         words.update(translator._proper_names)
@@ -382,7 +477,10 @@ class CthuvianAdapter:
         return tuple(sorted(str(x) for x in words if str(x).strip()))
 
     def gloss(self, text: str) -> dict:
-        result = self._reverse_cls().gloss(text)
+        reverse = self._reverse_cls()
+        for surface, gloss in self.registry.reverse_map().items():
+            reverse.surface_gloss[surface] = (gloss,)
+        result = reverse.gloss(text)
         return {
             "source": result.source,
             "best_gloss": result.best_gloss,

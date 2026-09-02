@@ -85,7 +85,7 @@ def _safe_high_english_candidate(source: str, candidate: str) -> bool:
     return True
 
 
-@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.8.0")
+@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.9.0")
 class DogeLinguistics(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -105,7 +105,8 @@ class DogeLinguistics(Star):
 
     def _cth(self) -> CthuvianAdapter:
         if self._cthuvian is None:
-            self._cthuvian = CthuvianAdapter(CTHUVIAN_ROOT)
+            learned = self.data_dir / "cthuvian" / "learned-registry.json"
+            self._cthuvian = CthuvianAdapter(CTHUVIAN_ROOT, learned)
         return self._cthuvian
 
     @filter.command("lang")
@@ -292,9 +293,25 @@ class DogeLinguistics(Star):
         raise ValueError("未知 Tangut 子命令")
 
     async def _cthuvian_high(self, text: str, adapter: CthuvianAdapter) -> tuple[dict, dict]:
-        """DeepSeek proposes English; the pinned RC-1 translator decides surface form."""
-        provider, provider_id = dedicated_deepseek(self.context)
+        """Run deterministic RC-1 first; use dedicated DeepSeek only for genuine gaps.
+
+        DeepSeek may safely restate English to fit the grammar, then propose a
+        constrained permanent term for lexical gaps. The pinned RC-1 rules
+        validate every learned surface before it enters the persistent registry.
+        """
         base = await asyncio.to_thread(adapter.translate, text, "high")
+        # Fully lexicalized high-register input is already deterministic. In
+        # particular, a term learned on a previous request must not even require
+        # a configured DeepSeek provider merely to restate the same sentence.
+        if base.get("provenance") == "lexicon" and not adapter.sealed_sources(base):
+            return base, {
+                "provider_id": "not_needed",
+                "planner_status": "not_needed",
+                "candidate_english": text,
+                "source_english": text,
+                "learned_terms": [],
+            }
+        provider, provider_id = dedicated_deepseek(self.context)
         vocab = " ".join(adapter.planner_vocabulary())
         system = (
             "You are the semantic planning layer for RC-1 high-register Cthuvian. "
@@ -336,7 +353,13 @@ class DogeLinguistics(Star):
             logger.info(f"Cthuvian high DeepSeek planner skipped ({provider_id}): {exc}")
 
         chosen = base
-        if candidate != text:
+        # If grammar already parsed and only lexical material is missing, do
+        # not let semantic rewriting synonym-away the new concept. Teach that
+        # exact concept below.
+        if base.get("provenance") == "hybrid":
+            candidate = text
+            planner_status = "not_needed_for_lexical_gap"
+        elif candidate != text:
             proposed_result = await asyncio.to_thread(adapter.translate, candidate, "high")
             rank = {"sealed": 0, "hybrid": 1, "lexicon": 2}
             if (
@@ -347,11 +370,58 @@ class DogeLinguistics(Star):
             else:
                 planner_status = "rejected_by_rules"
                 candidate = text
+
+        unknowns = list(adapter.sealed_sources(chosen))
+        if chosen.get("provenance") == "sealed" and unknowns:
+            # One bare unknown token is exactly the high-register terminology
+            # learning case. Never turn an arbitrary unparsed sentence into a
+            # single permanent dictionary entry.
+            source = " ".join(text.strip().rstrip(".?!").lower().split())
+            if len(unknowns) != 1 or unknowns[0] != source or any(ch.isspace() for ch in source):
+                raise ValueError("高语体无法把该句解析成 RC-1 语法结构；拒绝把整句作为词条写入词典")
+
+        learned: list[dict] = []
+        for unknown in unknowns:
+            if adapter.lookup(unknown) is not None:
+                continue
+            rejection = ""
+            accepted = None
+            for _attempt in range(3):
+                term_system, term_prompt = adapter.proposal_prompt(unknown, candidate, rejection)
+                resp = await provider.text_chat(prompt=term_prompt, system_prompt=term_system, temperature=0.0, max_tokens=420)
+                raw = (resp.completion_text or "").strip()
+                if raw.startswith("```"):
+                    raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.I | re.S).strip()
+                try:
+                    proposal = json.loads(raw)
+                except Exception as exc:
+                    rejection = f"invalid_json:{exc}"
+                    continue
+                proposal["source_term"] = unknown
+                validated = adapter.validate_proposal(proposal)
+                if not validated.get("ok"):
+                    rejection = str(validated.get("reason") or "validator_rejected")
+                    continue
+                try:
+                    accepted = await asyncio.to_thread(adapter.accept_proposal, unknown, proposal, provider_id)
+                    break
+                except ValueError as exc:
+                    rejection = str(exc)
+            if accepted is None:
+                raise ValueError(f"高语体无法为新概念 {unknown!r} 建立合法且唯一的永久 RC-1 词条：{rejection}")
+            learned.append(accepted)
+
+        if learned:
+            chosen = await asyncio.to_thread(adapter.translate, candidate, "high")
+        remaining = adapter.sealed_sources(chosen)
+        if remaining or chosen.get("provenance") != "lexicon":
+            raise ValueError(f"高语体仍存在未正式词汇化内容：{', '.join(remaining) or chosen.get('provenance')}")
         return chosen, {
             "provider_id": provider_id,
             "planner_status": planner_status,
             "candidate_english": candidate,
             "source_english": text,
+            "learned_terms": learned,
         }
 
     async def _cthuvian_command(self, event: AstrMessageEvent, payload: str):
@@ -390,6 +460,9 @@ class DogeLinguistics(Star):
                 )
                 if planner_meta["candidate_english"] != planner_meta["source_english"]:
                     chain_note += f"\n规划 English：{planner_meta['candidate_english']}"
+                if planner_meta.get("learned_terms"):
+                    learned = ", ".join(f"{item['source']} ↔ {item['rc']}" for item in planner_meta["learned_terms"])
+                    chain_note += f"\n永久词条：{learned}"
             yield text_result(
                 event,
                 f"{label}\n\n{result['cthuvian']}\n\n来源说明：{note}{chain_note}\nroundtrip: {result['roundtrip_ok']} · warnings: {warnings}",
