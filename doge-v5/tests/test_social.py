@@ -40,6 +40,7 @@ class Stealer:
 class Event:
     def __init__(self,text): self.message_str=text; self.chain=[Comp.Plain(text),Comp.At(qq='123')]
     def get_messages(self): return self.chain
+    def chain_result(self, chain): return chain
 
 class SocialTests(unittest.TestCase):
     def test_guard_is_fail_closed_and_omits_sentinel_from_status(self):
@@ -66,6 +67,19 @@ class SocialTests(unittest.TestCase):
         self.assertIn('group:200',engine.plugin_config.send_target_whitelist)
         self.assertEqual(obj._set_emoji_group('200',False),[])
         self.assertEqual(engine.plugin_config.send_target_whitelist,[f'group:{_SENTINEL}'])
+
+    def test_meme_make_adds_hidden_engine_prefix(self):
+        seen=[]
+        class Manager:
+            async def generate_meme(self,event):
+                seen.append(event.message_str); return b"png"
+        engine=SimpleNamespace(meme_config=SimpleNamespace(trigger_prefix="__hidden__"), meme_manager=Manager())
+        meta=SimpleNamespace(config=Config(), star_cls=engine)
+        obj=object.__new__(DogeSocial); obj.context=Ctx({'astrbot_plugin_meme_generator':meta})
+        event=Event('/social meme make 摸头 hello')
+        asyncio.run(obj._meme_make(event,'摸头 hello'))
+        self.assertEqual(seen,['__hidden__摸头 hello'])
+        self.assertEqual(event.message_str,'/social meme make 摸头 hello')
 
     def test_meme_event_rewrite_is_scoped_and_restored(self):
         obj=object.__new__(DogeSocial); event=Event('/social meme make 摸头 hello')

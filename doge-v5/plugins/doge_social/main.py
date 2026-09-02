@@ -139,7 +139,12 @@ class DogeSocial(Star):
         _, engine = self._external("astrbot_plugin_meme_generator")
         if not payload.strip():
             raise ValueError("用法：/social meme make <模板关键词> [文字参数]")
-        with self._meme_event(event, payload.strip()):
+        raw = payload.strip()
+        prefix = str(getattr(getattr(engine, "meme_config", None), "trigger_prefix", "") or "")
+        if prefix:
+            first, sep, tail = raw.partition(" ")
+            raw = f"{prefix}{first}{sep}{tail}"
+        with self._meme_event(event, raw):
             data = await engine.meme_manager.generate_meme(event)
         if not data:
             raise ValueError("没有匹配到模板，或当前还在冷却/资源初始化")
