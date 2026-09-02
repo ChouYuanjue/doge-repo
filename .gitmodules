@@ -31,6 +31,7 @@
 [submodule "doge-v5/external_plugins/astrbot_plugin_group_chat_plus"]
 	path = doge-v5/external_plugins/astrbot_plugin_group_chat_plus
 	url = https://github.com/Him666233/astrbot_plugin_group_chat_plus.git
+	ignore = untracked
 [submodule "doge-v5/external_plugins/astrbot_plugin_stealer"]
 	path = doge-v5/external_plugins/astrbot_plugin_stealer
 	url = https://github.com/nagatoquin33/astrbot_plugin_stealer.git
