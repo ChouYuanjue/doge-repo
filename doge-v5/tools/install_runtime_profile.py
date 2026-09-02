@@ -72,7 +72,7 @@ def install(runtime: Path, *, backup: bool = True) -> None:
         "interval": "0.4,1.0",
         "words_count_threshold": 1100,
         "split_mode": "regex",
-        "regex": r".*?(?:\n{2,}|$)",
+        "regex": r".*?(?:\n{2,}|\Z)",
         "content_cleanup_rule": "",
     })
     write_json_preserve_bom(config_path, cfg)

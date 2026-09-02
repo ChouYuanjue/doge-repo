@@ -268,7 +268,7 @@ class PersonaTests(unittest.TestCase):
             self.assertTrue(seg["only_llm_result"])
             self.assertEqual(seg["words_count_threshold"], 1100)
             self.assertEqual(seg["split_mode"], "regex")
-            self.assertEqual(seg["regex"], r".*?(?:\n{2,}|$)")
+            self.assertEqual(seg["regex"], r".*?(?:\n{2,}|\Z)")
             self.assertEqual(seg["interval"], "0.4,1.0")
             conn = sqlite3.connect(data / "data_v4.db")
             rows = conn.execute("SELECT persona_id,system_prompt,begin_dialogs FROM personas").fetchall(); conn.close()
