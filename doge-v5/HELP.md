@@ -737,8 +737,8 @@ SUBCOMMANDS
     /lab diffraction [slit_sep] [slit_width] [wavelength]
   replicator       复制子动力学/RPS
     /lab replicator [bias]
-  life             Conway Game of Life 动态 GIF 模拟。
-    /lab life [{glider|gun|acorn|random}] [steps]
+  life             可配置 Life-like cellular automaton 动态 GIF：自定义初态、规则与边界。
+    /lab life [seed] [steps] [rule] [dead|wrap] [size]
   dla              Diffusion-limited aggregation
     /lab dla [particles]
   beats            拍频

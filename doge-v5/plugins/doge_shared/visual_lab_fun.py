@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 from pathlib import Path
 
 import numpy as np
@@ -38,65 +39,172 @@ def _out(output_dir: Path, stem: str, suffix: str = ".png") -> Path:
     return d / f"{stem}-{token}{suffix}"
 
 
-def _life_seed(kind: str, n: int, rng) -> np.ndarray:
+def _life_rule(rule: str) -> tuple[frozenset[int], frozenset[int], str]:
+    text = str(rule or "B3/S23").upper().replace(" ", "")
+    # Accept both B3/S23 and 23/3 shorthand, but report one canonical form.
+    m = re.fullmatch(r"B([0-8]*)/S([0-8]*)", text)
+    if not m:
+        short = re.fullmatch(r"([0-8]*)/([0-8]*)", text)
+        if short:
+            text = f"B{short.group(2)}/S{short.group(1)}"
+            m = re.fullmatch(r"B([0-8]*)/S([0-8]*)", text)
+    if not m:
+        raise FunLabError("life rule 用 B3/S23 形式（也接受 23/3）；邻居数只能是 0..8")
+    birth = frozenset(int(x) for x in m.group(1))
+    survive = frozenset(int(x) for x in m.group(2))
+    return birth, survive, f"B{''.join(str(x) for x in sorted(birth))}/S{''.join(str(x) for x in sorted(survive))}"
+
+
+def _life_rle_points(source: str) -> list[tuple[int, int]]:
+    raw = str(source or "").strip()
+    if raw.lower().startswith("rle:"):
+        raw = raw[4:]
+    # A pasted one-line RLE header may be included. Keep only the body after it.
+    if "!" not in raw:
+        raise FunLabError("自定义 RLE 需要以 ! 结束，例如 rle:bo$2bo$3o!")
+    if "=" in raw and "\n" in raw:
+        raw = "".join(line.strip() for line in raw.splitlines() if line.strip() and not line.lstrip().startswith("#") and "=" not in line)
+    raw = re.sub(r"\s+", "", raw)
+    points: list[tuple[int, int]] = []
+    x = y = run = 0
+    for ch in raw:
+        if ch.isdigit():
+            run = run * 10 + int(ch)
+            if run > 10000:
+                raise FunLabError("RLE run length 过大")
+            continue
+        n = run or 1
+        run = 0
+        if ch in "bB":
+            x += n
+        elif ch in "oO":
+            for dx in range(n):
+                points.append((y, x + dx))
+                if len(points) > 12000:
+                    raise FunLabError("RLE 活细胞过多")
+            x += n
+        elif ch == "$":
+            y += n; x = 0
+        elif ch == "!":
+            break
+        else:
+            raise FunLabError(f"RLE 含未知字符 {ch!r}")
+    if not points:
+        raise FunLabError("RLE 没有活细胞")
+    return points
+
+
+def _life_coord_points(source: str) -> list[tuple[int, int]]:
+    raw = str(source or "").strip()
+    if raw.lower().startswith("cells:"):
+        raw = raw[6:]
+    pts: list[tuple[int, int]] = []
+    for item in raw.split(";"):
+        if not item:
+            continue
+        try:
+            x_s, y_s = item.split(",", 1)
+            x, y = int(x_s), int(y_s)
+        except Exception as exc:
+            raise FunLabError("cells 格式为 cells:x,y;x,y;...，坐标相对中心") from exc
+        pts.append((y, x))
+        if len(pts) > 12000:
+            raise FunLabError("自定义活细胞过多")
+    if not pts:
+        raise FunLabError("cells 没有活细胞")
+    return pts
+
+
+def _life_place(a: np.ndarray, points: list[tuple[int, int]], *, centered: bool = True) -> None:
+    n = a.shape[0]
+    ys = [p[0] for p in points]; xs = [p[1] for p in points]
+    if centered:
+        oy = n // 2 - (min(ys) + max(ys)) // 2
+        ox = n // 2 - (min(xs) + max(xs)) // 2
+    else:
+        oy = ox = 0
+    for y, x in points:
+        yy, xx = y + oy, x + ox
+        if not (0 <= yy < n and 0 <= xx < n):
+            raise FunLabError("初始图样超出棋盘；请增大 size")
+        a[yy, xx] = True
+
+
+def _life_seed(kind: str, n: int, rng) -> tuple[np.ndarray, str]:
     a = np.zeros((n, n), dtype=bool)
-    cy = cx = n // 2
-    kind = kind.lower()
-    if kind in {"glider", "g"}:
-        pts = [(0,1),(1,2),(2,0),(2,1),(2,2)]
-        for y,x in pts: a[cy-6+y,cx-6+x] = 1
-    elif kind in {"acorn", "a"}:
-        # Seven cells; takes thousands of generations to fully settle.
-        pts = [(0,1),(1,3),(2,0),(2,1),(2,4),(2,5),(2,6)]
-        for y,x in pts: a[cy-3+y,cx-4+x] = 1
-    elif kind in {"gun", "gosper"}:
-        pts = [
+    k = str(kind or "glider").strip()
+    kl = k.lower()
+    presets: dict[str, list[tuple[int, int]]] = {
+        "glider": [(0,1),(1,2),(2,0),(2,1),(2,2)],
+        "blinker": [(0,0),(0,1),(0,2)],
+        "rpentomino": [(0,1),(0,2),(1,0),(1,1),(2,1)],
+        "acorn": [(0,1),(1,3),(2,0),(2,1),(2,4),(2,5),(2,6)],
+    }
+    aliases = {"g":"glider", "a":"acorn", "blink":"blinker", "r-pentomino":"rpentomino", "r_pentomino":"rpentomino"}
+    kl = aliases.get(kl, kl)
+    if kl in presets:
+        _life_place(a, presets[kl]); return a, kl
+    if kl in {"gun", "gosper"}:
+        points = [
             (5,1),(5,2),(6,1),(6,2),
             (5,11),(6,11),(7,11),(4,12),(8,12),(3,13),(9,13),(3,14),(9,14),
             (6,15),(4,16),(8,16),(5,17),(6,17),(7,17),(6,18),
             (3,21),(4,21),(5,21),(3,22),(4,22),(5,22),(2,23),(6,23),(1,25),(2,25),(6,25),(7,25),
             (3,35),(4,35),(3,36),(4,36),
         ]
-        oy, ox = cy - 10, cx - 20
-        for y,x in pts:
-            yy,xx=oy+y,ox+x
-            if 0<=yy<n and 0<=xx<n: a[yy,xx]=1
-    elif kind in {"random", "r"}:
-        box = min(56, n - 12); y0=cy-box//2; x0=cx-box//2
+        _life_place(a, points); return a, "gun"
+    if kl in {"random", "r"}:
+        box = min(56, n - 12); y0=n//2-box//2; x0=n//2-box//2
         a[y0:y0+box,x0:x0+box] = rng.random((box,box)) < .28
+        return a, "random"
+    if kl.startswith("rle:"):
+        _life_place(a, _life_rle_points(k)); return a, "custom-rle"
+    if kl.startswith("cells:"):
+        # cells coordinates are intentionally relative to the board centre.
+        pts = _life_coord_points(k)
+        cy = cx = n // 2
+        for y, x in pts:
+            yy, xx = cy + y, cx + x
+            if not (0 <= yy < n and 0 <= xx < n):
+                raise FunLabError("cells 坐标超出棋盘；请增大 size")
+            a[yy, xx] = True
+        return a, "custom-cells"
+    raise FunLabError("life 初态支持 glider / blinker / rpentomino / gun / acorn / random / rle:<RLE> / cells:x,y;...")
+
+
+def _life_step(a: np.ndarray, birth=frozenset({3}), survive=frozenset({2,3}), boundary: str = "dead") -> np.ndarray:
+    boundary = str(boundary or "dead").lower()
+    u = a.astype(np.uint8)
+    if boundary in {"wrap", "torus", "periodic"}:
+        nb = sum(np.roll(np.roll(u, dy, axis=0), dx, axis=1) for dy in (-1,0,1) for dx in (-1,0,1) if (dy,dx)!=(0,0))
+    elif boundary in {"dead", "fixed", "zero"}:
+        p = np.pad(u, 1)
+        nb = (
+            p[:-2,:-2]+p[:-2,1:-1]+p[:-2,2:]+p[1:-1,:-2]+
+            p[1:-1,2:]+p[2:,:-2]+p[2:,1:-1]+p[2:,2:]
+        )
     else:
-        raise FunLabError("life 支持 glider / gun / acorn / random")
-    return a
+        raise FunLabError("life boundary 支持 dead / wrap")
+    born = np.isin(nb, tuple(birth))
+    kept = np.isin(nb, tuple(survive))
+    return born | (a & kept)
 
 
-def _life_step(a: np.ndarray) -> np.ndarray:
-    # Dead boundary rather than a torus, so a glider can visibly leave the frame.
-    p = np.pad(a.astype(np.uint8), 1)
-    nb = (
-        p[:-2,:-2]+p[:-2,1:-1]+p[:-2,2:]+p[1:-1,:-2]+
-        p[1:-1,2:]+p[2:,:-2]+p[2:,1:-1]+p[2:,2:]
-    )
-    return (nb == 3) | (a & (nb == 2))
-
-
-def life(output_dir: Path, kind: str="glider", steps: int=120, size: int=121) -> tuple[Path,str]:
-    """Render Conway Life as a real animated GIF.
-
-    `steps` is the simulated generation count.  For long runs we sample at most
-    72 frames rather than allocating one full bitmap per generation; this keeps
-    QQ-sized GIFs useful without changing the cellular automaton itself.
-    """
-    steps=max(3,min(int(steps),3500)); size=max(81,min(int(size)|1,241)); rng=np.random.default_rng(20260831)
-    a=_life_seed(kind,size,rng)
-    frame_count=min(72,max(12,min(steps+1,48 if steps<=120 else 72)))
+def life(output_dir: Path, kind: str="glider", steps: int=120, rule: str="B3/S23", boundary: str="dead", size: int=121) -> tuple[Path,str]:
+    """Render a configurable Life-like cellular automaton as a real GIF."""
+    steps=max(1,min(int(steps),5000)); size=max(41,min(int(size)|1,301)); rng=np.random.default_rng(20260831)
+    birth, survive, rule_name = _life_rule(rule)
+    boundary_name = {"torus":"wrap", "periodic":"wrap", "fixed":"dead", "zero":"dead"}.get(str(boundary).lower(), str(boundary).lower())
+    if boundary_name not in {"dead", "wrap"}: raise FunLabError("life boundary 支持 dead / wrap")
+    a, seed_label = _life_seed(kind,size,rng)
+    initial_alive = int(a.sum())
+    frame_count=min(72,max(2,min(steps+1,48 if steps<=120 else 72)))
     marks=sorted(set(int(x) for x in np.linspace(0,steps,frame_count)))
-    shots={0:a.copy()}
-    wanted=set(marks)
+    shots={0:a.copy()}; wanted=set(marks)
     for t in range(1,steps+1):
-        a=_life_step(a)
+        a=_life_step(a,birth,survive,boundary_name)
         if t in wanted: shots[t]=a.copy()
 
-    # One shared crop makes motion visible instead of re-centering each frame.
     coords=[]
     for arr in shots.values():
         yy,xx=np.nonzero(arr)
@@ -111,24 +219,47 @@ def life(output_dir: Path, kind: str="glider", steps: int=120, size: int=121) ->
     y0=max(0,min(max(0,size-side),cy-side//2)); x0=max(0,min(max(0,size-side),cx-side//2))
     y1=min(size,y0+side); x1=min(size,x0+side)
 
-    panel=480
-    frames=[]
-    for t in marks:
+    panel=480; frames=[]
+    for idx,t in enumerate(marks,1):
         arr=shots[t][y0:y1,x0:x1]
         small=np.where(arr,24,246).astype(np.uint8)
         rgb=np.stack([small,small,small],axis=-1)
         board=Image.fromarray(rgb,"RGB").resize((panel,panel),Image.Resampling.NEAREST)
-        canvas=Image.new("RGB",(panel+32,panel+92),(245,245,242))
-        canvas.paste(board,(16,68))
-        _title(canvas,f"Conway Life · {kind} · generation {t}/{steps}")
+        canvas=Image.new("RGB",(panel+32,panel+92),(245,245,242)); canvas.paste(board,(16,68))
+        _title(canvas,f"Life · {seed_label} · {rule_name} · {boundary_name} · gen {t}/{steps}")
         d=ImageDraw.Draw(canvas)
-        d.text((22,panel+72),f"alive = {int(shots[t].sum())} · sampled frame {marks.index(t)+1}/{len(marks)}",fill=(75,75,82),font=_font(15))
-        # A tiny palette keeps the animated result reasonably small on QQ.
+        d.text((22,panel+72),f"alive = {int(shots[t].sum())} · frame {idx}/{len(marks)}",fill=(75,75,82),font=_font(15))
         frames.append(canvas.convert("P",palette=Image.Palette.ADAPTIVE,colors=16))
-    path=_out(output_dir,f"life-{kind}-{steps}-{size}",suffix=".gif")
+    safe_rule=rule_name.replace('/','_')
+    path=_out(output_dir,f"life-{seed_label}-{steps}-{size}-{safe_rule}-{boundary_name}",suffix=".gif")
     frames[0].save(path,save_all=True,append_images=frames[1:],format="GIF",duration=120,loop=0,disposal=2,optimize=True)
-    return path,f"Conway 生命游戏 GIF：模拟 {steps} 代，采样 {len(frames)} 帧。每一帧都来自同一局部规则的真实演化；长模拟只降低动画采样频率，不改变演化过程。"
+    return path,(f"Life-like CA GIF：初态 {seed_label}（{initial_alive} cells），规则 {rule_name}，边界 {boundary_name}，棋盘 {size}×{size}，真实模拟 {steps} 代，展示 {len(frames)} 帧。长模拟只减少 GIF 采样帧，不跳过任何演化代。")
 
+
+def _parse_life_cli(tokens: list[str]) -> tuple[str,int,str,str,int]:
+    seed="glider"; steps=120; rule="B3/S23"; boundary="dead"; size=121
+    rest=list(tokens)
+    if rest and not any(rest[0].lower().startswith(k) for k in ("steps=","rule=","boundary=","size=")):
+        seed=rest.pop(0)
+    positional=[]
+    for token in rest:
+        low=token.lower()
+        if low.startswith("steps="): steps=int(token.split("=",1)[1])
+        elif low.startswith("rule="): rule=token.split("=",1)[1]
+        elif low.startswith("boundary="): boundary=token.split("=",1)[1]
+        elif low.startswith("size="): size=int(token.split("=",1)[1])
+        else: positional.append(token)
+    if positional:
+        steps=int(positional.pop(0))
+    if positional:
+        rule=positional.pop(0)
+    if positional:
+        boundary=positional.pop(0)
+    if positional:
+        size=int(positional.pop(0))
+    if positional:
+        raise FunLabError("life 参数过多")
+    return seed,steps,rule,boundary,size
 
 def dla(output_dir: Path, particles: int=850, size: int=321) -> tuple[Path,str]:
     particles=max(80,min(int(particles),2200)); size=max(181,min(int(size)|1,451)); c=size//2
@@ -189,7 +320,7 @@ def beats(output_dir: Path, f1: float=9.0, f2: float=10.0, seconds: float=3.0) -
 
 def help_text() -> str:
     return (
-        "  /lab life [{glider|gun|acorn|random}] [steps]    # animated GIF\n"
+        "  /lab life [seed] [steps] [rule] [dead|wrap] [size]    # animated GIF; seed 可为 glider/blinker/rpentomino/gun/acorn/random/rle:/cells:\n"
         "  /lab dla [particles]\n"
         "  /lab beats [f1] [f2] [seconds]\n"
         + __import__("doge_v5.visual_lab_fun2", fromlist=["help_text"]).help_text()
@@ -200,7 +331,7 @@ def render_fun(output_dir: Path, payload: str):
     parts=payload.strip().split()
     if not parts: return None
     h=parts[0].lower(); r=parts[1:]
-    if h in {"life","conway"}: return life(output_dir,r[0] if r else "glider",int(r[1]) if len(r)>1 else 120)
+    if h in {"life","conway"}: return life(output_dir,*_parse_life_cli(r))
     if h in {"dla","aggregate"}: return dla(output_dir,int(r[0]) if r else 850)
     if h in {"beats","beat"}: return beats(output_dir,float(r[0]) if r else 9,float(r[1]) if len(r)>1 else 10,float(r[2]) if len(r)>2 else 3)
     from .visual_lab_fun2 import render_fun2

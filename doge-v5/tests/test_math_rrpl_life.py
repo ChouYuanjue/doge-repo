@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from tempfile import TemporaryDirectory
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -81,6 +82,34 @@ class MathExpansionTests(unittest.TestCase):
             MathService.simplify("__import__('os').system('id')")
         with self.assertRaises(ValueError):
             MathService.simplify("x.__class__")
+
+    def test_life_rules_boundaries_and_custom_initial_states_execute(self):
+        from doge_shared.visual_lab_fun import _life_rule, _life_step, _life_rle_points, life
+        import numpy as np
+        birth, survive, name = _life_rule("B36/S23")
+        self.assertEqual(name, "B36/S23")
+        # A blinker flips orientation under Conway; verify the rule engine itself.
+        a = np.zeros((7, 7), dtype=bool); a[3,2:5] = True
+        b = _life_step(a, frozenset({3}), frozenset({2,3}), "dead")
+        self.assertTrue(b[2:5,3].all()); self.assertEqual(int(b.sum()), 3)
+        # RLE is the standard glider body.
+        self.assertEqual(len(_life_rle_points("rle:bo$2bo$3o!")), 5)
+        with TemporaryDirectory() as td:
+            for args in (
+                ("blinker", 4, "B3/S23", "dead", 81),
+                ("rle:bo$2bo$3o!", 6, "B36/S23", "wrap", 81),
+                ("cells:0,0;1,0;2,0", 4, "B3/S23", "dead", 81),
+            ):
+                path, caption = life(Path(td), *args)
+                self.assertTrue(path.exists()); self.assertGreater(path.stat().st_size, 1000)
+                self.assertIn("真实模拟", caption)
+                path.unlink()
+
+    def test_life_rejects_bad_rule_and_boundary(self):
+        from doge_shared.visual_lab_fun import FunLabError, _life_rule, life
+        with self.assertRaises(FunLabError): _life_rule("B9/S23")
+        with TemporaryDirectory() as td:
+            with self.assertRaises(FunLabError): life(Path(td), "glider", 3, "B3/S23", "mirror", 81)
 
     def test_math_and_lab_have_explicit_product_boundary(self):
         r = registry()

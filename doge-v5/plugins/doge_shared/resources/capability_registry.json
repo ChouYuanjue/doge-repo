@@ -1816,8 +1816,8 @@
     {
       "id": "lab.life",
       "path": "lab life",
-      "summary": "Conway Game of Life 动态 GIF 模拟。",
-      "usage": "/lab life [{glider|gun|acorn|random}] [steps]",
+      "summary": "可配置 Life-like cellular automaton 动态 GIF：自定义初态、规则与边界。",
+      "usage": "/lab life [seed] [steps] [rule] [dead|wrap] [size]",
       "aliases": [
         "lab conway"
       ],
@@ -1825,17 +1825,30 @@
       "kind": "command",
       "parameters": [
         {
-          "name": "[{glider|gun|acorn|random}]",
-          "description": "可选生命游戏初态，默认 glider。"
+          "name": "[seed]",
+          "description": "初态：glider/blinker/rpentomino/gun/acorn/random，或标准一行 RLE 如 rle:bo$2bo$3o!，或中心相对坐标 cells:x,y;x,y;...。"
         },
         {
           "name": "[steps]",
-          "description": "可选演化代数，默认 120；长模拟最多采样 72 个 GIF 帧，不改变细胞演化。"
+          "description": "演化代数，默认 120，最大 5000；GIF 最多采样 72 帧但每一代都实际执行。"
+        },
+        {
+          "name": "[rule]",
+          "description": "Life-like 规则，默认 B3/S23；支持任意合法 B.../S...，如 HighLife B36/S23。"
+        },
+        {
+          "name": "[dead|wrap]",
+          "description": "边界条件：dead 固定死亡边界；wrap 周期环面边界。"
+        },
+        {
+          "name": "[size]",
+          "description": "奇数棋盘边长，41..301，默认 121。"
         }
       ],
       "examples": [
         "/lab life glider 120",
-        "/lab life gun 240"
+        "/lab life gun 240 B3/S23 dead 161",
+        "/lab life rle:bo$2bo$3o! 80 B36/S23 wrap 101"
       ]
     },
     {

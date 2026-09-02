@@ -17,7 +17,7 @@ from data.plugins.doge_shared.visual_lab import LabError, help_text as lab_help_
 from .fourier import FourierError, FourierRenderer
 
 
-@register('doge_playground','runnel','数学、物理、复杂系统与轮廓傅里叶的直观科学实验室','5.6.0')
+@register('doge_playground','runnel','数学、物理、复杂系统与轮廓傅里叶的直观科学实验室','5.7.0')
 class DogePlayground(Star):
     def __init__(self, context: Context):
         super().__init__(context)
