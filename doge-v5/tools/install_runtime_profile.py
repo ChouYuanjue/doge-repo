@@ -56,25 +56,25 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     cfg["provider_settings"].setdefault("persona_pool", ["*"])
     cfg["disable_builtin_commands"] = True
 
-    # Chat presentation policy. AstrBot decorates segmented replies before it
-    # evaluates OneBot merged-forward conversion. Its words_count_threshold is
-    # an *upper* bound for segmentation, so keeping it below forward_threshold
-    # yields the intended three zones: ordinary paragraph-like replies can be
-    # split only at blank lines, medium replies stay one message, and genuinely
-    # long OneBot replies become one merged-forward message instead of spam.
+    # Chat presentation policy. AstrBot segments a single LLM result before it
+    # evaluates OneBot merged-forward conversion. Use the same 300-char boundary
+    # for both: <=300 may split only at blank lines; >300 is kept intact by the
+    # segmentation stage and then folded into one QQ merged-forward message.
+    # Agent tools that intentionally send multiple messages use independent sends
+    # and are not collapsed by this single-result policy.
     platform_settings = cfg.setdefault("platform_settings", {})
     # One group = one durable conversational session. Keeping unique_session
     # disabled avoids fragmenting a group into sender-specific histories and
     # mirrors coding-agent harnesses where one task/workspace owns one session.
     platform_settings["unique_session"] = False
-    platform_settings["forward_threshold"] = 800
+    platform_settings["forward_threshold"] = 300
     segmented = platform_settings.setdefault("segmented_reply", {})
     segmented.update({
         "enable": True,
         "only_llm_result": True,
         "interval_method": "random",
         "interval": "0.4,1.0",
-        "words_count_threshold": 1100,
+        "words_count_threshold": 300,
         "split_mode": "regex",
         "regex": r".*?(?:\n{2,}|\Z)",
         "content_cleanup_rule": "",

@@ -264,11 +264,11 @@ class PersonaTests(unittest.TestCase):
             self.assertEqual(out["admins_id"], ["existing-admin", "2700074128"])
             self.assertTrue(out["disable_builtin_commands"])
             ps = out["platform_settings"]
-            self.assertEqual(ps["forward_threshold"], 800)
+            self.assertEqual(ps["forward_threshold"], 300)
             seg = ps["segmented_reply"]
             self.assertTrue(seg["enable"])
             self.assertTrue(seg["only_llm_result"])
-            self.assertEqual(seg["words_count_threshold"], 1100)
+            self.assertEqual(seg["words_count_threshold"], 300)
             self.assertEqual(seg["split_mode"], "regex")
             self.assertEqual(seg["regex"], r".*?(?:\n{2,}|\Z)")
             self.assertEqual(seg["interval"], "0.4,1.0")
