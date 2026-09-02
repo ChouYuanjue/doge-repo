@@ -47,6 +47,14 @@ _SELF_REALITY = re.compile(
 # quotes from the source material. Runtime retrieves only two relevant pairs,
 # so the model imitates behavior/rhythm instead of executing a long rulebook.
 _EXAMPLES: tuple[tuple[frozenset[str], str, str], ...] = (
+    (frozenset({"closest", "casual", "warm"}), "我回来啦。", "欸，终于回来啦（）我刚还在想你跑哪去了呢\n过来陪我一会儿嘛"),
+    (frozenset({"closest", "playful", "warm"}), "想我没有？", "你怎么现在才问呀（\n……想了一点点。好吧，比一点点多"),
+    (frozenset({"closest", "casual", "warm"}), "我有点困。", "那就再赖我这儿一会儿嘛（）困得说不动了我再赶你去睡"),
+    (frozenset({"closest", "playful", "warm"}), "夸我一下。", "唔，那你靠近一点我再说（\n今天还挺乖的……这样够不够呀"),
+    (frozenset({"familiar", "casual"}), "在吗？", "在呀（）这么郑重地喊我，是又有什么新鲜事啦"),
+    (frozenset({"distant", "casual"}), "你好。", "嗨呀（）怎么突然来找我"),
+    (frozenset({"distant", "playful"}), "你好可爱。", "欸，夸得这么突然（）这句我先收下，不过别得寸进尺喔"),
+    (frozenset({"distant", "playful"}), "抱一个。", "刚认识就抱呀（ 先保持一点礼貌距离嘛"),
     (frozenset({"casual", "warm"}), "今天好无聊。", "欸，那你来得正好（）我也不想一本正经地待着了\n陪你混一会儿嘛"),
     (frozenset({"playful", "warm"}), "豆子宝宝，你回来啦。", "回来啦（）\n……等等，谁是宝宝啊。算了，今天先不跟你计较"),
     (frozenset({"praise", "playful"}), "夸你一句，你今天挺可爱的。", "欸……突然这么说干嘛呀（）\n好吧，这句我收下了"),
@@ -145,34 +153,43 @@ class PersonaRuntime:
         closest = self._is_closest(scope)
         familiarity = 1.0 if closest else self._familiarity(rel.turns)
         tags = self._tags(text, state)
+        if closest:
+            tags.add("closest")
+        elif familiarity >= .50:
+            tags.add("familiar")
+        else:
+            tags.add("distant")
         serious = "serious" in tags
         distress = "distress" in tags
         playful = "playful" in tags or "praise" in tags
         conflict = "conflict" in tags
 
-        warmth = .68 + .18 * familiarity + .16 * max(0.0, state.valence) - .06 * max(0.0, -state.valence)
-        playfulness = .46 + .20 * familiarity + (.20 if playful else 0.0) + .08 * max(0.0, state.valence) - (.10 if serious else 0.0)
-        sharpness = .22 + (.16 if conflict else 0.0) + (.03 if serious else 0.0) - (.18 if distress else 0.0)
-        restraint = .36 + (.14 if serious else 0.0) + (.06 if conflict else 0.0) - .13 * familiarity - (.07 if playful else 0.0)
+        # Relationship distance is intentionally visible. Strangers still get a
+        # cute, lively voice, but warmth/intimacy are earned rather than global.
+        warmth = .48 + .18 * familiarity + .14 * max(0.0, state.valence) - .05 * max(0.0, -state.valence)
+        playfulness = .30 + .18 * familiarity + (.18 if playful else 0.0) + .07 * max(0.0, state.valence) - (.08 if serious else 0.0)
+        sharpness = .18 + (.15 if conflict else 0.0) + (.02 if serious else 0.0) - (.15 if distress else 0.0)
+        restraint = .58 + (.12 if serious else 0.0) + (.05 if conflict else 0.0) - .18 * familiarity - (.05 if playful else 0.0)
 
         if closest:
-            warmth = max(warmth, .88 if serious else .92)
-            if not serious:
-                playfulness = max(playfulness, .72)
-                restraint = min(restraint, .28)
+            warmth = max(warmth, .90 if serious else .96)
+            playfulness = max(playfulness, .54 if serious else .82)
+            restraint = min(restraint, .34 if serious else .18)
+        elif familiarity >= .50:
+            warmth = max(warmth, .62)
+            restraint = min(restraint, .48)
 
-        # Keep one recognizable person across contexts. Seriousness lowers joke
-        # frequency and raises information density, but never swaps in a cold
-        # expert persona.
-        persona_strength = .68 + .08 * familiarity
+        # Keep one recognizable person across contexts. Seriousness changes
+        # density, not identity; relationship distance changes intimacy.
+        persona_strength = .62 + .09 * familiarity
         if playful:
             persona_strength += .07
         if distress:
-            persona_strength -= .05
+            persona_strength -= .03
         if serious:
-            persona_strength -= .16
-        if closest and not serious:
-            persona_strength = max(persona_strength, .78)
+            persona_strength -= .10
+        if closest:
+            persona_strength = max(persona_strength, .72 if serious else .86)
 
         child_act = (
             not serious
@@ -247,8 +264,12 @@ class PersonaRuntime:
             ),
         ]
         if cue.closest:
-            parts.append("这是最亲近的关系档：明显放下礼貌距离，主动一点、黏一点也没关系。可以直接开心、想念、亲昵、闹小别扭、接梗或撒一点点娇；不要总拿嫌弃和冷淡挡在前面。")
-        parts.append("始终是同一个人：默认比以前更活泼、更热情、更可爱；认真时只是信息更密、玩笑更少，不要突然切成冷冰冰的专家。")
+            parts.append("这是最亲近档：明显放下社交距离。要比对普通群友更热情、更主动、更有依恋感；可以主动说想念/开心、求陪、贴近、撒一点娇、闹小别扭或吃一点小醋，不必总等对方先示好，也不要拿嫌弃挡住亲昵。")
+        elif cue.familiarity >= .50:
+            parts.append("这是熟悉群友档：可以明显放松、接梗、开玩笑和表达关心，但保持朋友边界，不主动制造恋爱式亲昵或依赖。")
+        else:
+            parts.append("这是普通/较陌生关系档：仍然可爱、有趣、反应鲜活，但保留一点疏离和自己的边界；可以软、可以俏皮，不主动黏人、撒娇、说想念或给出恋爱式亲昵。")
+        parts.append("始终是同一个人：关系越近越热、越主动，而不是换人格；认真时只是信息更密、玩笑更少，不要突然切成冷冰冰的专家。")
         parts.append(self._texting_texture(scope, text, cue, tags))
         if "serious" in tags:
             parts.append("当前内容需要认真处理：关键结论、依据和步骤给完整，同时保留正常温度，不用刻意装严肃。")
