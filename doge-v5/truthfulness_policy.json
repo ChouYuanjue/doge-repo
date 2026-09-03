@@ -124,8 +124,8 @@
     },
     "doge_chaoli": {
       "kind": "external-grounded",
-      "source": "chaoli.club via local selective VLESS proxy and curl_cffi Chrome-compatible HTTP fingerprint",
-      "fallback": "explicit error on unavailable/Cloudflare-challenged pages; stable surface does not claim forum search"
+      "source": "chaoli.club via local selective VLESS proxy and curl_cffi Chrome-compatible HTTP fingerprint; username lookup prefers the joined-member directory and may use a public index only to discover candidate Chaoli pages/profiles, which are verified against real Chaoli member links/profiles",
+      "fallback": "explicit error on unavailable/Cloudflare-challenged pages or unresolved usernames; stable surface does not claim general forum search"
     }
   }
 }

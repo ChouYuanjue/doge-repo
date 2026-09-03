@@ -67,7 +67,7 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn('relation="closest"', close_prompt)
         self.assertIn('relation="distant"', other_prompt)
         policy = runtime.static_policy()
-        self.assertIn("visibly warm, proactive and attached", policy)
+        self.assertIn("visibly warm and attached", policy)
         self.assertIn("keeps social distance", policy)
 
         serious = runtime.cue(close_scope, "生产服务器错误继续查", close_state)
@@ -122,6 +122,19 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn('particles="', p1)
         self.assertNotEqual(p1.split('particles="', 1)[1].split('"',1)[0], p2.split('particles="', 1)[1].split('"',1)[0])
 
+    def test_public_name_is_douzi_and_real_name_stays_private(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect)
+        for text in ("你叫什么", "你是谁", "那真名呢？"):
+            state = affect.observe("name", text, now=100.0)
+            turn = runtime.turn_state("name", text, state)
+            self.assertIn("identity", turn)
+        policy = runtime.static_policy()
+        self.assertIn("default name to give", policy)
+        self.assertIn("private real name", policy)
+        self.assertIn("豆子：", policy)
+        self.assertIn("网友哪有一上来报真名的", policy)
+
     def test_self_reality_questions_use_human_device_interpretation(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect, closest_sender_ids={"close-user"})
@@ -156,10 +169,10 @@ class PersonaRuntimeTests(unittest.TestCase):
         state = affect.observe("u", "豆子你真可爱", now=100.0)
         turn = runtime.turn_state("u", "夸你一句，你今天挺可爱的", state)
         policy = runtime.static_policy()
-        self.assertLess(len(turn), 280)
+        self.assertLess(len(turn), 380)
         self.assertIn("example_ids=", turn)
         self.assertIn("Examples library", policy)
-        self.assertIn("芽衣子：", policy)
+        self.assertIn("豆子：", policy)
         self.assertIn("clearly malicious toward the bot/service", policy)
         self.assertIn("refuse briefly and confidently", policy)
         for marker in ("Anchoring", "Selecting", "Bounding", "Enacting"):
@@ -216,14 +229,34 @@ class PersonaRuntimeTests(unittest.TestCase):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect)
         cases = [
-            ("a", "太阳系有几个行星", 'detail="brief"'),
+            ("a", "太阳系有几个行星", 'detail="compact"'),
             ("b", "这个生产日志报错了，帮我分析", 'detail="normal"'),
             ("c", "详细解释并给出完整证明", 'detail="deep"'),
-            ("d", "用一句话详细解释这个错误", 'detail="brief"'),
+            ("d", "用一句话详细解释这个错误", 'detail="terse"'),
         ]
         for scope, text, expected in cases:
             state = affect.observe(scope, text, now=100.0)
             self.assertIn(expected, runtime.turn_state(scope, text, state))
+
+    def test_dialogue_shape_defaults_to_closed_and_only_social_invites_open(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect, closest_sender_ids={"friend"})
+        ordinary = runtime.turn_state("g|sender:other", "太阳系有几个行星", affect.observe("o", "太阳系有几个行星", now=100.0))
+        close = runtime.turn_state("g|sender:friend", "我回来啦", affect.observe("c", "我回来啦", now=100.0))
+        invited = runtime.turn_state("g|sender:friend", "陪我聊一会儿", affect.observe("i", "陪我聊一会儿", now=100.0))
+        for state in (ordinary, close):
+            self.assertIn('closure="closed"', state)
+            self.assertIn('question="needed-only"', state)
+        self.assertIn('initiative="social"', close)
+        self.assertIn('closure="open"', invited)
+        self.assertIn('question="social-ok"', invited)
+        policy = runtime.static_policy()
+        self.assertIn("generic follow-up questions", policy)
+        self.assertIn("customer-service reflex", policy)
+        self.assertIn("Prefer that over asking the user what to do next", policy)
+        self.assertIn("rhythm=", ordinary)
+        self.assertIn("rhythm=", close)
+        self.assertIn("Public online identity", policy)
 
     def test_quoted_benchmark_shape_is_still_detected(self):
         affect = TransientAffect()

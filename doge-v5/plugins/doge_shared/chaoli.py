@@ -3,11 +3,14 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import unicodedata
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 from curl_cffi import requests
+
+from .lookup import LookupError, LookupService
 
 
 BASE = "https://chaoli.club"
@@ -259,23 +262,154 @@ class ChaoliService:
                 break
         return (f"帖子 #{thread_id} 的超理引用\n\n" + "\n\n".join(rows)) if rows else f"帖子 #{thread_id} 没有发现其他超理帖子链接。"
 
+    @staticmethod
+    def _member_key(value: str) -> str:
+        return unicodedata.normalize("NFKC", str(value or "")).strip().casefold()
+
     @classmethod
-    async def user(cls, value: str, limit: int = 8) -> str:
+    def _member_links(cls, html: str) -> list[tuple[int, str]]:
+        soup = BeautifulSoup(html, "lxml")
+        rows: list[tuple[int, str]] = []
+        seen: set[int] = set()
+        for a in soup.select("a[href*='/index.php/member/']"):
+            href = str(a.get("href") or "")
+            m = MEMBER_RE.search(urljoin(BASE, href))
+            if not m:
+                continue
+            member_id = int(m.group(1))
+            name = cls._text(a)
+            if member_id in seen or not name:
+                continue
+            seen.add(member_id)
+            rows.append((member_id, name))
+        return rows
+
+    @classmethod
+    async def _verify_member_name(cls, member_id: int) -> tuple[int, str] | None:
+        try:
+            html = await cls._get(f"/index.php/member/{member_id}")
+        except ChaoliError:
+            return None
+        soup = BeautifulSoup(html, "lxml")
+        name = re.sub(r"\s*-\s*超理论坛\s*$", "", cls._text(soup.title)) if soup.title else ""
+        return (member_id, name) if name else None
+
+    @classmethod
+    def _match_member_rows(cls, rows: list[tuple[int, str]], wanted: str) -> tuple[int, str] | None:
+        exact = [(mid, name) for mid, name in rows if cls._member_key(name) == wanted]
+        if exact:
+            return exact[0]
+        partial = [(mid, name) for mid, name in rows if wanted in cls._member_key(name)]
+        if len(partial) == 1:
+            return partial[0]
+        return None
+
+    @classmethod
+    async def _member_from_public_pages(cls, username: str, paths: list[str]) -> tuple[int, str] | None:
+        wanted = cls._member_key(username)
+        seen: set[str] = set()
+        for path in paths:
+            if path in seen:
+                continue
+            seen.add(path)
+            try:
+                html = await cls._get(path)
+            except ChaoliError:
+                continue
+            hit = cls._match_member_rows(cls._member_links(html), wanted)
+            if hit:
+                return hit
+        return None
+
+    @classmethod
+    async def _resolve_member_id(cls, value: str) -> tuple[int, str | None]:
         value = value.strip()
         if value.isdigit():
-            member_id = int(value)
-        else:
-            if value.lower().startswith(("http://", "https://")):
-                host = (urlparse(value).hostname or "").lower()
-                if host not in {"chaoli.club", "www.chaoli.club"}:
-                    raise ChaoliError("只允许 chaoli.club 用户链接")
+            return int(value), None
+        if value.lower().startswith(("http://", "https://")):
+            host = (urlparse(value).hostname or "").lower()
+            if host not in {"chaoli.club", "www.chaoli.club"}:
+                raise ChaoliError("只允许 chaoli.club 用户链接")
             m = MEMBER_RE.search(value)
             if not m:
-                raise ChaoliError("需要用户 ID 或 chaoli.club 用户链接")
-            member_id = int(m.group(1))
+                raise ChaoliError("不是有效的超理用户链接")
+            return int(m.group(1)), None
+
+        wanted = cls._member_key(value)
+        if not wanted:
+            raise ChaoliError("缺少用户名")
+
+        try:
+            joined = await cls._get("/index.php/members/joined/")
+            hit = cls._match_member_rows(cls._member_links(joined), wanted)
+            if hit:
+                return hit
+        except ChaoliError:
+            pass
+
+        # Active users are often visible on current public channel pages even
+        # when the joined-member directory is login/Cloudflare gated.
+        public_paths = [
+            "/", "/index.php/conversations/maths/", "/index.php/conversations/physics/",
+            "/index.php/conversations/chem/", "/index.php/conversations/biology/",
+            "/index.php/conversations/tech/", "/index.php/conversations/others/",
+            "/index.php/conversations/lang/", "/index.php/conversations/soc-sci/",
+            "/index.php/conversations/sci-fi/", "/index.php/conversations/collections/",
+        ]
+        hit = await cls._member_from_public_pages(value, public_paths)
+        if hit:
+            return hit
+
+        try:
+            indexed = await LookupService.web_search(f'{value} 超理论坛', 8)
+        except LookupError as exc:
+            raise ChaoliError(f"用户名定位失败：{exc}") from exc
+
+        # AnySearch may return a board/thread page instead of the profile. Treat
+        # those pages only as discovery surfaces, then match the actual member
+        # link on Chaoli itself. Direct member hits are also verified below.
+        urls: list[str] = []
+        for match in re.finditer(r"https?://(?:www\.)?chaoli\.club/[^\s)\]>]+", indexed, re.I):
+            url = match.group(0).rstrip('.,;')
+            if url not in urls:
+                urls.append(url)
+        ids: list[int] = []
+        page_paths: list[str] = []
+        for url in urls[:10]:
+            m = MEMBER_RE.search(url)
+            if m:
+                mid = int(m.group(1))
+                if mid not in ids:
+                    ids.append(mid)
+            else:
+                parsed = urlparse(url)
+                path = parsed.path + (("?" + parsed.query) if parsed.query else "")
+                if path and path not in page_paths:
+                    page_paths.append(path)
+        hit = await cls._member_from_public_pages(value, page_paths[:6])
+        if hit:
+            return hit
+
+        verified: list[tuple[int, str]] = []
+        for mid in ids[:8]:
+            row = await cls._verify_member_name(mid)
+            if row:
+                verified.append(row)
+        hit = cls._match_member_rows(verified, wanted)
+        if hit:
+            return hit
+        partial = [row for row in verified if wanted in cls._member_key(row[1]) or cls._member_key(row[1]) in wanted]
+        if partial:
+            names = "、".join(name for _mid, name in partial[:5])
+            raise ChaoliError(f"用户名不唯一，候选：{names}")
+        raise ChaoliError(f"没有找到用户名‘{value}’对应的超理用户")
+
+    @classmethod
+    async def user(cls, value: str, limit: int = 8) -> str:
+        member_id, resolved_name = await cls._resolve_member_id(value)
         html = await cls._get(f"/index.php/member/{member_id}")
         soup = BeautifulSoup(html, "lxml")
-        name = re.sub(r"\s*-\s*超理论坛\s*$", "", cls._text(soup.title)) if soup.title else f"用户 {member_id}"
+        name = re.sub(r"\s*-\s*超理论坛\s*$", "", cls._text(soup.title)) if soup.title else (resolved_name or f"用户 {member_id}")
         activities: list[str] = []
         for post in soup.select(".post")[: max(1, min(limit, 20))]:
             body = cls._text(post.select_one(".postBody"))

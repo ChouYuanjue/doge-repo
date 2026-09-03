@@ -205,12 +205,14 @@ class PersonaTests(unittest.TestCase):
         p = json.loads((ROOT / "persona" / "doge.json").read_text(encoding="utf-8"))
         self.assertEqual(p["persona_id"], "doge")
         prompt = p["system_prompt"]
-        self.assertLess(len(prompt), 1800)
+        self.assertLess(len(prompt), 2600)
         self.assertEqual(p["begin_dialogs"], [])
-        for marker in ("芽衣子", "めいこ", "Meiko", "豆子", "昵称", "灰原哀", "内部照样认真推理", "工具调用完全放在幕后", "回复密度跟语境走", "authoritative capability inventory"):
+        for marker in ("豆子", "まめこ", "芽衣子", "私人的真实名字", "灰原哀", "内部照样认真推理", "工具调用完全放在幕后", "回复密度跟语境走", "authoritative capability inventory"):
             self.assertIn(marker, prompt)
         for banned in ("你叫豆子。", "你是一颗豆子", "你是豆子这种生物", "Doge 只是项目名", "汪~"):
             self.assertNotIn(banned, prompt)
+        self.assertIn("默认叫豆子", prompt)
+        self.assertIn("不主动把话题引到现实真名", prompt)
         self.assertIsNone(p["tools"])
 
     def test_core_suppresses_user_visible_text_on_tool_call_turns(self):

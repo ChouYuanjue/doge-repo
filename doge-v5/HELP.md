@@ -183,8 +183,8 @@ SUBCOMMANDS
     /chaoli context <帖子号> <楼层> [1-3]
   outline          长帖楼层提纲：列出楼层作者、时间和短摘要，便于再用 context 深读。
     /chaoli outline <帖子号|链接>
-  user             查看超理用户公开主页与近期公开活动。
-    /chaoli user <用户ID|链接>
+  user             按用户名、用户 ID 或用户链接定位超理用户，并查看公开主页与近期公开活动。
+    /chaoli user <用户名|用户ID|链接>
   links            抽取帖子正文中引用的其他超理帖子，沿引用链继续阅读。
     /chaoli links <帖子号|链接>
   preview          一屏预览超理帖子；群聊中的纯 Chaoli 帖子链接也会自动轻量展开。

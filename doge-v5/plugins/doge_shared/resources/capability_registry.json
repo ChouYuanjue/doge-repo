@@ -3796,8 +3796,8 @@
     {
       "id": "chaoli.user",
       "path": "chaoli user",
-      "summary": "查看超理用户公开主页与近期公开活动。",
-      "usage": "/chaoli user <用户ID|链接>",
+      "summary": "按用户名、用户 ID 或用户链接定位超理用户，并查看公开主页与近期公开活动。",
+      "usage": "/chaoli user <用户名|用户ID|链接>",
       "aliases": [
         "chaoli member"
       ],

@@ -206,13 +206,13 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_chaoli"
     description: str = (
         "超理论坛只读工具。不依赖站内搜索：可读取最新/分板主题流、帖子全文或具体楼层与上下文、"
-        "用户公开活动、帖子中的超理引用链和链接预览。遇到超理帖子链接或用户明确询问论坛近期内容时优先使用。"
+        "用户名/用户ID定位与公开活动、帖子中的超理引用链和链接预览。遇到超理帖子链接或用户明确询问论坛近期内容时优先使用。"
     )
     parameters: dict = Field(default_factory=lambda: {
         "type":"object",
         "properties":{
             "action":{"type":"string","enum":["latest","channel","read","floor","context","outline","user","links","preview","status"]},
-            "target":{"type":"string","description":"板块名、帖子号/链接或用户ID/链接，按 action 解释"},
+            "target":{"type":"string","description":"板块名、帖子号/链接或用户名/用户ID/用户链接，按 action 解释"},
             "floor":{"type":"integer","minimum":1},
             "context":{"type":"integer","minimum":0,"maximum":3},
             "limit":{"type":"integer","minimum":1,"maximum":30}

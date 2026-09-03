@@ -19,14 +19,14 @@ HELP = """Doge Chaoli /chaoli
   /chaoli floor <帖子号> <楼层>         精确读取一层
   /chaoli context <帖子号> <楼层> [1-3] 读取该层及前后文
   /chaoli outline <帖子号|链接>         长帖楼层提纲，按层快速定位
-  /chaoli user <用户ID|链接>            用户公开活动
+  /chaoli user <用户名|用户ID|链接>       用户公开主页与近期活动
   /chaoli links <帖子号|链接>           沿帖内超理链接阅读相关旧帖
   /chaoli preview <帖子号|链接>         一屏预览
   /chaoli status                        检查 Chaoli 专用代理链
 首版不依赖站内 search；Cloudflare 对查询页的验证不会影响以上入口。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛只读浏览、楼层上下文、用户活动与引用链", "5.10.22")
+@register("doge_chaoli", "runnel", "超理论坛只读浏览、楼层上下文、用户活动与引用链", "5.10.23")
 class DogeChaoli(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -72,7 +72,7 @@ class DogeChaoli(Star):
                 out = await ChaoliService.outline(rest)
             elif action in {"user", "member"}:
                 if not rest:
-                    raise ValueError("缺少用户 ID 或链接")
+                    raise ValueError("缺少用户名、用户 ID 或链接")
                 out = await ChaoliService.user(rest)
             elif action in {"links", "refs", "related"}:
                 if not rest:

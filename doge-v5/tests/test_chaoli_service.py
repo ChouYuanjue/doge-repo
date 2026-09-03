@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import unittest
+from unittest.mock import AsyncMock, patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +19,13 @@ LIST_HTML = """
 <li id='c1' class='channel-4 label-sticky'><div class='col-conversation'><strong class='title'><a href='/index.php/1'>置顶旧帖</a></strong><div class='excerpt'>old</div></div><a class='channel'>数学</a><span class='firstPostMember'>A</span><span class='lastPostTime'>很久前</span><div class='col-replies'>9</div></li>
 <li id='c2' class='channel-4'><div class='col-conversation'><strong class='title'><a href='/index.php/2'>新帖</a></strong><div class='excerpt'>new excerpt</div></div><a class='channel' href='/index.php/conversations/maths/'>数学</a><span class='firstPostMember'>B</span><span class='startTime'>今天</span><span class='lastPostMember'>C</span><span class='lastPostTime'>1小时前</span><div class='col-replies'><span>3</span></div></li>
 </ul>
+"""
+
+MEMBERS_HTML = """
+<div class='members'>
+<a href='/index.php/member/1286'>碘化亚铜</a>
+<a href='/index.php/member/1202'>FatFish</a>
+</div>
 """
 
 THREAD_HTML = """
@@ -51,6 +59,9 @@ class ChaoliParserTests(unittest.TestCase):
         with self.assertRaises(ChaoliError):
             ChaoliService.parse_thread_ref("https://example.com/index.php/12231")
 
+    def test_member_directory_parser_supports_joined_page(self):
+        self.assertEqual(ChaoliService._member_links(MEMBERS_HTML), [(1286, "碘化亚铜"), (1202, "FatFish")])
+
     def test_agent_tool_exposes_no_search_action(self):
         tool = DogeChaoliTool()
         actions = tool.parameters["properties"]["action"]["enum"]
@@ -66,6 +77,19 @@ class ChaoliParserTests(unittest.TestCase):
         self.assertIn("chaoli.outline", ids)
         self.assertNotIn("chaoli.search", ids)
         self.assertIn("不依赖站内搜索", d["commands"]["chaoli"]["summary"])
+
+
+class ChaoliMemberLookupTests(unittest.IsolatedAsyncioTestCase):
+    async def test_username_prefers_joined_directory_exact_match(self):
+        with patch.object(ChaoliService, "_get", AsyncMock(return_value=MEMBERS_HTML)):
+            self.assertEqual(await ChaoliService._resolve_member_id("碘化亚铜"), (1286, "碘化亚铜"))
+
+    async def test_username_index_fallback_is_verified_against_real_profile(self):
+        index = "1. 碘化亚铜\nhttps://chaoli.club/index.php/member/1286"
+        with patch.object(ChaoliService, "_get", AsyncMock(side_effect=ChaoliError("blocked"))), patch(
+            "doge_shared.chaoli.LookupService.web_search", AsyncMock(return_value=index)
+        ), patch.object(ChaoliService, "_verify_member_name", AsyncMock(return_value=(1286, "碘化亚铜"))):
+            self.assertEqual(await ChaoliService._resolve_member_id("碘化亚铜"), (1286, "碘化亚铜"))
 
 
 if __name__ == "__main__":
