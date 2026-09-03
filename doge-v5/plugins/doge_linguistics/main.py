@@ -85,7 +85,7 @@ def _safe_high_english_candidate(source: str, candidate: str) -> bool:
     return True
 
 
-@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.9.1")
+@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.9.2")
 class DogeLinguistics(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -147,7 +147,7 @@ class DogeLinguistics(Star):
             "- `/lang tangut lookup <西夏文/中文/英文>` 字典双向查询\n"
             "- `/lang tangut gx|ghc <西夏文>` 两套拟音\n"
             "- `/lang tangut t2zh <西夏文>` 词典 grounding 后译中文\n"
-            "- `/lang tangut zh2t <中文>` 保守字典翻译并显示候选\n"
+            "- `/lang tangut zh2t <中文>` exact 词典骨架 + 标注的宽松补齐\n"
             "- `/lang tangut render <西夏文>` 排版渲染\n"
             "- `/lang cthuvian to <English>` / `high <English>` / `from <RC-1>`\n"
             "- `/lang han <汉字>` 跨时代/方言读音比较\n"
@@ -239,6 +239,7 @@ class DogeLinguistics(Star):
             translated, segments = dictionary.translate_chinese(text)
             coverage = _coverage(segments)
             rewritten = None
+            provider = None
             # The model may only simplify the Chinese source. Tangut glyphs are
             # still selected exclusively by exact dictionary grounding.
             if coverage < 0.9 and len(text) <= 80:
@@ -254,25 +255,80 @@ class DogeLinguistics(Star):
                         if candidate and candidate != text:
                             t2, s2 = dictionary.translate_chinese(candidate)
                             coverage2 = _coverage(s2)
-                            if coverage2 >= coverage + 0.12:
+                            if coverage2 >= coverage + 0.05:
                                 translated, segments, coverage, rewritten = t2, s2, coverage2, candidate
                     except Exception as exc:
                         logger.info(f"Tangut source rewrite skipped: {exc}")
             details = _format_segments(segments)
-            body = f"词典结果：{translated}\n覆盖率：{coverage:.0%}"
+            relaxed, relaxed_notes, relaxed_coverage = dictionary.relaxed_chinese(segments)
+            relaxed_mode = "字符-IDF兜底"
+            if coverage < 1.0:
+                working = rewritten or text
+                word_rows = dictionary.relaxed_word_options(working, 12)
+                fuzzy_ids = [i for i, row in enumerate(word_rows) if row.get("kind") == "fuzzy" and row.get("options")]
+                choices: dict[int, int] = {}
+                if fuzzy_ids:
+                    if provider is None:
+                        provider = await self.context.get_using_provider_async(umo=event.unified_msg_origin)
+                    if provider:
+                        try:
+                            items = []
+                            for idx in fuzzy_ids:
+                                row = word_rows[idx]
+                                opts = []
+                                for n, entry in enumerate(row.get("options") or []):
+                                    opts.append({"index": n, "gloss": (entry.cn or entry.en or "")[:80]})
+                                items.append({"id": idx, "source": row.get("source"), "candidates": opts})
+                            system = (
+                                "你是西夏文词典候选的中文语义判别器。所有候选都来自固定词典；你绝不能生成西夏字。"
+                                "根据完整原句，为每个缺口选择最接近原意的候选编号。只有明显虚词/语法词可选 -1 表示省略。"
+                                "不得增加原句没有的实体、动作或事实。只输出 JSON。"
+                            )
+                            prompt = json.dumps({
+                                "source_sentence": text,
+                                "dictionary_friendly_sentence": working,
+                                "items": items,
+                                "output_shape": {"choices": [{"id": 0, "choice": 0}]},
+                            }, ensure_ascii=False)
+                            resp = await provider.text_chat(prompt=prompt, system_prompt=system, temperature=0.0, max_tokens=420)
+                            raw = (resp.completion_text or "").strip()
+                            if raw.startswith("```"):
+                                raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.I | re.S).strip()
+                            payload = json.loads(raw)
+                            for item in payload.get("choices") or []:
+                                idx = int(item.get("id"))
+                                choice = int(item.get("choice"))
+                                if idx not in fuzzy_ids:
+                                    continue
+                                count = len(word_rows[idx].get("options") or [])
+                                if -1 <= choice < count:
+                                    choices[idx] = choice
+                            relaxed_mode = "词级候选 + 上下文选择"
+                        except Exception as exc:
+                            logger.info(f"Tangut contextual candidate selection skipped: {exc}")
+                word_relaxed, word_notes, word_coverage = dictionary.render_word_choices(word_rows, choices)
+                if word_coverage >= relaxed_coverage:
+                    relaxed, relaxed_notes, relaxed_coverage = word_relaxed, word_notes, word_coverage
+                    if not choices:
+                        relaxed_mode = "词级字符-IDF兜底"
+            body = f"词典结果：{translated}\n可靠覆盖率：{coverage:.0%}"
             if rewritten:
                 body += f"\n词典友好改写：{rewritten}"
+            if coverage < 1.0:
+                body += f"\n宽松结果：{relaxed}\n宽松补齐率：{relaxed_coverage:.0%}（{relaxed_mode}）"
+                if relaxed_notes:
+                    body += "\n近似/省略：" + " ｜ ".join(relaxed_notes[:14])
+                body += "\n宽松结果只用于尽量补齐缺字：exact 词条优先；模型若参与，只能在现有词典候选中选编号，不能生成西夏字；近似项不冒充精确释义。"
             if details:
                 body += "\n候选：" + details
-            if coverage < 1.0:
-                body += "\n`□` 表示没有可靠 exact-gloss 对应；不会用模糊结果冒充翻译。"
             yield long_result(event, "中文 → Tangut", body)
-            tangut_only = translated.replace("□", "")
+            render_source = relaxed if coverage < 1.0 else translated
+            tangut_only = render_source.replace("□", "")
             if tangut_only.strip() and _contains_tangut(tangut_only):
                 token = hashlib.sha256(translated.encode()).hexdigest()[:12]
                 path = self.data_dir / "temp" / f"zh2t-{token}.png"
                 try:
-                    await asyncio.to_thread(render_tangut, translated, ASSETS / "NotoSerifTangut-Regular.ttf", path)
+                    await asyncio.to_thread(render_tangut, render_source, ASSETS / "NotoSerifTangut-Regular.ttf", path)
                     yield image_result(event, path)
                 finally:
                     path.unlink(missing_ok=True)
@@ -378,7 +434,15 @@ class DogeLinguistics(Star):
             # single permanent dictionary entry.
             source = " ".join(text.strip().rstrip(".?!").lower().split())
             if len(unknowns) != 1 or unknowns[0] != source or any(ch.isspace() for ch in source):
-                raise ValueError("高语体无法把该句解析成 RC-1 语法结构；拒绝把整句作为词条写入词典")
+                loose = await asyncio.to_thread(adapter.translate_chunked, candidate or text, "high")
+                return loose, {
+                    "provider_id": provider_id,
+                    "planner_status": "loose_grammar_fallback",
+                    "candidate_english": candidate,
+                    "source_english": text,
+                    "learned_terms": [],
+                    "fallback_reason": "clause_grammar_unparsed",
+                }
 
         learned: list[dict] = []
         for unknown in unknowns:
@@ -408,14 +472,15 @@ class DogeLinguistics(Star):
                 except ValueError as exc:
                     rejection = str(exc)
             if accepted is None:
-                raise ValueError(f"高语体无法为新概念 {unknown!r} 建立合法且唯一的永久 RC-1 词条：{rejection}")
+                planner_status = "loose_lexical_fallback"
+                continue
             learned.append(accepted)
 
         if learned:
             chosen = await asyncio.to_thread(adapter.translate, candidate, "high")
         remaining = adapter.sealed_sources(chosen)
         if remaining or chosen.get("provenance") != "lexicon":
-            raise ValueError(f"高语体仍存在未正式词汇化内容：{', '.join(remaining) or chosen.get('provenance')}")
+            planner_status = "loose_lexical_fallback"
         return chosen, {
             "provider_id": provider_id,
             "planner_status": planner_status,
@@ -451,6 +516,18 @@ class DogeLinguistics(Star):
             elif register == "high" and planner_meta and planner_meta.get("learned_terms"):
                 learned = "，".join(f"{item['source']} ↔ {item['rc']}" for item in planner_meta["learned_terms"])
                 extra = f"\n新词已永久入词典：{learned}"
+            elif register == "high" and planner_meta and str(planner_meta.get("planner_status") or "").startswith("loose_"):
+                status = str(planner_meta.get("planner_status") or "")
+                sealed_count = int(result.get("sealed_tokens") or 0)
+                if status == "loose_grammar_fallback":
+                    if sealed_count:
+                        extra = f"\n（严格 RC-1 整句句法未覆盖；已改用分块词典/语法翻译，其中 {sealed_count} 个局部片段为可逆临时编码。）"
+                    else:
+                        extra = "\n（严格 RC-1 整句句法未覆盖；已改用分块词典/语法翻译，当前结果无需临时编码。）"
+                elif provenance == "sealed":
+                    extra = "\n（严格词汇化未完成；已回退为可逆表示，不再因词条门槛拒绝翻译。）"
+                else:
+                    extra = f"\n（严格词汇化未完成；已保留宽松结果，其中 {sealed_count} 个片段为可逆临时编码。）"
             yield text_result(event, f"{label}\n{result['cthuvian']}{extra}", markdown=False)
             return
         if action in {"from", "gloss", "reverse"}:

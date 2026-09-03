@@ -200,7 +200,7 @@ class CthuvianDeepSeekTests(unittest.TestCase):
             self.assertEqual(second_meta["provider_id"], "not_needed")
             self.assertEqual(reloaded.learned_count(), 1)
 
-    def test_high_register_never_returns_sealed_when_term_generation_fails(self):
+    def test_high_register_term_generation_failure_falls_back_without_rejecting_sentence(self):
         root = PLUGINS / "doge_linguistics" / "assets" / "Rlyehian-Cthuvian-Translator"
         with tempfile.TemporaryDirectory() as tmp:
             registry = Path(tmp) / "learned-registry.json"
@@ -221,9 +221,27 @@ class CthuvianDeepSeekTests(unittest.TestCase):
             ])
             obj = object.__new__(DogeLinguistics)
             obj.context = _FakeContext(direct=fake)
-            with self.assertRaisesRegex(ValueError, "永久 RC-1 词条"):
-                asyncio.run(obj._cthuvian_high("I know quantumwidget", adapter))
+            result, meta = asyncio.run(obj._cthuvian_high("I know quantumwidget", adapter))
             self.assertEqual(len(fake.calls), 4)
+            self.assertEqual(result["provenance"], "hybrid")
+            self.assertEqual(meta["planner_status"], "loose_lexical_fallback")
+            self.assertIn("quantumwidget", adapter.sealed_sources(result))
+            self.assertFalse(registry.exists())
+
+    def test_high_register_unparsed_clause_returns_loose_fallback_instead_of_error(self):
+        root = PLUGINS / "doge_linguistics" / "assets" / "Rlyehian-Cthuvian-Translator"
+        with tempfile.TemporaryDirectory() as tmp:
+            registry = Path(tmp) / "learned-registry.json"
+            adapter = CthuvianAdapter(root, registry)
+            fake = _FakeProvider(['{"candidate_english":"blue hidden city"}'])
+            obj = object.__new__(DogeLinguistics)
+            obj.context = _FakeContext(direct=fake)
+            result, meta = asyncio.run(obj._cthuvian_high("blue hidden city", adapter))
+            self.assertEqual(result["provenance"], "lexicon")
+            self.assertEqual(result["sealed_tokens"], 0)
+            self.assertNotIn("'zhro", result["cthuvian"])
+            self.assertEqual(meta["planner_status"], "loose_grammar_fallback")
+            self.assertEqual(meta["fallback_reason"], "clause_grammar_unparsed")
             self.assertFalse(registry.exists())
 
 

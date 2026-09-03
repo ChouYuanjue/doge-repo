@@ -38,6 +38,83 @@ from data.plugins.doge_shared.runtime_stats import (
 )
 
 
+_SOCIAL_QUESTION_INVITE_RE = re.compile(
+    r"陪我聊|聊(?:一|会|会儿|一下)|随便聊|继续聊|来聊天|说说话|问我|采访我|考我|出题|你(?:有|想).*问",
+    re.I,
+)
+_FOLLOWUP_MARKER_RE = re.compile(
+    r"(?:[………呀欸唔嗯哼\s，,]*)?(?:"
+    r"要不要我|需不需要我|还需要我|需要我(?:再|继续|帮|给)|要我(?:再|继续|帮|给)|"
+    r"你还想(?:看|知道|问|要)|还有什么(?:想|要|需要)|"
+    r"如果你愿意[，,]?\s*我(?:可以|再|继续)|如果你想[，,]?\s*我(?:可以|再|继续)|"
+    r"要搜什么|想看哪个|你该不会|要继续吗|继续吗|"
+    r"(?:那|所以)?(?:他|她|你).{0,18}(?:什么反应|啥反应|怎么反应)|"
+    r"吃.{0,12}没|刚睡醒|熬到现在|满意吗|够不够格|验收一下|是不是这(?:位|只|个)|没.{0,20}吧"
+    r")",
+    re.I,
+)
+
+_DIRECTED_QUESTION_RE = re.compile(
+    r"你|您|会长|副会长|吃.{0,12}没|满意吗|够不够|是不是|是.{0,28}还是|验收|想.{0,16}吗|要.{0,16}吗",
+    re.I,
+)
+_REQUIRED_CLARIFICATION_RE = re.compile(
+    r"缺少|缺个|需要(?:你)?(?:提供|告诉|上传|发|补充)|必须(?:先)?(?:知道|确认)|无法(?:继续|判断|确定)|"
+    r"请(?:提供|上传|发|告诉)|先确认|还得知道|信息不够|参数不全|具体(?:是|哪)|哪个版本|哪份文件|什么路径",
+    re.I,
+)
+_QUESTION_SENTENCE_RE = re.compile(r"(?s)(^|(?<=[。！!？?\n]))([^。！!？?\n]{1,180}[？?])")
+
+def strip_unsolicited_followup(text: str, user_text: str = "") -> str:
+    """Suppress conversational probing on closed turns, preserving real clarification."""
+    original = str(text or "").rstrip()
+    user = str(user_text or "")
+    if not original or _SOCIAL_QUESTION_INVITE_RE.search(user):
+        return original
+    out = original
+    # First remove known service/banter tails, including tails without '?'.
+    for _ in range(4):
+        matches = list(_FOLLOWUP_MARKER_RE.finditer(out))
+        if not matches:
+            break
+        m = matches[-1]
+        prefix = out[:m.start()].rstrip()
+        if len(re.sub(r"\s+", "", prefix)) < 2:
+            break
+        cut = m.start()
+        boundary = max(prefix.rfind("\n"), prefix.rfind("。"), prefix.rfind("！"), prefix.rfind("？"), prefix.rfind("!"), prefix.rfind("?"))
+        if boundary >= 0 and cut - boundary <= 24:
+            cut = boundary + 1
+        out = out[:cut].rstrip(" \t\n，,。；;：:")
+
+    # Then remove directed question sentences that merely keep the user talking.
+    # A response that is itself mainly a question remains a legitimate clarification.
+    pieces = []
+    cursor = 0
+    changed = False
+    for qm in _QUESTION_SENTENCE_RE.finditer(out):
+        sentence = qm.group(2).strip()
+        before = out[:qm.start(2)]
+        substantive_before = len(re.sub(r"\s+", "", before)) >= 2
+        local_context = (before[-100:] + sentence)
+        drop = (
+            substantive_before
+            and _DIRECTED_QUESTION_RE.search(sentence) is not None
+            and _REQUIRED_CLARIFICATION_RE.search(local_context) is None
+        )
+        if drop:
+            pieces.append(out[cursor:qm.start(1)])
+            cursor = qm.end(2)
+            changed = True
+    if changed:
+        pieces.append(out[cursor:])
+        out = "".join(pieces)
+        out = re.sub(r"[ \t]+\n", "\n", out)
+        out = re.sub(r"\n{3,}", "\n\n", out).strip()
+        out = re.sub(r"[，,；;：:]\s*$", "", out).rstrip()
+    return out or original
+
+
 @register("doge_core", "runnel", "Doge 核心运行、状态与统计", DOGE_VERSION)
 class DogeCore(Star):
     """Always-on Doge foundation: identity, health, statistics and Agent basics."""
@@ -298,10 +375,12 @@ class DogeCore(Star):
             response.completion_text = ""
             response.result_chain = None
             return
-        if str(event.get_platform_name() or "").lower() == "aiocqhttp":
-            text = response.completion_text or ""
-            if text:
-                response.completion_text = markdown_to_plain(text)
+        text = response.completion_text or ""
+        if text:
+            text = strip_unsolicited_followup(text, str(event.message_str or ""))
+            if str(event.get_platform_name() or "").lower() == "aiocqhttp":
+                text = markdown_to_plain(text)
+            response.completion_text = text
 
     @filter.on_decorating_result(priority=100)
     async def transport_markdown_result(self, event: AstrMessageEvent) -> None:

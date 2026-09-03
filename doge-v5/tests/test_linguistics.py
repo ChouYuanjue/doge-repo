@@ -30,6 +30,48 @@ class TangutTests(unittest.TestCase):
   rows=self.d.search_chinese('国家',4)
   self.assertTrue(rows)
   self.assertTrue(all(x.cn=='国家' for x,_ in rows))
+ def test_relaxed_translation_fills_common_gaps_without_polluting_exact_layer(self):
+  exact,segs=self.d.translate_chinese('隐藏的城市')
+  self.assertIn('□',exact)
+  relaxed,notes,coverage=self.d.relaxed_chinese(segs)
+  self.assertNotIn('□',relaxed)
+  self.assertEqual(coverage,1.0)
+  self.assertTrue(any('的→〔省略虚词〕' in x for x in notes))
+  self.assertEqual(self.d.translate_chinese('隐藏的城市')[0],exact)
+ def test_relaxed_content_neighbor_avoids_obvious_person_name_for_machine(self):
+  exact,segs=self.d.translate_chinese('机器改变身体')
+  self.assertIn('□',exact)
+  relaxed,notes,coverage=self.d.relaxed_chinese(segs)
+  self.assertNotIn('□',relaxed)
+  self.assertEqual(coverage,1.0)
+  self.assertTrue(any(x.startswith('机≈') for x in notes))
+  self.assertFalse(any('陆机' in x for x in notes))
+
+ def test_word_level_relaxed_options_use_dictionary_only_and_drop_function_word(self):
+  rows=self.d.relaxed_word_options('机器改变身体',12)
+  self.assertEqual([r['source'] for r in rows],['机器','改变','身体'])
+  self.assertEqual(rows[2]['kind'],'exact')
+  for row in rows:
+   for entry in row['options']:
+    self.assertIn(entry.key,self.d.forward)
+  rows2=self.d.relaxed_word_options('隐藏的城市',12)
+  drop=next(r for r in rows2 if r['source']=='的')
+  self.assertEqual(drop['kind'],'drop')
+ def test_word_choice_can_select_nondefault_semantic_candidate_without_generating_glyphs(self):
+  rows=self.d.relaxed_word_options('机器改变身体',12)
+  machine=rows[0]
+  idx=next(i for i,e in enumerate(machine['options']) if '器具' in e.cn)
+  expected=machine['options'][idx].key
+  out,notes,cov=self.d.render_word_choices(rows,{0:idx})
+  self.assertTrue(out.startswith(expected))
+  self.assertEqual(cov,1.0)
+  self.assertTrue(any('机器≈'+expected in note for note in notes))
+  self.assertTrue(all(ch=='□' or ch.isspace() or ch in '，。！？；：、,.!?;:' or ch in ''.join(self.d.forward.keys()) for ch in out))
+ def test_word_level_relaxed_does_not_change_exact_translator_contract(self):
+  exact_before,_=self.d.translate_chinese('隐藏的城市')
+  self.d.render_word_choices(self.d.relaxed_word_options('隐藏的城市',12),{})
+  exact_after,_=self.d.translate_chinese('隐藏的城市')
+  self.assertEqual(exact_before,exact_after)
 
 class RrplTests(unittest.TestCase):
  def test_reference_expansion_is_pure_rrpl(self):

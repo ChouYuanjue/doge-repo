@@ -305,6 +305,156 @@ class TangutDictionary:
                 out.append("□")
         return "".join(out), segments
 
+    def relaxed_word_options(self, text: str, limit: int = 12) -> list[dict]:
+        """Return word-level exact/fuzzy Tangut options for contextual reranking."""
+        try:
+            import jieba
+            words = list(jieba.cut(unicodedata.normalize("NFKC", str(text or "")), HMM=False))
+        except Exception:
+            words = list(unicodedata.normalize("NFKC", str(text or "")))
+        drop_words = set("的 了 着 过 地 得 吗 呢 吧 啊 呀 嘛 很 更 最 也 都 还 又 就 才 只 而 及 与 和".split())
+        rows: list[dict] = []
+        for word in words:
+            if not word:
+                continue
+            if word.isspace() or all(unicodedata.category(ch).startswith("P") for ch in word):
+                rows.append({"source": word, "kind": "literal", "options": []})
+                continue
+            exact = self._exact_candidates(word)
+            if exact:
+                rows.append({"source": word, "kind": "exact", "options": exact[:4]})
+                continue
+            if word in drop_words:
+                rows.append({"source": word, "kind": "drop", "options": []})
+                continue
+            candidates = self.search_chinese(word, 30)
+            q = _norm(word)
+            def rank(item):
+                entry, score = item
+                terms = _cn_terms(entry.cn)
+                relation = 0
+                shortest = 99
+                for term in terms:
+                    if not term:
+                        continue
+                    shortest = min(shortest, len(term))
+                    if term.startswith(q): relation = max(relation, 4)
+                    elif term.endswith(q): relation = max(relation, 3)
+                    elif q in term: relation = max(relation, 2)
+                    elif any(ch in term for ch in q): relation = max(relation, 1)
+                proper = 1 if re.search(r"人名|姓氏|地名|国名", entry.cn) else 0
+                return (relation, -proper, score, -shortest, -len(entry.key))
+            candidates.sort(key=rank, reverse=True)
+            unique: list[TangutEntry] = []
+            for entry, _score in candidates:
+                if entry.key not in {x.key for x in unique}:
+                    unique.append(entry)
+                if len(unique) >= max(1, min(limit, 16)):
+                    break
+            rows.append({"source": word, "kind": "fuzzy", "options": unique})
+        return rows
+
+    @staticmethod
+    def render_word_choices(rows: list[dict], choices: dict[int, int] | None = None) -> tuple[str, list[str], float]:
+        choices = choices or {}
+        out: list[str] = []
+        notes: list[str] = []
+        total = filled = 0
+        for idx, row in enumerate(rows):
+            src = str(row.get("source") or "")
+            kind = str(row.get("kind") or "")
+            options = list(row.get("options") or [])
+            if kind == "literal":
+                out.append(src)
+                continue
+            total += len(src)
+            if kind == "drop":
+                notes.append(f"{src}→〔省略虚词〕")
+                filled += len(src)
+                continue
+            if kind == "exact" and options:
+                out.append(options[0].key)
+                filled += len(src)
+                continue
+            if kind == "fuzzy" and options:
+                picked = choices.get(idx, 0)
+                if picked < 0:
+                    notes.append(f"{src}→〔上下文省略〕")
+                    filled += len(src)
+                    continue
+                picked = min(picked, len(options) - 1)
+                entry = options[picked]
+                out.append(entry.key)
+                filled += len(src)
+                gloss = (entry.cn or entry.en or "").replace("\n", " ")[:42]
+                notes.append(f"{src}≈{entry.key}（{gloss}）")
+                continue
+            out.append("□")
+            notes.append(f"{src}→□")
+        return "".join(out), notes, (filled / total if total else 1.0)
+
+    def relaxed_chinese(self, segments: list[ZhSegment]) -> tuple[str, list[str], float]:
+        """Fill exact-gloss gaps with transparent, lightweight approximations.
+
+        This never changes an exact choice. Common Mandarin function words may be
+        omitted because forcing them onto unrelated lexical Tangut entries harms
+        meaning more than dropping them. Remaining content gaps use the existing
+        character-IDF search with a small lexical re-ranker; every such choice is
+        reported to the caller as approximate rather than exact dictionary truth.
+        """
+        drop_chars = set("的了着过地得吗呢吧啊呀嘛很更最也都还又就才只而及与和")
+        out: list[str] = []
+        notes: list[str] = []
+        total = filled = 0
+        for seg in segments:
+            src = seg.source
+            if src.isspace() or all(unicodedata.category(ch).startswith("P") for ch in src):
+                out.append(src)
+                continue
+            total += len(src)
+            if seg.chosen:
+                out.append(seg.chosen.key)
+                filled += len(src)
+                continue
+            if src and all(ch in drop_chars for ch in src):
+                notes.append(f"{src}→〔省略虚词〕")
+                filled += len(src)
+                continue
+            candidates = self.search_chinese(src, 30)
+            if not candidates:
+                out.append("□")
+                notes.append(f"{src}→□")
+                continue
+            q = _norm(src)
+            def rerank(item):
+                entry, score = item
+                terms = _cn_terms(entry.cn)
+                best = 0
+                shortest = 99
+                for term in terms:
+                    if not term:
+                        continue
+                    shortest = min(shortest, len(term))
+                    if term == q:
+                        best = max(best, 5)
+                    elif term.startswith(q):
+                        best = max(best, 4)
+                    elif term.endswith(q):
+                        best = max(best, 3)
+                    elif q in term:
+                        best = max(best, 2)
+                    elif any(ch in term for ch in q):
+                        best = max(best, 1)
+                proper_penalty = 1 if re.search(r"人名|姓氏|地名|国名", entry.cn) else 0
+                kind_bonus = 1 if len(q) == 1 and entry.kind == "character" else 0
+                return (best, kind_bonus, -proper_penalty, score, -shortest, -len(entry.key))
+            entry, score = max(candidates, key=rerank)
+            out.append(entry.key)
+            filled += len(src)
+            gloss = (entry.cn or entry.en or "").replace("\n", " ")[:36]
+            notes.append(f"{src}≈{entry.key}（{gloss}）")
+        return "".join(out), notes, (filled / total if total else 1.0)
+
 
 def render_tangut(text: str, font_path: Path, output_path: Path) -> Path:
     from PIL import Image, ImageDraw, ImageFont
@@ -405,6 +555,55 @@ class CthuvianAdapter:
             "warnings": warnings,
             "provenance": provenance,
             "sealed_tokens": len(sealed_tokens),
+        }
+
+    def translate_chunked(self, text: str, register: str = "high") -> dict:
+        """Best-effort fallback built only from the pinned deterministic translator."""
+        source = " ".join(str(text or "").strip().rstrip(".?!").split())
+        words = source.split()
+        if not words:
+            return self.translate(text, register)
+
+        @lru_cache(maxsize=None)
+        def solve(i: int):
+            if i >= len(words):
+                return (0.0, ())
+            best_score = -1e18
+            best = ()
+            for length in range(min(4, len(words) - i), 0, -1):
+                span = " ".join(words[i:i + length])
+                result = self.translate(span, register)
+                provenance = str(result.get("provenance") or "sealed")
+                if provenance == "sealed" and length > 1:
+                    continue
+                rank = 3 if provenance == "lexicon" else (1 if provenance == "hybrid" else 0)
+                local = rank * 100.0 + length * length * (8.0 if rank else -1.0)
+                tail_score, tail = solve(i + length)
+                total = local + tail_score
+                if total > best_score:
+                    best_score = total
+                    best = ((span, result),) + tail
+            return best_score, best
+
+        _score, chunks = solve(0)
+        surfaces = [str(item[1].get("cthuvian") or "") for item in chunks]
+        sealed_count = sum(int(item[1].get("sealed_tokens") or 0) for item in chunks)
+        provenances = [str(item[1].get("provenance") or "sealed") for item in chunks]
+        if provenances and all(x == "lexicon" for x in provenances):
+            provenance = "lexicon"
+        elif provenances and all(x == "sealed" for x in provenances):
+            provenance = "sealed"
+        else:
+            provenance = "hybrid"
+        return {
+            "source": text,
+            "cthuvian": " ".join(x for x in surfaces if x).strip(),
+            "register": register,
+            "roundtrip_ok": False,
+            "warnings": ["chunked_grammar_fallback"],
+            "provenance": provenance,
+            "sealed_tokens": sealed_count,
+            "chunks": [span for span, _result in chunks],
         }
 
     def sealed_sources(self, result: dict) -> tuple[str, ...]:

@@ -89,8 +89,8 @@
     },
     "doge_linguistics": {
       "kind": "grounded+provenance-labeled",
-      "source": "Tangut dictionary/Yindian/RRPL/pinned Cthuvian translator",
-      "fallback": "unknown/sealed/hybrid provenance exposed instead of pretending lexicon coverage"
+      "source": "Tangut dictionary/Yindian/RRPL/pinned Cthuvian translator; Tangut exact output is dictionary-grounded, while relaxed completion can only select existing dictionary candidates (optionally context-reranked by the configured model) or omit function words; Cthuvian strict RC-1 remains preferred and unparsed clauses fall back to deterministic chunked translation with local sealed fragments when needed",
+      "fallback": "exact/approximate/sealed/hybrid provenance is exposed; Tangut model-assisted fallback cannot generate Tangut glyphs, and Cthuvian grammar/terminology gaps no longer make an otherwise translatable sentence fail outright"
     },
     "doge_media": {
       "kind": "external-grounded+local-image",
@@ -124,8 +124,8 @@
     },
     "doge_chaoli": {
       "kind": "external-grounded",
-      "source": "chaoli.club via local selective VLESS proxy and curl_cffi Chrome-compatible HTTP fingerprint; post search uses Chaoli/esoTalk native POST conversations/index.ajax/<channel> endpoint, avoiding the Cloudflare-blocked GET search URL; username lookup prefers joined-member directory and verifies candidates against real Chaoli profiles",
-      "fallback": "explicit error on unavailable/Cloudflare-challenged pages, unresolved usernames, or native search failures; no synthetic/forum-index replacement is presented as native search"
+      "source": "chaoli.club via local selective VLESS proxy and curl_cffi Chrome-compatible HTTP fingerprint; search uses Chaoli/esoTalk native POST AJAX with page session/token; theme cards require ID/channel consistency and separately bind first author vs last replier; floor parser uses real displayed floor numbers, preserves deleted-floor placeholders, and separates blockquote authors/content from current-floor text; user names are verified against real profile titles and activities bind profile/action/post/time before output",
+      "fallback": "fail closed on unknown/mismatched board, inconsistent theme/card IDs, ambiguous duplicate usernames, unavailable pages, or unbound activity records; no nickname-to-real-identity inference, no cross-author quote flattening, no silent board fallback, and no synthetic search/index result is presented as native forum fact"
     }
   }
 }

@@ -44,30 +44,67 @@ class ThreadCard:
     title: str
     excerpt: str
     channel: str
+    channel_slug: str
     author: str
+    author_id: int | None
     started: str
     last_author: str
+    last_author_id: int | None
     updated: str
     replies: str
     url: str
 
     def line(self) -> str:
-        meta = " · ".join(x for x in (self.channel, self.author, self.updated, f"{self.replies} 回复" if self.replies else "") if x)
-        return f"#{self.thread_id} {self.title}" + (f"\n{meta}" if meta else "") + (f"\n{self.excerpt}" if self.excerpt else "") + f"\n{self.url}"
+        meta = []
+        if self.channel:
+            meta.append(f"板块：{self.channel}")
+        if self.author:
+            meta.append(f"发帖：{self.author}" + (f"（member/{self.author_id}）" if self.author_id else ""))
+        if self.started:
+            meta.append(f"发表于：{self.started}")
+        if self.last_author:
+            meta.append(f"最后回复：{self.last_author}" + (f"（member/{self.last_author_id}）" if self.last_author_id else ""))
+        if self.updated:
+            meta.append(f"更新于：{self.updated}")
+        if self.replies:
+            meta.append(f"回复：{self.replies}")
+        # Do not expose the list-page excerpt here. It can contain flattened
+        # quotations and is not safe enough for author-level attribution.
+        return f"#{self.thread_id} {self.title}" + ("\n" + " · ".join(meta) if meta else "") + f"\n{self.url}"
+
+
+@dataclass(frozen=True)
+class Quote:
+    author: str
+    text: str
 
 
 @dataclass(frozen=True)
 class Floor:
     number: int
     author: str
+    author_id: int | None
     time: str
     text: str
+    quotes: tuple[Quote, ...]
     url: str
+    deleted: bool = False
 
     def line(self, *, max_chars: int = 1600) -> str:
+        head = f"{self.number}楼" + (f" · {self.author}" if self.author else "") + (f"（member/{self.author_id}）" if self.author_id else "") + (f" · {self.time}" if self.time else "")
+        if self.deleted:
+            return f"{head}\n〔该楼已删除；公开页无正文〕\n{self.url}"
+        parts = [head]
+        for q in self.quotes[:3]:
+            qtext = q.text if len(q.text) <= 360 else q.text[:359].rstrip() + "…"
+            parts.append(f"引用{(' @' + q.author) if q.author else ''}：{qtext}")
         body = self.text if len(self.text) <= max_chars else self.text[: max_chars - 1].rstrip() + "…"
-        head = f"{self.number}楼" + (f" · {self.author}" if self.author else "") + (f" · {self.time}" if self.time else "")
-        return f"{head}\n{body}\n{self.url}"
+        if self.quotes:
+            parts.append("本层正文：" + (body or "〔无可抽取文本，可能只有附件/图片〕"))
+        else:
+            parts.append(body or "〔无可抽取文本，可能只有附件/图片〕")
+        parts.append(self.url)
+        return "\n".join(parts)
 
 
 class ChaoliService:
@@ -105,30 +142,49 @@ class ChaoliService:
 
     @classmethod
     def _search_sync(cls, query: str, channel: str = "all") -> str:
-        query = str(query or "").strip()
-        if not query or len(query) > 400:
-            raise ChaoliError("搜索词需为 1-400 字符")
         raw_channel = str(channel or "all").strip()
-        slug = CHANNELS.get(raw_channel.lower(), CHANNELS.get(raw_channel, raw_channel.lower() or "all"))
-        if not re.fullmatch(r"[a-z0-9-]+", slug):
-            raise ChaoliError("未知板块")
-        url = f"{BASE}/index.php/conversations/index.ajax/{slug}"
-        kwargs = {
-            "impersonate": "chrome",
-            "timeout": cls.timeout,
-            "allow_redirects": True,
-            "data": {"search": query},
-            "headers": {
-                "Referer": f"{BASE}/index.php/conversations/{slug}",
-                "X-Requested-With": "XMLHttpRequest",
-                "Accept": "application/json, text/javascript, */*; q=0.01",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-            },
-        }
-        if cls.proxy:
-            kwargs["proxy"] = cls.proxy
+        slug = cls._channel_slug(raw_channel)
+        proxy = cls.proxy
+        session = requests.Session(impersonate="chrome")
+        if proxy:
+            session.proxies = {"http": proxy, "https": proxy}
+        board_url = f"{BASE}/" if slug == "all" else f"{BASE}/index.php/conversations/{slug}/"
         try:
-            resp = requests.post(url, **kwargs)
+            landing = session.get(
+                board_url,
+                timeout=cls.timeout,
+                allow_redirects=True,
+                headers={"Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"},
+            )
+        except Exception as exc:
+            raise ChaoliError(f"超理搜索初始化失败：{exc}") from exc
+        if landing.status_code != 200:
+            raise ChaoliError(f"超理搜索初始化返回 HTTP {landing.status_code}")
+        # ET is a large nested inline object; do not parse it as one regex JSON
+        # blob. Search only the stable scalar fields used by $.ETAjax.
+        head_pos = landing.text.find("var ET=")
+        window = landing.text[head_pos : head_pos + 12000] if head_pos >= 0 else ""
+        token_m = re.search(r'"token"\s*:\s*"([^"\\]+)"', window)
+        path_m = re.search(r'"webPath"\s*:\s*"([^"\\]+)"', window)
+        token = token_m.group(1) if token_m else ""
+        web_path = (path_m.group(1).replace(r"\/", "/") if path_m else "/index.php")
+        if not token or not web_path.startswith("/"):
+            raise ChaoliError("超理页面缺少 AJAX 会话参数")
+        url = f"{BASE}{web_path}/?p=conversations/index.ajax/{slug}"
+        data = {"search": query, "token": token}
+        try:
+            resp = session.post(
+                url,
+                data=data,
+                timeout=cls.timeout,
+                allow_redirects=True,
+                headers={
+                    "Referer": landing.url,
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept": "application/json, text/javascript, */*; q=0.01",
+                    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+                },
+            )
         except Exception as exc:
             raise ChaoliError(f"超理搜索连接失败：{exc}") from exc
         if resp.status_code != 200:
@@ -166,42 +222,101 @@ class ChaoliService:
         return re.sub(r"\s+", " ", node.get_text(" ", strip=True)).strip() if node else ""
 
     @classmethod
-    def _parse_cards(cls, html: str, limit: int = 12, *, include_sticky: bool = False) -> list[ThreadCard]:
+    def _channel_slug(cls, value: str | None) -> str:
+        raw = str(value or "all").strip()
+        key = raw.casefold()
+        slug = CHANNELS.get(key) or CHANNELS.get(raw)
+        if slug is None or slug not in set(CHANNELS.values()):
+            raise ChaoliError(f"未知板块：{raw or '空'}")
+        return slug
+
+    @classmethod
+    def _member_anchor(cls, node) -> tuple[int | None, str]:
+        if node is None:
+            return None, ""
+        href = str(node.get("href") or "")
+        m = MEMBER_RE.search(urljoin(BASE, href))
+        name = cls._text(node)
+        return (int(m.group(1)), name) if m and name else (None, "")
+
+    @classmethod
+    def _own_text_and_quotes(cls, body) -> tuple[str, tuple[Quote, ...]]:
+        if body is None:
+            return "", ()
+        quotes: list[Quote] = []
+        for block in body.select("blockquote"):
+            cite = block.select_one("cite a.link-member[href], cite a[href*='/member/']")
+            qauthor = cls._text(cite).lstrip("@").strip() if cite else ""
+            clone = BeautifulSoup(str(block), "lxml")
+            for x in clone.select("cite, .controls.postRef"):
+                x.decompose()
+            qtext = cls._text(clone)
+            if qtext:
+                quotes.append(Quote(qauthor, qtext))
+        clone = BeautifulSoup(str(body), "lxml")
+        root = clone.select_one(".postBody") or clone.body or clone
+        for block in root.select("blockquote"):
+            block.decompose()
+        return cls._text(root), tuple(quotes)
+
+    @classmethod
+    def _parse_cards(cls, html: str, limit: int = 12, *, include_sticky: bool = False, expected_channel: str | None = None) -> list[ThreadCard]:
         soup = BeautifulSoup(html, "lxml")
         rows: list[ThreadCard] = []
+        expected = None if expected_channel in {None, "all"} else cls._channel_slug(expected_channel)
         for li in soup.select("li[id^='c']"):
             if not include_sticky and "label-sticky" in (li.get("class") or []):
                 continue
             ident = str(li.get("id") or "")
             if not ident[1:].isdigit():
                 continue
-            link = li.select_one("strong.title a[href]")
+            tid = int(ident[1:])
+            link = li.select_one(".col-conversation > strong.title > a[href]")
             if not link:
                 continue
-            tid = int(ident[1:])
-            href = str(link.get("href") or f"/index.php/{tid}")
-            channel_link = li.select_one("a.channel[href*='/conversations/']")
+            href = str(link.get("href") or "")
+            tm = THREAD_RE.search(urljoin(BASE, href))
+            if not tm or int(tm.group(1)) != tid:
+                continue
+
+            channel_link = li.select_one(".col-channel > a.channel[data-channel][href]")
+            channel_slug = str(channel_link.get("data-channel") or "").strip() if channel_link else ""
+            if channel_slug not in set(CHANNELS.values()):
+                continue
+            if expected and channel_slug != expected:
+                continue
             channel = cls._text(channel_link)
-            if not channel:
-                classes = [x for x in li.get("class", []) if str(x).startswith("channel-")]
-                channel = classes[0] if classes else ""
-            replies = cls._text(li.select_one(".col-replies"))
+
+            actions = li.select(".col-lastPost > span.action")
+            author_id = last_author_id = None
+            author = started = last_author = updated = ""
+            if actions:
+                author_id, author = cls._member_anchor(actions[0].select_one(".firstPostMember > a[href*='/member/']"))
+                started = cls._text(actions[0].select_one(".startTime"))
+            if len(actions) >= 2:
+                last_author_id, last_author = cls._member_anchor(actions[1].select_one(".lastPostMember > a[href*='/member/']"))
+                last_time = actions[1].select_one("a.lastPostTime[href]")
+                if last_time:
+                    lm = THREAD_RE.search(urljoin(BASE, str(last_time.get("href") or "")))
+                    if lm and int(lm.group(1)) == tid:
+                        updated = cls._text(last_time)
+
+            replies = ""
+            reply_link = li.select_one(".col-replies a[href]")
+            if reply_link:
+                rm = THREAD_RE.search(urljoin(BASE, str(reply_link.get("href") or "")))
+                if rm and int(rm.group(1)) == tid:
+                    replies = cls._text(reply_link)
+
             rows.append(ThreadCard(
-                tid,
-                cls._text(link),
-                cls._text(li.select_one(".excerpt")),
-                channel,
-                cls._text(li.select_one(".firstPostMember")),
-                cls._text(li.select_one(".startTime")),
-                cls._text(li.select_one(".lastPostMember")),
-                cls._text(li.select_one(".lastPostTime")),
-                replies,
-                urljoin(BASE, href),
+                tid, cls._text(link), cls._text(li.select_one(".excerpt")),
+                channel, channel_slug, author, author_id, started,
+                last_author, last_author_id, updated, replies, urljoin(BASE, href),
             ))
             if len(rows) >= max(1, min(limit, 30)):
                 break
         if not rows:
-            raise ChaoliError("没有解析到帖子列表")
+            raise ChaoliError("没有解析到可强绑定的帖子列表")
         return rows
 
     @classmethod
@@ -219,27 +334,23 @@ class ChaoliService:
         if not query:
             raise ChaoliError("缺少搜索词")
         raw_channel = str(channel or "all").strip()
-        slug = CHANNELS.get(raw_channel.lower(), CHANNELS.get(raw_channel, raw_channel.lower() or "all"))
-        if not re.fullmatch(r"[a-z0-9-]+", slug):
-            raise ChaoliError("未知板块")
+        slug = cls._channel_slug(raw_channel)
         view = await cls._search(query, slug)
         try:
-            cards = cls._parse_cards(view, limit, include_sticky=True)
+            cards = cls._parse_cards(view, limit, include_sticky=True, expected_channel=slug)
         except ChaoliError as exc:
-            if "没有解析到帖子列表" in str(exc):
+            if "没有解析到" in str(exc):
                 raise ChaoliError(f"没有找到与‘{query}’匹配的帖子") from exc
             raise
-        scope = "全部板块" if slug == "all" else raw_channel
+        scope = "全部板块" if slug == "all" else cards[0].channel
         return f"超理搜索 · {query} · {scope}\n\n" + "\n\n".join(x.line() for x in cards)
 
     @classmethod
     async def latest(cls, channel: str = "all", limit: int = 10) -> str:
-        slug = CHANNELS.get(channel.strip().lower(), CHANNELS.get(channel.strip(), channel.strip().lower() or "all"))
-        if not re.fullmatch(r"[a-z0-9-]+", slug):
-            raise ChaoliError("未知板块")
+        slug = cls._channel_slug(channel)
         path = "/" if slug == "all" else f"/index.php/conversations/{slug}/"
-        cards = cls._parse_cards(await cls._get(path), limit)
-        title = "超理 · 最新" if slug == "all" else f"超理 · {channel}"
+        cards = cls._parse_cards(await cls._get(path), limit, expected_channel=slug)
+        title = "超理 · 最新" if slug == "all" else f"超理 · {cards[0].channel}"
         return title + "\n\n" + "\n\n".join(x.line() for x in cards)
 
     @staticmethod
@@ -261,25 +372,32 @@ class ChaoliService:
         soup = BeautifulSoup(html, "lxml")
         title = re.sub(r"\s*-\s*超理论坛\s*$", "", cls._text(soup.title)) if soup.title else ""
         floors: list[Floor] = []
-        real_posts = [p for p in soup.select(".post") if p.get("data-id") and p.select_one(".postHeader") and p.select_one(".postBody")]
-        for idx, post in enumerate(real_posts, start=1):
-            header = post.select_one(".postHeader")
-            author = cls._text(header.select_one(".info h3 a") if header else None)
-            header_text = cls._text(header)
-            m = re.search(r"(\d+)楼", header_text)
-            number = int(m.group(1)) if m else idx
-            time = cls._text(header.select_one("a.time") if header else None)
-            body = post.select_one(".postBody")
-            text = cls._text(body)
-            if not text:
+        for post in soup.select(".post[data-id]"):
+            header = post.select_one(".postHeader > .info")
+            if header is None:
                 continue
+            floor_span = next((x for x in header.find_all("span", recursive=False) if re.fullmatch(r"\s*\d+楼\s*", cls._text(x))), None)
+            if floor_span is None:
+                continue
+            fm = re.search(r"(\d+)楼", cls._text(floor_span))
+            if not fm:
+                continue
+            number = int(fm.group(1))
+            author_id, author = cls._member_anchor(header.select_one("h3 > a[href*='/member/']"))
+            time_node = header.select_one("a.time[href*='/conversation/post/']")
+            time = (str(time_node.get("title") or "").strip() or cls._text(time_node)) if time_node else ""
+            post_id = str(post.get("data-id") or "")
             anchor = str(post.get("id") or "")
-            url = f"{BASE}/index.php/{thread_id}/{number}"
-            if anchor:
-                url = f"{BASE}/index.php/{thread_id}#{anchor}"
-            floors.append(Floor(number, author, time, text, url))
+            if anchor and anchor != f"p{post_id}":
+                continue
+            url = f"{BASE}/index.php/{thread_id}#{anchor}" if anchor else f"{BASE}/index.php/conversation/post/{post_id}"
+            deleted = "deleted" in (post.get("class") or [])
+            body = post.select_one(".postBody")
+            own_text, quotes = cls._own_text_and_quotes(body) if body else ("", ())
+            floors.append(Floor(number, author, author_id, time, own_text, quotes, url, deleted))
+        floors.sort(key=lambda x: x.number)
         if not floors:
-            raise ChaoliError("没有解析到楼层")
+            raise ChaoliError("没有解析到可强绑定的楼层")
         return title or f"帖子 #{thread_id}", floors
 
     @classmethod
@@ -297,7 +415,8 @@ class ChaoliService:
                 body = head + "\n\n" + middle + "\n\n" + tail
             else:
                 body = "\n\n".join(x.line(max_chars=1100) for x in floors)
-            return f"{title} · #{thread_id} · {len(floors)}楼\n{BASE}/index.php/{thread_id}\n\n" + body
+            max_floor = max(x.number for x in floors)
+            return f"{title} · #{thread_id} · 最高 {max_floor}楼（含删除占位）\n{BASE}/index.php/{thread_id}\n\n" + body
         pos = next((i for i, x in enumerate(floors) if x.number == floor), None)
         if pos is None:
             raise ChaoliError(f"没有找到 {floor} 楼")
@@ -312,8 +431,9 @@ class ChaoliService:
         title, floors = cls._parse_thread(await cls._get(f"/index.php/{thread_id}"), thread_id)
         rows = []
         for x in floors[: max(1, min(limit, 80))]:
-            preview = x.text[:180].rstrip() + ("…" if len(x.text) > 180 else "")
-            rows.append(f"{x.number}楼 · {x.author or '匿名'} · {x.time}\n{preview}")
+            preview = "〔已删除〕" if x.deleted else (x.text[:180].rstrip() + ("…" if len(x.text) > 180 else ""))
+            author = x.author or "作者未能强绑定"
+            rows.append(f"{x.number}楼 · {author} · {x.time}\n{preview}")
         tail = "" if len(floors) <= len(rows) else f"\n\n……共 {len(floors)} 楼，可用 /chaoli context {thread_id} <楼层> 深读。"
         return f"{title} · #{thread_id} · 楼层提纲\n{BASE}/index.php/{thread_id}\n\n" + "\n\n".join(rows) + tail
 
@@ -324,7 +444,7 @@ class ChaoliService:
         soup = BeautifulSoup(html, "lxml")
         seen: set[int] = {thread_id}
         rows: list[str] = []
-        for a in soup.select("a[href]"):
+        for a in soup.select(".postBody a[href]"):
             href = str(a.get("href") or "")
             m = THREAD_RE.search(href if href.startswith("http") else urljoin(BASE, href))
             if not m:
@@ -374,11 +494,11 @@ class ChaoliService:
     @classmethod
     def _match_member_rows(cls, rows: list[tuple[int, str]], wanted: str) -> tuple[int, str] | None:
         exact = [(mid, name) for mid, name in rows if cls._member_key(name) == wanted]
-        if exact:
-            return exact[0]
-        partial = [(mid, name) for mid, name in rows if wanted in cls._member_key(name)]
-        if len(partial) == 1:
-            return partial[0]
+        unique = {(mid, cls._member_key(name)): (mid, name) for mid, name in exact}
+        if len(unique) == 1:
+            return next(iter(unique.values()))
+        if len(unique) > 1:
+            raise ChaoliError("存在多个同名超理用户，不能仅凭用户名唯一定位")
         return None
 
     @classmethod
@@ -475,10 +595,6 @@ class ChaoliService:
         hit = cls._match_member_rows(verified, wanted)
         if hit:
             return hit
-        partial = [row for row in verified if wanted in cls._member_key(row[1]) or cls._member_key(row[1]) in wanted]
-        if partial:
-            names = "、".join(name for _mid, name in partial[:5])
-            raise ChaoliError(f"用户名不唯一，候选：{names}")
         raise ChaoliError(f"没有找到用户名‘{value}’对应的超理用户")
 
     @classmethod
@@ -486,25 +602,46 @@ class ChaoliService:
         member_id, resolved_name = await cls._resolve_member_id(value)
         html = await cls._get(f"/index.php/member/{member_id}")
         soup = BeautifulSoup(html, "lxml")
-        name = re.sub(r"\s*-\s*超理论坛\s*$", "", cls._text(soup.title)) if soup.title else (resolved_name or f"用户 {member_id}")
+        name = re.sub(r"\s*-\s*超理论坛\s*$", "", cls._text(soup.title)) if soup.title else ""
+        if not name:
+            raise ChaoliError("用户页缺少可验证用户名")
+        if resolved_name and cls._member_key(name) != cls._member_key(resolved_name):
+            raise ChaoliError("用户名与用户页标题不一致，拒绝合并")
+
         activities: list[str] = []
-        for post in soup.select(".post")[: max(1, min(limit, 20))]:
-            body = cls._text(post.select_one(".postBody"))
-            if not body:
+        for activity in soup.select(".activity"):
+            action = activity.select_one(".action")
+            action_text = cls._text(action)
+            if not action or not cls._member_key(action_text).startswith(cls._member_key(name)):
                 continue
-            href = ""
-            a = post.select_one("a[href*='/index.php/']")
-            if a:
-                href = urljoin(BASE, str(a.get("href") or ""))
-            activities.append((body[:500] + ("…" if len(body) > 500 else "")) + (f"\n{href}" if href else ""))
-        if not activities:
-            for body in soup.select(".postBody")[: max(1, min(limit, 20))]:
-                text = cls._text(body)
-                if text:
-                    activities.append(text[:500] + ("…" if len(text) > 500 else ""))
-        out = f"{name} · member/{member_id}\n{BASE}/index.php/member/{member_id}"
+            link = action.select_one("a[href*='/conversation/post/']")
+            if not link:
+                continue
+            href = urljoin(BASE, str(link.get("href") or ""))
+            if urlparse(href).hostname not in {"chaoli.club", "www.chaoli.club"}:
+                continue
+            topic = cls._text(link)
+            when = cls._text(activity.select_one(".controls > .time"))
+            own_text, quotes = cls._own_text_and_quotes(activity.select_one(".activityBody.postBody"))
+            parts = [f"{when + ' · ' if when else ''}在《{topic}》中更新"]
+            for q in quotes[:2]:
+                qtext = q.text if len(q.text) <= 260 else q.text[:259].rstrip() + "…"
+                parts.append(f"引用{(' @' + q.author) if q.author else ''}：{qtext}")
+            if own_text:
+                body = own_text if len(own_text) <= 500 else own_text[:499].rstrip() + "…"
+                parts.append("本人新增正文：" + body)
+            elif not quotes:
+                parts.append("〔该活动无可抽取文本，可能为附件/图片〕")
+            parts.append(href)
+            activities.append("\n".join(parts))
+            if len(activities) >= max(1, min(limit, 20)):
+                break
+
+        out = f"{name} · member/{member_id}（用户名已由真实用户页验证）\n{BASE}/index.php/member/{member_id}"
         if activities:
-            out += "\n\n近期公开活动：\n\n" + "\n\n".join(activities)
+            out += "\n\n近期公开活动（引用与本人新增正文已分离）：\n\n" + "\n\n".join(activities)
+        else:
+            out += "\n\n没有解析到可与该用户强绑定的公开活动记录。"
         return out
 
     @classmethod
@@ -514,6 +651,9 @@ class ChaoliService:
             return await cls.read(str(thread_id), int(suffix), 0)
         html = await cls._get(f"/index.php/{thread_id}")
         title, floors = cls._parse_thread(html, thread_id)
-        first = floors[0]
+        first = next((x for x in floors if not x.deleted), None)
+        if first is None:
+            return f"{title}\n公开页只有删除占位，未读取到正文。\n{BASE}/index.php/{thread_id}"
         excerpt = first.text[:360] + ("…" if len(first.text) > 360 else "")
-        return f"{title}\n{first.author} · {len(floors)}楼\n{excerpt}\n{BASE}/index.php/{thread_id}"
+        max_floor = max(x.number for x in floors)
+        return f"{title}\n首楼作者：{first.author or '未能强绑定'} · 最高 {max_floor}楼\n首楼正文：{excerpt}\n{BASE}/index.php/{thread_id}"

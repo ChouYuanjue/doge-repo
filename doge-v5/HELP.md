@@ -168,28 +168,28 @@ BACK
 
 ```text
 COMMAND  /chaoli
-超理论坛只读：原生帖子搜索、最新/分板主题、帖子与楼层上下文、用户名/用户活动、引用链与链接预览。
+超理论坛严格只读：原生帖子搜索/分板/帖子/楼层/用户活动；作者、最后回复者、楼层和用户均按页面实体强绑定，引用与本人正文分离。
 
 SUBCOMMANDS
-  search           使用超理论坛原生 POST AJAX 搜索帖子，可限定板块并支持论坛 gambit 语法。
+  search           使用超理原生 POST AJAX 搜索；每条结果强绑定主题 ID、板块、首帖作者与最后回复者，不把更新时间归给首帖作者。
     /chaoli search <查询> [--board 板块] [--limit N]
-  latest           查看超理最新主题流，可指定板块和数量。
+  latest           查看超理最新主题流；首帖作者、最后回复者、发表/更新时间分别绑定，未知板块直接报错而不静默回退。
     /chaoli latest [板块] [数量]
-  channel          按数学、物理、化学、生物、技术、语言、社科、科幻、合集等板块浏览主题。
+  channel          严格按指定板块浏览主题；板块 slug 与每个主题卡的 data-channel 必须一致。
     /chaoli channel <板块> [数量]
-  read             读取超理帖子；长楼保留首部与末部，避免一次刷屏。
+  read             读取主题楼层；按真实楼号和作者绑定，删除楼层保留占位，引用块与当前楼作者正文分离。
     /chaoli read <帖子号|链接>
-  floor            精确读取指定楼层。
+  floor            精确读取指定真实楼层；删除楼层明确标记，引用内容不会归到本楼作者。
     /chaoli floor <帖子号> <楼层>
-  context          读取指定楼层及前后 1-3 层上下文。
+  context          读取指定楼层及前后文；每层独立绑定作者/时间，引用与本层正文分离。
     /chaoli context <帖子号> <楼层> [1-3]
-  outline          长帖楼层提纲：列出楼层作者、时间和短摘要，便于再用 context 深读。
+  outline          按真实楼号列出作者、时间和本人正文摘要；删除楼层保留删除标记。
     /chaoli outline <帖子号|链接>
-  user             按用户名、用户 ID 或用户链接定位超理用户，并查看公开主页与近期公开活动。
+  user             按用户名/ID/链接定位论坛账号；用户名必须经真实用户页验证，公开活动绑定具体 post/time，引用与本人新增正文分离。
     /chaoli user <用户名|用户ID|链接>
-  links            抽取帖子正文中引用的其他超理帖子，沿引用链继续阅读。
+  links            只从帖子正文区域抽取其他 Chaoli 帖子链接，不扫描页面导航或其他 UI。
     /chaoli links <帖子号|链接>
-  preview          一屏预览超理帖子；群聊中的纯 Chaoli 帖子链接也会自动轻量展开。
+  preview          严格预览首个可见楼层：标题、首楼作者、最高楼层和首楼本人正文均来自同一主题页。
     /chaoli preview <帖子号|链接>
   status           检查 Chaoli 专用选择性代理与论坛首页是否可达。
     /chaoli status
@@ -918,7 +918,7 @@ SUBCOMMANDS
     /lang tangut ghc <西夏文>
   t2zh             西夏文→中文：词典 grounding 后保守整理。
     /lang tangut t2zh <西夏文>
-  zh2t             中文→西夏文：exact-gloss grounding，未知项不乱译。
+  zh2t             中文→西夏文：先给 exact-gloss 词典结果；缺口另给词典候选约束的宽松补齐，并明确标出近似/省略。
     /lang tangut zh2t <中文>
   render           西夏文 Noto Serif Tangut 渲染。
     /lang tangut render <西夏文>

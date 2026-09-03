@@ -205,8 +205,8 @@ class DogeLookupTool(FunctionTool[AstrAgentContext]):
 class DogeChaoliTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_chaoli"
     description: str = (
-        "超理论坛只读工具：可使用论坛原生 POST AJAX 搜索帖子，也可读取最新/分板主题流、帖子全文或具体楼层与上下文、"
-        "用户名/用户ID定位与公开活动、帖子中的超理引用链和链接预览。遇到超理帖子链接或用户询问论坛既有讨论时优先使用。"
+        "超理论坛只读工具：所有作者/板块/楼层/用户字段都要求和同一论坛 DOM 实体强绑定；引用与作者本人正文分离，不能据摘要或相邻元素推断。"
+        "支持论坛原生 POST AJAX 搜索、最新/分板主题、帖子/楼层、严格用户名验证、用户公开活动、引用链和链接预览。"
     )
     parameters: dict = Field(default_factory=lambda: {
         "type":"object",
@@ -216,23 +216,34 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
             "query":{"type":"string","description":"search 时的超理原生查询词；支持 #精品 等论坛搜索语法"},
             "channel":{"type":"string","description":"search 时可选板块，例如 数学/maths/physics；默认 all"},
             "floor":{"type":"integer","minimum":1},
-            "context":{"type":"integer","minimum":0,"maximum":3},
+            "radius":{"type":"integer","minimum":0,"maximum":3,"description":"context action 的前后楼层半径；避免与 Agent 内部 context 参数重名"},
             "limit":{"type":"integer","minimum":1,"maximum":30}
         },
         "required":["action"]
     })
+    @staticmethod
+    def _strict_result(text: str) -> str:
+        note = (
+            "【严格归属约束】以下信息只能按论坛页面直接绑定关系复述：用户名仅代表论坛账号，不得推断现实身份；"
+            "主题作者、最后回复者、楼层作者不可互换；‘引用’内容属于被引用者，不得算作当前楼作者观点；"
+            "概括观点时必须保留作者/楼层来源，不确定就明确说无法确认。\n\n"
+        )
+        return note + str(text or "")
+
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
         a=str(kwargs.get("action") or ""); target=str(kwargs.get("target") or "").strip()
-        if a=="search": return await ChaoliService.search(str(kwargs.get("query") or target),str(kwargs.get("channel") or "all"),int(kwargs.get("limit",10)))
-        if a=="latest": return await ChaoliService.latest("all",int(kwargs.get("limit",10)))
-        if a=="channel": return await ChaoliService.latest(target or "all",int(kwargs.get("limit",10)))
-        if a=="read": return await ChaoliService.read(target)
-        if a=="floor": return await ChaoliService.read(target,int(kwargs.get("floor",1)),0)
-        if a=="context": return await ChaoliService.read(target,int(kwargs.get("floor",1)),int(kwargs.get("context",1)))
-        if a=="outline": return await ChaoliService.outline(target,int(kwargs.get("limit",40)))
-        if a=="user": return await ChaoliService.user(target,int(kwargs.get("limit",8)))
-        if a=="links": return await ChaoliService.links(target,int(kwargs.get("limit",12)))
-        if a=="preview": return await ChaoliService.preview(target)
+        async def strict(awaitable):
+            return self._strict_result(await awaitable)
+        if a=="search": return await strict(ChaoliService.search(str(kwargs.get("query") or target),str(kwargs.get("channel") or "all"),int(kwargs.get("limit",10))))
+        if a=="latest": return await strict(ChaoliService.latest("all",int(kwargs.get("limit",10))))
+        if a=="channel": return await strict(ChaoliService.latest(str(kwargs.get("channel") or target or "all"),int(kwargs.get("limit",10))))
+        if a=="read": return await strict(ChaoliService.read(target))
+        if a=="floor": return await strict(ChaoliService.read(target,int(kwargs.get("floor",1)),0))
+        if a=="context": return await strict(ChaoliService.read(target,int(kwargs.get("floor",1)),int(kwargs.get("radius",1))))
+        if a=="outline": return await strict(ChaoliService.outline(target,int(kwargs.get("limit",40))))
+        if a=="user": return await strict(ChaoliService.user(target,int(kwargs.get("limit",8))))
+        if a=="links": return await strict(ChaoliService.links(target,int(kwargs.get("limit",12))))
+        if a=="preview": return await strict(ChaoliService.preview(target))
         if a=="status": return await ChaoliService.status()
         raise ValueError("unknown chaoli action")
 

@@ -25,10 +25,11 @@ HELP = """Doge Chaoli /chaoli
   /chaoli links <帖子号|链接>           沿帖内超理链接阅读相关旧帖
   /chaoli preview <帖子号|链接>         一屏预览
   /chaoli status                        检查 Chaoli 专用代理链
-搜索使用超理前端自己的 POST AJAX 接口，不经过会被 Cloudflare 拦截的 GET 查询页。"""
+搜索使用超理前端自己的 POST AJAX 接口，不经过会被 Cloudflare 拦截的 GET 查询页。
+严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、只读浏览、楼层上下文、用户活动与引用链", "5.10.24")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、只读浏览、楼层上下文、用户活动与引用链", "5.10.25")
 class DogeChaoli(Star):
     def __init__(self, context: Context):
         super().__init__(context)
