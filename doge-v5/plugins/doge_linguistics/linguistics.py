@@ -507,11 +507,18 @@ class CthuvianAdapter:
         from cthuvian_translator.reverse import ReverseGloss
         from cthuvian_translator.phonology import strip_role_suffix
         from cthuvian_translator.sealing import unseal_text
+        from cthuvian_translator.normalization import tokenize
+        from cthuvian_translator.translator import AUXILIARIES, NEGATORS, PAST_FORMS, PREPOSITIONS
 
         self._translator_cls = Translator
         self._reverse_cls = ReverseGloss
         self._strip_role_suffix = strip_role_suffix
         self._unseal_text = unseal_text
+        self._tokenize = tokenize
+        self._auxiliaries = frozenset(AUXILIARIES)
+        self._negators = frozenset(NEGATORS)
+        self._past_forms = frozenset(PAST_FORMS)
+        self._prepositions = dict(PREPOSITIONS)
         self.registry = PersistentCthuvianRegistry(self.root, learned_registry_path)
         self.proposal_rules = UpstreamProposalRules(self.root)
 
@@ -557,53 +564,107 @@ class CthuvianAdapter:
             "sealed_tokens": len(sealed_tokens),
         }
 
-    def translate_chunked(self, text: str, register: str = "high") -> dict:
-        """Best-effort fallback built only from the pinned deterministic translator."""
-        source = " ".join(str(text or "").strip().rstrip(".?!").split())
-        words = source.split()
-        if not words:
-            return self.translate(text, register)
+    def high_words(self, text: str) -> tuple[str, ...]:
+        """Tokenize an English source into lexical units without phrase grouping.
 
-        @lru_cache(maxsize=None)
-        def solve(i: int):
-            if i >= len(words):
-                return (0.0, ())
-            best_score = -1e18
-            best = ()
-            for length in range(min(4, len(words) - i), 0, -1):
-                span = " ".join(words[i:i + length])
-                result = self.translate(span, register)
-                provenance = str(result.get("provenance") or "sealed")
-                if provenance == "sealed" and length > 1:
-                    continue
-                rank = 3 if provenance == "lexicon" else (1 if provenance == "hybrid" else 0)
-                local = rank * 100.0 + length * length * (8.0 if rank else -1.0)
-                tail_score, tail = solve(i + length)
-                total = local + tail_score
-                if total > best_score:
-                    best_score = total
-                    best = ((span, result),) + tail
-            return best_score, best
+        High register intentionally does not perform greedy phrase segmentation:
+        every ordinary word is resolved independently. Punctuation is discarded;
+        fixed grammatical words may be represented deterministically or omitted.
+        """
+        out: list[str] = []
+        for token in self._tokenize(str(text or "")):
+            normalized = normalize_english(token)
+            if not normalized:
+                continue
+            if normalized.isdigit() or re.fullmatch(r"[a-z][a-z'’-]*", normalized, re.I):
+                out.append(normalized)
+        return tuple(out)
 
-        _score, chunks = solve(0)
-        surfaces = [str(item[1].get("cthuvian") or "") for item in chunks]
-        sealed_count = sum(int(item[1].get("sealed_tokens") or 0) for item in chunks)
-        provenances = [str(item[1].get("provenance") or "sealed") for item in chunks]
-        if provenances and all(x == "lexicon" for x in provenances):
-            provenance = "lexicon"
-        elif provenances and all(x == "sealed" for x in provenances):
-            provenance = "sealed"
-        else:
-            provenance = "hybrid"
+    def high_word_surface(self, word: str, *, auxiliary: bool = False) -> dict | None:
+        """Resolve exactly one English word to an authoritative RC-1 surface.
+
+        ``None`` means a genuine lexical gap that high register must teach via
+        the model. This method never seals or guesses a phrase translation.
+        """
+        key = normalize_english(word)
+        if not key:
+            return {"source": key, "rc": "", "kind": "empty"}
+        translator = self._translator_cls(registry=self.registry)
+        if key in {"a", "an", "the"}:
+            return {"source": key, "rc": "", "kind": "determiner_omitted"}
+        if auxiliary and key in self._auxiliaries:
+            return {"source": key, "rc": "", "kind": "auxiliary_omitted"}
+        if key in translator._proper_names:
+            return {"source": key, "rc": str(translator._proper_names[key]), "kind": "proper_name"}
+        if key in translator._pronouns:
+            return {"source": key, "rc": str(translator._pronouns[key]["rc"]), "kind": "pronoun"}
+        verb_id = translator._verb_index.get(key)
+        if verb_id:
+            rc = str(translator.data.lexemes["lexemes"][verb_id]["surface"])
+            if key in self._past_forms:
+                rc = "nafl'" + rc
+            return {"source": key, "rc": rc, "kind": "verb"}
+        if key in translator._terms:
+            return {"source": key, "rc": str(translator._terms[key]["rc"]), "kind": "term"}
+        entry = self.registry.lookup(key)
+        if entry is not None:
+            return {"source": key, "rc": str(entry.rc), "kind": "registry"}
+        if key.isdigit():
+            return {"source": key, "rc": translator._number_to_rc(key), "kind": "number"}
+        if key in self._prepositions and self._prepositions[key]:
+            return {"source": key, "rc": str(self._prepositions[key]), "kind": "relation_marker"}
+        if key in self._negators:
+            return {"source": key, "rc": "na", "kind": "negator"}
+        return None
+
+    def high_lexical_plan(self, text: str) -> list[dict]:
+        """Resolve a sentence word-by-word; unresolved entries stay explicit."""
+        words = list(self.high_words(text))
+        translator = self._translator_cls(registry=self.registry)
+        plan: list[dict] = []
+        for index, word in enumerate(words):
+            is_aux = word in self._auxiliaries and any(
+                later in translator._verb_index for later in words[index + 1:]
+            )
+            resolved = self.high_word_surface(word, auxiliary=is_aux)
+            plan.append(resolved or {"source": word, "rc": None, "kind": "missing"})
+        return plan
+
+    def high_missing_words(self, text: str) -> tuple[str, ...]:
+        seen: set[str] = set()
+        out: list[str] = []
+        for item in self.high_lexical_plan(text):
+            if item["kind"] != "missing":
+                continue
+            word = str(item["source"])
+            if word not in seen:
+                seen.add(word)
+                out.append(word)
+        return tuple(out)
+
+    def compose_high_word_level(self, text: str) -> dict:
+        """Compose high register only after every lexical gap is resolved.
+
+        There is deliberately no sealed/chunk fallback here. An unresolved word
+        is a hard error so high-register output can never masquerade as complete.
+        """
+        plan = self.high_lexical_plan(text)
+        missing = [str(item["source"]) for item in plan if item["kind"] == "missing"]
+        if missing:
+            raise ValueError("unresolved high-register words: " + ", ".join(dict.fromkeys(missing)))
+        surfaces = [str(item["rc"]) for item in plan if item.get("rc")]
+        omitted = [str(item["source"]) for item in plan if not item.get("rc")]
         return {
             "source": text,
-            "cthuvian": " ".join(x for x in surfaces if x).strip(),
-            "register": register,
-            "roundtrip_ok": False,
-            "warnings": ["chunked_grammar_fallback"],
-            "provenance": provenance,
-            "sealed_tokens": sealed_count,
-            "chunks": [span for span, _result in chunks],
+            "cthuvian": " ".join(surfaces),
+            "register": "high",
+            "roundtrip_ok": True,
+            "warnings": [],
+            "provenance": "lexicon",
+            "sealed_tokens": 0,
+            "word_level": True,
+            "words": [str(item["source"]) for item in plan],
+            "omitted_grammar_words": omitted,
         }
 
     def sealed_sources(self, result: dict) -> tuple[str, ...]:
@@ -660,20 +721,45 @@ class CthuvianAdapter:
             "literal_gloss": str(entry.metadata.get("literal_gloss") or normalized),
         }
 
+    def accept_proposals_batch(self, proposals: Iterable[tuple[str, dict]], model_profile: str | None = None) -> list[dict]:
+        """Validate per-word proposals, then commit the entire set atomically."""
+        specs: list[dict] = []
+        for source, proposal in proposals:
+            normalized = normalize_english(source)
+            if not normalized or re.search(r"\s", normalized):
+                raise ValueError("high-register learned source must be exactly one English lexical token")
+            payload = dict(proposal or {})
+            payload["source_term"] = normalized
+            validated = self.proposal_rules.validate(payload)
+            if not validated.get("ok"):
+                raise ValueError(f"invalid RC-1 term proposal for {normalized}: {validated.get('reason', 'unknown')}")
+            term = str(validated.get("term") or "")
+            if re.search(r"\s", term):
+                raise ValueError("learned RC-1 term must be a single reversible token")
+            specs.append({
+                "source": normalized,
+                "rc": term,
+                "strategy": validated["strategy"],
+                "literal_gloss": str(payload.get("literal_gloss") or normalized),
+                "components": list(payload.get("selected_roots") or ()),
+                "concept_type": str(payload.get("concept_type") or "object"),
+                "model_profile": model_profile,
+                "validator_report": validated,
+            })
+        accepted = self.registry.accept_many(specs)
+        return [{
+            "source": entry.source,
+            "rc": entry.rc,
+            "strategy": entry.strategy,
+            "created": created,
+            "literal_gloss": str(entry.metadata.get("literal_gloss") or entry.source),
+        } for entry, created in accepted]
+
     def learned_count(self) -> int:
         return self.registry.learned_count()
 
     def learned_bytes(self) -> bytes:
         return self.registry.learned_bytes()
-
-    def planner_vocabulary(self) -> tuple[str, ...]:
-        """Core English parser vocabulary; not the 4k static noun registry."""
-        translator = self._translator_cls(registry=self.registry)
-        words = set(translator._verb_index)
-        words.update(translator._terms)
-        words.update(translator._proper_names)
-        words.update(translator._pronouns)
-        return tuple(sorted(str(x) for x in words if str(x).strip()))
 
     def gloss(self, text: str) -> dict:
         reverse = self._reverse_cls()

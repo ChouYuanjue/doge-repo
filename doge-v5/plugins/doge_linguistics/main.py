@@ -56,36 +56,7 @@ def _format_segments(segments, max_items: int = 14) -> str:
     return " ｜ ".join(parts)
 
 
-_NEGATION_RE = re.compile(r"\b(?:not|no|never|without|nothing)\b", re.I)
-_CTH_SURFACE_LIKE_RE = re.compile(r"\b[a-z]{1,5}'[a-z]{2,}\b", re.I)
-
-
-def _safe_high_english_candidate(source: str, candidate: str) -> bool:
-    """Cheap semantic invariants before an LLM proposal can reach RC-1 rules."""
-    src = " ".join(str(source or "").strip().split())
-    cand = " ".join(str(candidate or "").strip().split())
-    if not src or not cand or len(cand) > max(240, int(len(src) * 2.2)):
-        return False
-    if _CTH_SURFACE_LIKE_RE.search(cand):
-        return False
-    # Preserve numeric facts and obvious named entities. Sentence-initial
-    # function words are excluded from the proper-name heuristic.
-    for number in re.findall(r"\b\d+(?:\.\d+)?\b", src):
-        if number not in cand:
-            return False
-    common = {"The", "A", "An", "I", "He", "She", "It", "We", "They", "You"}
-    names = [x for x in re.findall(r"\b[A-Z][A-Za-z0-9-]*\b", src) if x not in common]
-    lower_cand = cand.lower()
-    if any(name.lower() not in lower_cand for name in names):
-        return False
-    src_neg = bool(_NEGATION_RE.search(src))
-    cand_neg = bool(_NEGATION_RE.search(cand))
-    if src_neg != cand_neg:
-        return False
-    return True
-
-
-@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.9.2")
+@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.9.3")
 class DogeLinguistics(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -348,145 +319,88 @@ class DogeLinguistics(Star):
                 return
         raise ValueError("未知 Tangut 子命令")
 
-    async def _cthuvian_high(self, text: str, adapter: CthuvianAdapter) -> tuple[dict, dict]:
-        """Run deterministic RC-1 first; use dedicated DeepSeek only for genuine gaps.
+    @staticmethod
+    def _json_payload(raw: str) -> dict:
+        text = (raw or "").strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.I | re.S).strip()
+        payload = json.loads(text)
+        if not isinstance(payload, dict):
+            raise ValueError("model response is not a JSON object")
+        return payload
 
-        DeepSeek may safely restate English to fit the grammar, then propose a
-        constrained permanent term for lexical gaps. The pinned RC-1 rules
-        validate every learned surface before it enters the persistent registry.
-        """
-        base = await asyncio.to_thread(adapter.translate, text, "high")
-        # Fully lexicalized high-register input is already deterministic. In
-        # particular, a term learned on a previous request must not even require
-        # a configured DeepSeek provider merely to restate the same sentence.
-        if base.get("provenance") == "lexicon" and not adapter.sealed_sources(base):
-            return base, {
-                "provider_id": "not_needed",
-                "planner_status": "not_needed",
-                "candidate_english": text,
-                "source_english": text,
-                "learned_terms": [],
-            }
-        provider, provider_id = dedicated_deepseek(self.context)
-        vocab = " ".join(adapter.planner_vocabulary())
+    async def _cthuvian_to_english(self, text: str, provider) -> str:
         system = (
-            "You are the semantic planning layer for RC-1 high-register Cthuvian. "
-            "You MUST NOT output Cthuvian/R'lyehian surface text. Output JSON only. "
-            "Preserve the exact proposition, polarity, named entities, numbers, tense and participants. "
-            "Do not add mythos imagery, gods, ritual actions, emotions, facts or implications absent from the source. "
-            "Your only job is to restate the English as one compact clause that the deterministic RC-1 grammar can analyze. "
-            "Prefer words from the provided known vocabulary; articles and stylistic filler may be removed. "
-            "This follows the repository rule: LLM proposes; rules decide; reverse parser validates; surface generation by the LLM is forbidden."
+            "You are a literal translation gateway. Return JSON only. "
+            "Translate SOURCE into concise ordinary English. If SOURCE is already English, copy it without paraphrasing. "
+            "Preserve every named entity, number, negation, relation, participant, and tense/aspect when expressible. "
+            "Do not simplify for downstream grammar. Do not output Cthuvian/R'lyehian or commentary."
         )
-        prompt = (
-            "Return exactly this JSON shape: {\"candidate_english\": \"...\"}.\n"
-            f"SOURCE: {text}\n"
-            f"KNOWN ENGLISH VOCABULARY: {vocab}\n"
-            f"BASE DETERMINISTIC PROVENANCE: {base['provenance']}\n"
-            "If no safe equivalent clause can be formed, set candidate_english exactly equal to SOURCE."
-        )
-        candidate = text
-        planner_status = "unchanged"
-        try:
-            resp = await provider.text_chat(
-                prompt=prompt,
-                system_prompt=system,
-                temperature=0.0,
-                max_tokens=320,
+        prompt = 'Return exactly {"english":"..."}.\nSOURCE: ' + text
+        resp = await provider.text_chat(prompt=prompt, system_prompt=system, temperature=0.0, max_tokens=420)
+        payload = self._json_payload(resp.completion_text or "")
+        english = " ".join(str(payload.get("english") or "").strip().split())
+        if not english:
+            raise ValueError("language-to-English model returned empty output")
+        return english
+
+    async def _cthuvian_generate_word(self, word: str, english: str, adapter: CthuvianAdapter, provider, provider_id: str) -> dict:
+        existing = adapter.lookup(word)
+        if existing is not None:
+            return {"source": word, "rc": existing.rc, "created": False, "strategy": existing.strategy}
+        rejection = ""
+        last_error = "proposal_failed"
+        for _attempt in range(3):
+            term_system, term_prompt = adapter.proposal_prompt(word, english, rejection)
+            term_system += (
+                " SOURCE_TERM is exactly one English lexical token. Generate terminology only for that token. "
+                "Never absorb neighboring words or the sentence into this entry."
             )
-            raw = (resp.completion_text or "").strip()
-            if raw.startswith("```"):
-                raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.I | re.S).strip()
-            payload = json.loads(raw)
-            proposed = " ".join(str(payload.get("candidate_english") or "").split())
-            if _safe_high_english_candidate(text, proposed):
-                candidate = proposed
-                planner_status = "accepted" if candidate != text else "unchanged"
-            else:
-                planner_status = "rejected"
-        except Exception as exc:
-            planner_status = "skipped"
-            logger.info(f"Cthuvian high DeepSeek planner skipped ({provider_id}): {exc}")
+            resp = await provider.text_chat(prompt=term_prompt, system_prompt=term_system, temperature=0.0, max_tokens=300)
+            try:
+                proposal = self._json_payload(resp.completion_text or "")
+            except Exception as exc:
+                rejection = last_error = f"invalid_json:{exc}"
+                continue
+            proposal["source_term"] = word
+            validated = adapter.validate_proposal(proposal)
+            if not validated.get("ok"):
+                rejection = last_error = str(validated.get("reason") or "validator_rejected")
+                continue
+            # Validation here is deliberately non-mutating. The sentence-level
+            # caller commits all word proposals atomically only after every
+            # missing word has a valid proposal.
+            return {"source": word, "proposal": proposal, "validated": validated}
+        raise ValueError(f"high-register term generation failed for {word}: {last_error}")
 
-        chosen = base
-        # If grammar already parsed and only lexical material is missing, do
-        # not let semantic rewriting synonym-away the new concept. Teach that
-        # exact concept below.
-        if base.get("provenance") == "hybrid":
-            candidate = text
-            planner_status = "not_needed_for_lexical_gap"
-        elif candidate != text:
-            proposed_result = await asyncio.to_thread(adapter.translate, candidate, "high")
-            rank = {"sealed": 0, "hybrid": 1, "lexicon": 2}
-            if (
-                proposed_result.get("roundtrip_ok")
-                and rank.get(proposed_result.get("provenance"), -1) >= rank.get(base.get("provenance"), -1)
-            ):
-                chosen = proposed_result
-            else:
-                planner_status = "rejected_by_rules"
-                candidate = text
-
-        unknowns = list(adapter.sealed_sources(chosen))
-        if chosen.get("provenance") == "sealed" and unknowns:
-            # One bare unknown token is exactly the high-register terminology
-            # learning case. Never turn an arbitrary unparsed sentence into a
-            # single permanent dictionary entry.
-            source = " ".join(text.strip().rstrip(".?!").lower().split())
-            if len(unknowns) != 1 or unknowns[0] != source or any(ch.isspace() for ch in source):
-                loose = await asyncio.to_thread(adapter.translate_chunked, candidate or text, "high")
-                return loose, {
-                    "provider_id": provider_id,
-                    "planner_status": "loose_grammar_fallback",
-                    "candidate_english": candidate,
-                    "source_english": text,
-                    "learned_terms": [],
-                    "fallback_reason": "clause_grammar_unparsed",
-                }
-
+    async def _cthuvian_high(self, text: str, adapter: CthuvianAdapter) -> tuple[dict, dict]:
+        """Strict high register: model->English, then per-word RC-1, no fallback."""
+        provider, provider_id = dedicated_deepseek(self.context)
+        english = await self._cthuvian_to_english(text, provider)
+        missing = list(adapter.high_missing_words(english))
         learned: list[dict] = []
-        for unknown in unknowns:
-            if adapter.lookup(unknown) is not None:
-                continue
-            rejection = ""
-            accepted = None
-            for _attempt in range(3):
-                term_system, term_prompt = adapter.proposal_prompt(unknown, candidate, rejection)
-                resp = await provider.text_chat(prompt=term_prompt, system_prompt=term_system, temperature=0.0, max_tokens=420)
-                raw = (resp.completion_text or "").strip()
-                if raw.startswith("```"):
-                    raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.I | re.S).strip()
-                try:
-                    proposal = json.loads(raw)
-                except Exception as exc:
-                    rejection = f"invalid_json:{exc}"
-                    continue
-                proposal["source_term"] = unknown
-                validated = adapter.validate_proposal(proposal)
-                if not validated.get("ok"):
-                    rejection = str(validated.get("reason") or "validator_rejected")
-                    continue
-                try:
-                    accepted = await asyncio.to_thread(adapter.accept_proposal, unknown, proposal, provider_id)
-                    break
-                except ValueError as exc:
-                    rejection = str(exc)
-            if accepted is None:
-                planner_status = "loose_lexical_fallback"
-                continue
-            learned.append(accepted)
-
-        if learned:
-            chosen = await asyncio.to_thread(adapter.translate, candidate, "high")
-        remaining = adapter.sealed_sources(chosen)
-        if remaining or chosen.get("provenance") != "lexicon":
-            planner_status = "loose_lexical_fallback"
-        return chosen, {
+        if missing:
+            proposed = list(await asyncio.gather(*[
+                self._cthuvian_generate_word(word, english, adapter, provider, provider_id)
+                for word in missing
+            ]))
+            learned = await asyncio.to_thread(
+                adapter.accept_proposals_batch,
+                [(item["source"], item["proposal"]) for item in proposed],
+                provider_id,
+            )
+        result = await asyncio.to_thread(adapter.compose_high_word_level, english)
+        if result.get("sealed_tokens") or result.get("provenance") != "lexicon":
+            raise ValueError("high-register invariant failed: fallback/sealed output detected")
+        return result, {
             "provider_id": provider_id,
-            "planner_status": planner_status,
-            "candidate_english": candidate,
-            "source_english": text,
-            "learned_terms": learned,
+            "source_text": text,
+            "english_source": english,
+            "generated_words": [x for x in learned if x.get("created")],
+            "reused_words": [x for x in learned if not x.get("created")],
+            "omitted_grammar_words": list(result.get("omitted_grammar_words") or []),
+            "word_level": True,
+            "fallback": False,
         }
 
     async def _cthuvian_command(self, event: AstrMessageEvent, payload: str):
@@ -505,7 +419,10 @@ class DogeLinguistics(Star):
             if register == "high":
                 result, planner_meta = await self._cthuvian_high(text, adapter)
             else:
-                result = await asyncio.to_thread(adapter.translate, text, register)
+                provider, bridge_id = dedicated_deepseek(self.context)
+                english = await self._cthuvian_to_english(text, provider)
+                result = await asyncio.to_thread(adapter.translate, english, register)
+                planner_meta = {"provider_id": bridge_id, "source_text": text, "english_source": english, "fallback": False}
             provenance = result["provenance"]
             label = f"RC-1 · {register}"
             extra = ""
@@ -513,21 +430,15 @@ class DogeLinguistics(Star):
                 extra = "\n（未能可靠解析，以上为可逆 sealed 编码，不是词典翻译。）"
             elif register == "low" and provenance == "hybrid":
                 extra = f"\n（含 {result['sealed_tokens']} 个未收录片段；只是本次临时编码，不会入词典。）"
-            elif register == "high" and planner_meta and planner_meta.get("learned_terms"):
-                learned = "，".join(f"{item['source']} ↔ {item['rc']}" for item in planner_meta["learned_terms"])
-                extra = f"\n新词已永久入词典：{learned}"
-            elif register == "high" and planner_meta and str(planner_meta.get("planner_status") or "").startswith("loose_"):
-                status = str(planner_meta.get("planner_status") or "")
-                sealed_count = int(result.get("sealed_tokens") or 0)
-                if status == "loose_grammar_fallback":
-                    if sealed_count:
-                        extra = f"\n（严格 RC-1 整句句法未覆盖；已改用分块词典/语法翻译，其中 {sealed_count} 个局部片段为可逆临时编码。）"
-                    else:
-                        extra = "\n（严格 RC-1 整句句法未覆盖；已改用分块词典/语法翻译，当前结果无需临时编码。）"
-                elif provenance == "sealed":
-                    extra = "\n（严格词汇化未完成；已回退为可逆表示，不再因词条门槛拒绝翻译。）"
-                else:
-                    extra = f"\n（严格词汇化未完成；已保留宽松结果，其中 {sealed_count} 个片段为可逆临时编码。）"
+            if register == "low" and planner_meta and planner_meta.get("english_source") != text:
+                extra += "\n英文中间语：" + str(planner_meta["english_source"])
+            elif register == "high" and planner_meta:
+                created = planner_meta.get("generated_words") or []
+                if created:
+                    learned = ", ".join("{} <-> {}".format(item["source"], item["rc"]) for item in created)
+                    extra = "\n新词已永久入词典：" + learned
+                if planner_meta.get("english_source") != text:
+                    extra += "\n英文中间语：" + str(planner_meta["english_source"])
             yield text_result(event, f"{label}\n{result['cthuvian']}{extra}", markdown=False)
             return
         if action in {"from", "gloss", "reverse"}:

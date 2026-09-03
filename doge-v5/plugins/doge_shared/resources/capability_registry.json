@@ -3238,8 +3238,8 @@
     {
       "id": "lang.cthuvian.to",
       "path": "lang cthuvian to",
-      "summary": "English→R’lyehian/Cthuvian 低语体翻译。",
-      "usage": "/lang cthuvian to <English>",
+      "summary": "任意语言→专用模型忠实英文中间语→R’lyehian/Cthuvian 低语体；低语保留可逆 sealed 容错。",
+      "usage": "/lang cthuvian to <文本>",
       "aliases": [
         "lang cthuvian low",
         "lang cthuvian translate",
@@ -3254,13 +3254,14 @@
         "lang rlyeh to"
       ],
       "args": "required",
-      "kind": "command"
+      "kind": "command",
+      "agent_notes": "正向输入先由专用模型只做忠实英文翻译；RC-1 低语随后走固定译器。低语允许对词表/语法外材料使用可逆 sealed 编码。"
     },
     {
       "id": "lang.cthuvian.high",
       "path": "lang cthuvian high",
-      "summary": "English→Cthuvian 高语体：已有词走确定性 RC-1；新词由专用 DeepSeek 提案，经规则校验后永久双向入词典，高语体禁止 fallback。",
-      "usage": "/lang cthuvian high <English>",
+      "summary": "任意语言→专用模型忠实英文中间语→逐词 Cthuvian 高语体；已知词固定映射，缺词逐词并行造词并整批原子入词典；无句法门槛、无 fallback。",
+      "usage": "/lang cthuvian high <文本>",
       "aliases": [
         "lang cthuvian chant",
         "lang cth chant",
@@ -3272,7 +3273,7 @@
       ],
       "args": "required",
       "kind": "command",
-      "agent_notes": "高语体最终不得含 sealed fallback。DeepSeek 可做等义 English 规划，并只在真实缺词时提出候选 RC-1 新词；规则校验、冲突检查、持久 registry 和反向 gloss 决定是否接受。"
+      "agent_notes": "高语不调用 clause grammar 作为门槛，也绝不使用 sealed/chunk/lexical fallback。英文中间语冻结后逐个 lexical token 解析；每个缺词单独向 DeepSeek 提案，所有提案先校验，全部成功后才一次原子写 learned registry。任何缺词失败则整次高语失败且 registry 不产生半提交。"
     },
     {
       "id": "lang.cthuvian.from",

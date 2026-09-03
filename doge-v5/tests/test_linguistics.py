@@ -153,4 +153,20 @@ class CthuvianTests(unittest.TestCase):
    with self.assertRaisesRegex(ValueError,'single reversible token'):
     a.accept_proposal('quantumwidget',proposal,'deepseek/test')
 
+ def test_high_batch_is_atomic_and_rejects_phrase_sources(self):
+  with tempfile.TemporaryDirectory() as td:
+   learned=Path(td)/'learned-registry.json'
+   a=ling.CthuvianAdapter(self.root,learned)
+   one={'source_term':'frobnicator','concept_type':'object','selected_roots':[],
+        'literal_gloss':'frobnicator','needs_new_root':True,'coined_surface':"qth'vra"}
+   two={'source_term':'quantumwidget','concept_type':'object','selected_roots':[],
+        'literal_gloss':'quantumwidget','needs_new_root':True,'coined_surface':"qth'vra"}
+   with self.assertRaisesRegex(ValueError,'batch collision'):
+    a.accept_proposals_batch([('frobnicator',one),('quantumwidget',two)],'deepseek/test')
+   self.assertFalse(learned.exists())
+   self.assertEqual(a.learned_count(),0)
+   with self.assertRaisesRegex(ValueError,'exactly one English lexical token'):
+    a.accept_proposals_batch([('beneath waves',one)],'deepseek/test')
+   self.assertFalse(learned.exists())
+
 if __name__=='__main__': unittest.main()

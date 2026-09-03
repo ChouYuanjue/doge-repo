@@ -146,6 +146,90 @@ class PersistentCthuvianRegistry:
             self._reload_learned()
             return self._learned[key], True
 
+    def accept_many(self, items: Iterable[dict[str, Any]]) -> list[tuple[RegistryEntry, bool]]:
+        """Atomically accept multiple independent lexical entries.
+
+        All sources/surfaces are collision-checked before the learned registry is
+        changed. If any item is invalid, nothing is written. This prevents a
+        sentence with several generated words from leaving a half-committed
+        vocabulary update when one later proposal fails.
+        """
+        specs = [dict(item) for item in items]
+        if not specs:
+            return []
+        if self.learned_path is None:
+            raise ValueError("Cthuvian learned registry path is not configured")
+        with self._lock:
+            payload = self._payload()
+            self._learned = self._decode(payload)
+            existing_all = {**self._static, **self._learned}
+            seen_sources: set[str] = set()
+            claimed_surfaces: dict[str, str] = {}
+            prepared: list[tuple[str, dict[str, Any] | None, bool]] = []
+            now = datetime.now(timezone.utc).isoformat()
+
+            for spec in specs:
+                key = normalize_english(spec.get("source") or "")
+                rc = str(spec.get("rc") or "").strip().lower()
+                if not key or not rc:
+                    raise ValueError("empty Cthuvian registry source or surface")
+                if key in seen_sources:
+                    raise ValueError(f"duplicate Cthuvian batch source: {key}")
+                seen_sources.add(key)
+                existing = existing_all.get(key)
+                if existing is not None:
+                    prepared.append((key, None, False))
+                    continue
+                target = normalize_english(rc)
+                collisions = {
+                    src for src, ent in existing_all.items()
+                    if normalize_english(ent.rc) == target and src != key
+                }
+                if collisions:
+                    raise ValueError(
+                        f"Cthuvian term collision: {rc} already maps to {', '.join(sorted(collisions)[:5])}"
+                    )
+                prior = claimed_surfaces.get(target)
+                if prior is not None and prior != key:
+                    raise ValueError(f"Cthuvian batch collision: {rc} proposed for {prior} and {key}")
+                claimed_surfaces[target] = key
+                item: dict[str, Any] = {
+                    "rc": rc,
+                    "strategy": str(spec.get("strategy") or "learned"),
+                    "literal_gloss": str(spec.get("literal_gloss") or key),
+                    "components": list(spec.get("components") or ()),
+                    "concept_type": spec.get("concept_type"),
+                    "created_by": "doge.deepseek.high",
+                    "accepted": True,
+                    "language_version": LANGUAGE_VERSION,
+                    "accepted_at": now,
+                }
+                if spec.get("model_profile"):
+                    item["model_profile"] = str(spec["model_profile"])
+                if spec.get("validator_report"):
+                    item["validator_report"] = dict(spec["validator_report"])
+                prepared.append((key, item, True))
+
+            # Nothing above mutates payload. Only now, after every item passed,
+            # materialize all new entries and replace the file once.
+            changed = False
+            for key, item, created in prepared:
+                if created and item is not None:
+                    payload["entries"][key] = item
+                    changed = True
+            if changed:
+                self.learned_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp = self.learned_path.with_name(
+                    self.learned_path.name + f".tmp-{os.getpid()}-{threading.get_ident()}"
+                )
+                tmp.write_text(
+                    json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                os.replace(tmp, self.learned_path)
+            self._reload_learned()
+            return [(self._learned.get(key) or self._static[key], created) for key, _item, created in prepared]
+
 
 class UpstreamProposalRules:
     """Mirror upstream production validateTermProposal(), roots read from upstream data."""
@@ -206,7 +290,7 @@ class UpstreamProposalRules:
         retry = f"\nPREVIOUS REJECTION: {rejection_reason}\nPropose a different construction." if rejection_reason else ""
         prompt = (
             "Return one JSON object with keys source_term, concept_type, selected_roots, literal_gloss, needs_new_root, coined_surface. "
-            "concept_type is object/person/place/instrument/abstract/event; coined_surface is empty unless needs_new_root=true.\n"
+            "concept_type is object/person/place/instrument/abstract/event/property/action/state; SOURCE_TERM is one English lexical token; coined_surface is empty unless needs_new_root=true.\n"
             f"SOURCE_TERM: {source_term}\nCONTEXT: {context_text}\nROOTS: {json.dumps(compact, ensure_ascii=False)}{retry}"
         )
         return system, prompt

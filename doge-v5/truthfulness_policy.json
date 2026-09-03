@@ -89,8 +89,8 @@
     },
     "doge_linguistics": {
       "kind": "grounded+provenance-labeled",
-      "source": "Tangut dictionary/Yindian/RRPL/pinned Cthuvian translator; Tangut exact output is dictionary-grounded, while relaxed completion can only select existing dictionary candidates (optionally context-reranked by the configured model) or omit function words; Cthuvian strict RC-1 remains preferred and unparsed clauses fall back to deterministic chunked translation with local sealed fragments when needed",
-      "fallback": "exact/approximate/sealed/hybrid provenance is exposed; Tangut model-assisted fallback cannot generate Tangut glyphs, and Cthuvian grammar/terminology gaps no longer make an otherwise translatable sentence fail outright"
+      "source": "Tangut dictionary/Yindian/RRPL/pinned Cthuvian translator; Tangut exact output is dictionary-grounded and relaxed completion can only select existing dictionary candidates or omit function words. Cthuvian forward input first uses the dedicated model only as a faithful source-to-English bridge. High register then resolves the frozen English strictly word-by-word against pinned RC-1 resources; only genuinely missing single English words receive independent model proposals, validated by RC-1 rules and committed to the persistent registry atomically as one batch.",
+      "fallback": "Tangut exact/approximate provenance remains explicit. Cthuvian low register may use reversible sealed encoding. Cthuvian high register has no grammar gate and no sealed/chunk/lexical fallback: any failed word proposal fails the whole high-register request before registry mutation."
     },
     "doge_media": {
       "kind": "external-grounded+local-image",

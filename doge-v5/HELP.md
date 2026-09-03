@@ -937,10 +937,10 @@ COMMAND  /lang cthuvian
 R'lyehian / Cthuvian
 
 SUBCOMMANDS
-  to               English→R’lyehian/Cthuvian 低语体翻译。
-    /lang cthuvian to <English>
-  high             English→Cthuvian 高语体：已有词走确定性 RC-1；新词由专用 DeepSeek 提案，经规则校验后永久双向入词典，高语体禁止 fallback。
-    /lang cthuvian high <English>
+  to               任意语言→专用模型忠实英文中间语→R’lyehian/Cthuvian 低语体；低语保留可逆 sealed 容错。
+    /lang cthuvian to <文本>
+  high             任意语言→专用模型忠实英文中间语→逐词 Cthuvian 高语体；已知词固定映射，缺词逐词并行造词并整批原子入词典；无句法门槛、无 fallback。
+    /lang cthuvian high <文本>
   from             R’lyehian/Cthuvian→English gloss。
     /lang cthuvian from <RC-1>
 
