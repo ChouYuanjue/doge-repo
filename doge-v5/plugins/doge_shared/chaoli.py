@@ -103,6 +103,64 @@ class ChaoliService:
     async def _get(cls, path_or_url: str) -> str:
         return await asyncio.to_thread(cls._get_sync, path_or_url)
 
+    @classmethod
+    def _search_sync(cls, query: str, channel: str = "all") -> str:
+        query = str(query or "").strip()
+        if not query or len(query) > 400:
+            raise ChaoliError("搜索词需为 1-400 字符")
+        raw_channel = str(channel or "all").strip()
+        slug = CHANNELS.get(raw_channel.lower(), CHANNELS.get(raw_channel, raw_channel.lower() or "all"))
+        if not re.fullmatch(r"[a-z0-9-]+", slug):
+            raise ChaoliError("未知板块")
+        url = f"{BASE}/index.php/conversations/index.ajax/{slug}"
+        kwargs = {
+            "impersonate": "chrome",
+            "timeout": cls.timeout,
+            "allow_redirects": True,
+            "data": {"search": query},
+            "headers": {
+                "Referer": f"{BASE}/index.php/conversations/{slug}",
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            },
+        }
+        if cls.proxy:
+            kwargs["proxy"] = cls.proxy
+        try:
+            resp = requests.post(url, **kwargs)
+        except Exception as exc:
+            raise ChaoliError(f"超理搜索连接失败：{exc}") from exc
+        if resp.status_code != 200:
+            title = ""
+            try:
+                soup = BeautifulSoup(resp.text, "lxml")
+                title = soup.title.get_text(" ", strip=True) if soup.title else ""
+            except Exception:
+                pass
+            if resp.status_code == 403 and "Just a moment" in title:
+                raise ChaoliError("超理搜索触发了 Cloudflare 验证")
+            raise ChaoliError(f"超理搜索返回 HTTP {resp.status_code}" + (f"（{title}）" if title else ""))
+        try:
+            payload = resp.json()
+        except Exception as exc:
+            raise ChaoliError("超理搜索返回了无法解析的数据") from exc
+        if not isinstance(payload, dict):
+            raise ChaoliError("超理搜索返回格式异常")
+        messages = payload.get("messages") or []
+        if messages:
+            text = "；".join(str(x) for x in messages if x)
+            if text:
+                raise ChaoliError(f"超理搜索失败：{text[:500]}")
+        view = payload.get("view")
+        if not isinstance(view, str):
+            raise ChaoliError("超理搜索结果缺少帖子列表")
+        return view
+
+    @classmethod
+    async def _search(cls, query: str, channel: str = "all") -> str:
+        return await asyncio.to_thread(cls._search_sync, query, channel)
+
     @staticmethod
     def _text(node) -> str:
         return re.sub(r"\s+", " ", node.get_text(" ", strip=True)).strip() if node else ""
@@ -154,6 +212,25 @@ class ChaoliService:
         if "超理论坛" not in title:
             raise ChaoliError("代理链可连接，但返回页面不是超理论坛")
         return f"Chaoli transport OK · {title} · selective proxy active"
+
+    @classmethod
+    async def search(cls, query: str, channel: str = "all", limit: int = 10) -> str:
+        query = str(query or "").strip()
+        if not query:
+            raise ChaoliError("缺少搜索词")
+        raw_channel = str(channel or "all").strip()
+        slug = CHANNELS.get(raw_channel.lower(), CHANNELS.get(raw_channel, raw_channel.lower() or "all"))
+        if not re.fullmatch(r"[a-z0-9-]+", slug):
+            raise ChaoliError("未知板块")
+        view = await cls._search(query, slug)
+        try:
+            cards = cls._parse_cards(view, limit, include_sticky=True)
+        except ChaoliError as exc:
+            if "没有解析到帖子列表" in str(exc):
+                raise ChaoliError(f"没有找到与‘{query}’匹配的帖子") from exc
+            raise
+        scope = "全部板块" if slug == "all" else raw_channel
+        return f"超理搜索 · {query} · {scope}\n\n" + "\n\n".join(x.line() for x in cards)
 
     @classmethod
     async def latest(cls, channel: str = "all", limit: int = 10) -> str:

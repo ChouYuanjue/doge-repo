@@ -205,14 +205,16 @@ class DogeLookupTool(FunctionTool[AstrAgentContext]):
 class DogeChaoliTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_chaoli"
     description: str = (
-        "超理论坛只读工具。不依赖站内搜索：可读取最新/分板主题流、帖子全文或具体楼层与上下文、"
-        "用户名/用户ID定位与公开活动、帖子中的超理引用链和链接预览。遇到超理帖子链接或用户明确询问论坛近期内容时优先使用。"
+        "超理论坛只读工具：可使用论坛原生 POST AJAX 搜索帖子，也可读取最新/分板主题流、帖子全文或具体楼层与上下文、"
+        "用户名/用户ID定位与公开活动、帖子中的超理引用链和链接预览。遇到超理帖子链接或用户询问论坛既有讨论时优先使用。"
     )
     parameters: dict = Field(default_factory=lambda: {
         "type":"object",
         "properties":{
-            "action":{"type":"string","enum":["latest","channel","read","floor","context","outline","user","links","preview","status"]},
+            "action":{"type":"string","enum":["search","latest","channel","read","floor","context","outline","user","links","preview","status"]},
             "target":{"type":"string","description":"板块名、帖子号/链接或用户名/用户ID/用户链接，按 action 解释"},
+            "query":{"type":"string","description":"search 时的超理原生查询词；支持 #精品 等论坛搜索语法"},
+            "channel":{"type":"string","description":"search 时可选板块，例如 数学/maths/physics；默认 all"},
             "floor":{"type":"integer","minimum":1},
             "context":{"type":"integer","minimum":0,"maximum":3},
             "limit":{"type":"integer","minimum":1,"maximum":30}
@@ -221,6 +223,7 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
     })
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
         a=str(kwargs.get("action") or ""); target=str(kwargs.get("target") or "").strip()
+        if a=="search": return await ChaoliService.search(str(kwargs.get("query") or target),str(kwargs.get("channel") or "all"),int(kwargs.get("limit",10)))
         if a=="latest": return await ChaoliService.latest("all",int(kwargs.get("limit",10)))
         if a=="channel": return await ChaoliService.latest(target or "all",int(kwargs.get("limit",10)))
         if a=="read": return await ChaoliService.read(target)

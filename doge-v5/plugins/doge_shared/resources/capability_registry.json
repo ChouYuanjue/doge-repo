@@ -224,7 +224,7 @@
       "category": "play"
     },
     "chaoli": {
-      "summary": "超理论坛只读浏览：最新/分板主题、帖子与楼层上下文、用户公开活动、帖子引用链；首版不依赖站内搜索。",
+      "summary": "超理论坛只读：原生帖子搜索、最新/分板主题、帖子与楼层上下文、用户名/用户活动、引用链与链接预览。",
       "category": "research"
     }
   },
@@ -3728,6 +3728,31 @@
       "aliases": [],
       "args": "optional",
       "kind": "command"
+    },
+    {
+      "id": "chaoli.search",
+      "path": "chaoli search",
+      "summary": "使用超理论坛原生 POST AJAX 搜索帖子，可限定板块并支持论坛 gambit 语法。",
+      "usage": "/chaoli search <查询> [--board 板块] [--limit N]",
+      "aliases": [
+        "chaoli find"
+      ],
+      "args": "required",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "<查询>",
+          "description": "超理原生搜索词；可使用 #精品 等论坛搜索语法。"
+        },
+        {
+          "name": "[--board 板块]",
+          "description": "可选，限定到数学/物理/化学等板块。"
+        },
+        {
+          "name": "[--limit N]",
+          "description": "可选，返回 1-30 条。"
+        }
+      ]
     },
     {
       "id": "chaoli.latest",

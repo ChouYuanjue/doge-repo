@@ -13,6 +13,8 @@ from data.plugins.doge_shared.presentation import long_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
 
 HELP = """Doge Chaoli /chaoli
+  /chaoli search <查询> [--board 板块] [--limit N]
+                                      原生论坛搜索；支持 #精品 等超理搜索语法
   /chaoli latest [板块] [数量]           最新主题（默认跳过置顶）；板块可用 数学/物理/化学/生物/技术/语言/社科/科幻/合集
   /chaoli channel <板块> [数量]         指定板块主题流
   /chaoli read <帖子号|链接>            读取主题；长楼自动压缩中段
@@ -23,10 +25,10 @@ HELP = """Doge Chaoli /chaoli
   /chaoli links <帖子号|链接>           沿帖内超理链接阅读相关旧帖
   /chaoli preview <帖子号|链接>         一屏预览
   /chaoli status                        检查 Chaoli 专用代理链
-首版不依赖站内 search；Cloudflare 对查询页的验证不会影响以上入口。"""
+搜索使用超理前端自己的 POST AJAX 接口，不经过会被 Cloudflare 拦截的 GET 查询页。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛只读浏览、楼层上下文、用户活动与引用链", "5.10.23")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、只读浏览、楼层上下文、用户活动与引用链", "5.10.24")
 class DogeChaoli(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -42,7 +44,46 @@ class DogeChaoli(Star):
             p = split_head(raw, 1)
             action = p[0].lower()
             rest = p[1].strip() if len(p) > 1 else ""
-            if action in {"latest", "new"}:
+            if action in {"search", "find"}:
+                if not rest:
+                    raise ValueError("缺少搜索词")
+                tokens = rest.split()
+                query_parts: list[str] = []
+                board = "all"
+                limit = 10
+                i = 0
+                while i < len(tokens):
+                    token = tokens[i]
+                    if token in {"--board", "-b"}:
+                        if i + 1 >= len(tokens):
+                            raise ValueError("--board 后需要板块名")
+                        board = tokens[i + 1]
+                        i += 2
+                        continue
+                    if token.startswith("--board="):
+                        board = token.split("=", 1)[1]
+                        i += 1
+                        continue
+                    if token in {"--limit", "-n"}:
+                        if i + 1 >= len(tokens) or not tokens[i + 1].isdigit():
+                            raise ValueError("--limit 后需要整数")
+                        limit = int(tokens[i + 1])
+                        i += 2
+                        continue
+                    if token.startswith("--limit="):
+                        value = token.split("=", 1)[1]
+                        if not value.isdigit():
+                            raise ValueError("--limit 需要整数")
+                        limit = int(value)
+                        i += 1
+                        continue
+                    query_parts.append(token)
+                    i += 1
+                query = " ".join(query_parts).strip()
+                if not query:
+                    raise ValueError("缺少搜索词")
+                out = await ChaoliService.search(query, board, limit)
+            elif action in {"latest", "new"}:
                 xs = rest.split()
                 channel = xs[0] if xs and not xs[0].isdigit() else "all"
                 limit = int(xs[-1]) if xs and xs[-1].isdigit() else 10

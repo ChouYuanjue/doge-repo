@@ -13,7 +13,7 @@ USAGE
 GROUPS
   system       4  系统 / 状态
              认识当前实例、查看运行状态与使用统计。
-  research    59  检索 / 科研
+  research    60  检索 / 科研
              论文、知识检索，以及生化环材、天文和临床数据。
   compute     25  数学 / 计算机 / AI
              精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
@@ -41,8 +41,8 @@ QUICK START
 
 SCALE
   顶层指令       32
-  正式叶子功能   242
-  正式调用形式   514  （含 272 个兼容别名）
+  正式叶子功能   243
+  正式调用形式   516  （含 273 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -168,9 +168,11 @@ BACK
 
 ```text
 COMMAND  /chaoli
-超理论坛只读浏览：最新/分板主题、帖子与楼层上下文、用户公开活动、帖子引用链；首版不依赖站内搜索。
+超理论坛只读：原生帖子搜索、最新/分板主题、帖子与楼层上下文、用户名/用户活动、引用链与链接预览。
 
 SUBCOMMANDS
+  search           使用超理论坛原生 POST AJAX 搜索帖子，可限定板块并支持论坛 gambit 语法。
+    /chaoli search <查询> [--board 板块] [--limit N]
   latest           查看超理最新主题流，可指定板块和数量。
     /chaoli latest [板块] [数量]
   channel          按数学、物理、化学、生物、技术、语言、社科、科幻、合集等板块浏览主题。
@@ -193,7 +195,7 @@ SUBCOMMANDS
     /chaoli status
 
 NEXT
-  /help chaoli latest
+  /help chaoli search
 
 BACK
   /help

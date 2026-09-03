@@ -62,21 +62,35 @@ class ChaoliParserTests(unittest.TestCase):
     def test_member_directory_parser_supports_joined_page(self):
         self.assertEqual(ChaoliService._member_links(MEMBERS_HTML), [(1286, "碘化亚铜"), (1202, "FatFish")])
 
-    def test_agent_tool_exposes_no_search_action(self):
+    def test_agent_tool_exposes_native_search_action(self):
         tool = DogeChaoliTool()
         actions = tool.parameters["properties"]["action"]["enum"]
         self.assertIn("latest", actions)
         self.assertIn("outline", actions)
         self.assertIn("links", actions)
         self.assertIn("status", actions)
-        self.assertNotIn("search", actions)
+        self.assertIn("search", actions)
 
-    def test_registry_truthfully_excludes_search(self):
+    def test_registry_truthfully_exposes_native_search(self):
         d = json.loads((PLUGINS / "doge_shared" / "resources" / "capability_registry.json").read_text(encoding="utf-8"))
         ids = {x["id"] for x in d["operations"] if x["id"].startswith("chaoli.")}
         self.assertIn("chaoli.outline", ids)
-        self.assertNotIn("chaoli.search", ids)
-        self.assertIn("不依赖站内搜索", d["commands"]["chaoli"]["summary"])
+        self.assertIn("chaoli.search", ids)
+        self.assertIn("原生帖子搜索", d["commands"]["chaoli"]["summary"])
+
+
+class ChaoliSearchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_search_uses_native_view_and_formats_cards(self):
+        with patch.object(ChaoliService, "_search", AsyncMock(return_value=LIST_HTML)):
+            out = await ChaoliService.search("新帖", "数学", 5)
+        self.assertIn("超理搜索 · 新帖 · 数学", out)
+        self.assertIn("#2 新帖", out)
+        self.assertIn("https://chaoli.club/index.php/2", out)
+
+    async def test_search_empty_native_view_is_explicit(self):
+        with patch.object(ChaoliService, "_search", AsyncMock(return_value="<ul></ul>")):
+            with self.assertRaisesRegex(ChaoliError, "没有找到"):
+                await ChaoliService.search("不存在的词", "all", 5)
 
 
 class ChaoliMemberLookupTests(unittest.IsolatedAsyncioTestCase):
