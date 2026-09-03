@@ -279,18 +279,39 @@ class UpstreamProposalRules:
                     return {"ok": False, "reason": "coined_english_leakage"}
         return {"ok": True}
 
+    def compact_root_catalog(self) -> str:
+        """Expose every root ID with two compact semantic hints."""
+        parts: list[str] = []
+        for rid, item in self.roots.items():
+            hints = [str(x) for x in (item.get("keywords") or [])[:2]]
+            parts.append(f"{rid}:{'/'.join(hints)}")
+        return ";".join(parts)
+
+    @staticmethod
+    def _compact_context(source_term: str, context_text: str, limit: int = 96) -> str:
+        text = " ".join(str(context_text or "").split())
+        if len(text) <= limit:
+            return text
+        needle = str(source_term or "").lower()
+        pos = text.lower().find(needle)
+        if pos < 0:
+            return text[:limit]
+        half = max(24, limit // 2)
+        start = max(0, pos - half)
+        end = min(len(text), pos + len(needle) + half)
+        return text[start:end][:limit]
+
     def proposal_prompt(self, source_term: str, context_text: str, rejection_reason: str = "") -> tuple[str, str]:
-        compact = {rid: {"surface": item["surface"], "keywords": item.get("keywords", [])} for rid, item in self.roots.items()}
         system = (
-            "You are the constrained terminology proposal layer for RC-1 high-register Cthuvian. Return JSON only. "
-            "Prefer a semantic compound made only from the provided root IDs. If the concept cannot be represented by those roots, set needs_new_root=true and propose one coined_surface. "
-            "A coined surface must be one compact RC-1 lexical token rather than English transliteration: lowercase ASCII letters/apostrophes/hyphens only (use hyphens, never spaces), with an apostrophe or a cluster like cth/fht/mgl/ngl/th/gh/kh/sh/ll/rr. "
-            "Do not preserve long English substrings or change the source concept. Deterministic rules and registry uniqueness decide acceptance."
+            'RC-1 coin. JSON only {"r":[],"c":""}. '
+            'r=1-3 listed root IDs only for an exact fit; else r=[] and c=new lowercase form. '
+            "c uses letters, apostrophes or hyphens; include an apostrophe or cth/fht/mgl/ngl/th/gh/kh/sh/ll/rr; "
+            'do not absorb neighboring words.'
         )
-        retry = f"\nPREVIOUS REJECTION: {rejection_reason}\nPropose a different construction." if rejection_reason else ""
+        retry = f"\nreject={str(rejection_reason)[:80]}" if rejection_reason else ""
         prompt = (
-            "Return one JSON object with keys source_term, concept_type, selected_roots, literal_gloss, needs_new_root, coined_surface. "
-            "concept_type is object/person/place/instrument/abstract/event/property/action/state; SOURCE_TERM is one English lexical token; coined_surface is empty unless needs_new_root=true.\n"
-            f"SOURCE_TERM: {source_term}\nCONTEXT: {context_text}\nROOTS: {json.dumps(compact, ensure_ascii=False)}{retry}"
+            f"word={source_term}\n"
+            f"ctx={self._compact_context(source_term, context_text)}\n"
+            f"roots={self.compact_root_catalog()}{retry}"
         )
         return system, prompt

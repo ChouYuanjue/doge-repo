@@ -56,7 +56,7 @@ def _format_segments(segments, max_items: int = 14) -> str:
     return " ｜ ".join(parts)
 
 
-@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.9.3")
+@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.9.4")
 class DogeLinguistics(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -331,18 +331,39 @@ class DogeLinguistics(Star):
 
     async def _cthuvian_to_english(self, text: str, provider) -> str:
         system = (
-            "You are a literal translation gateway. Return JSON only. "
-            "Translate SOURCE into concise ordinary English. If SOURCE is already English, copy it without paraphrasing. "
-            "Preserve every named entity, number, negation, relation, participant, and tense/aspect when expressible. "
-            "Do not simplify for downstream grammar. Do not output Cthuvian/R'lyehian or commentary."
+            'Literal translation to English. JSON only {"english":"..."}. '
+            'If already English, copy it. Preserve names, numbers, negation, participants and tense. No commentary or RC-1.'
         )
-        prompt = 'Return exactly {"english":"..."}.\nSOURCE: ' + text
-        resp = await provider.text_chat(prompt=prompt, system_prompt=system, temperature=0.0, max_tokens=420)
+        prompt = '{"english":"..."}\nSOURCE: ' + text
+        resp = await provider.text_chat(prompt=prompt, system_prompt=system, temperature=0.0, max_tokens=160)
         payload = self._json_payload(resp.completion_text or "")
         english = " ".join(str(payload.get("english") or "").strip().split())
         if not english:
             raise ValueError("language-to-English model returned empty output")
         return english
+
+    @staticmethod
+    def _cthuvian_expand_compact_proposal(word: str, payload: dict) -> dict:
+        """Expand the tiny model wire format into the stable validator schema."""
+        if "selected_roots" in payload or "coined_surface" in payload:
+            proposal = dict(payload)
+            proposal["source_term"] = word
+            proposal.setdefault("literal_gloss", word)
+            proposal.setdefault("concept_type", "object")
+            return proposal
+        roots = payload.get("r") if isinstance(payload.get("r"), list) else []
+        roots = [str(x).strip() for x in roots if str(x).strip()][:3]
+        coined = str(payload.get("c") or "").strip().lower()
+        if roots:
+            coined = ""
+        return {
+            "source_term": word,
+            "concept_type": "object",
+            "selected_roots": roots,
+            "literal_gloss": word,
+            "needs_new_root": not roots and bool(coined),
+            "coined_surface": coined,
+        }
 
     async def _cthuvian_generate_word(self, word: str, english: str, adapter: CthuvianAdapter, provider, provider_id: str) -> dict:
         existing = adapter.lookup(word)
@@ -352,17 +373,13 @@ class DogeLinguistics(Star):
         last_error = "proposal_failed"
         for _attempt in range(3):
             term_system, term_prompt = adapter.proposal_prompt(word, english, rejection)
-            term_system += (
-                " SOURCE_TERM is exactly one English lexical token. Generate terminology only for that token. "
-                "Never absorb neighboring words or the sentence into this entry."
-            )
-            resp = await provider.text_chat(prompt=term_prompt, system_prompt=term_system, temperature=0.0, max_tokens=300)
+            resp = await provider.text_chat(prompt=term_prompt, system_prompt=term_system, temperature=0.0, max_tokens=64)
             try:
                 proposal = self._json_payload(resp.completion_text or "")
             except Exception as exc:
                 rejection = last_error = f"invalid_json:{exc}"
                 continue
-            proposal["source_term"] = word
+            proposal = self._cthuvian_expand_compact_proposal(word, proposal)
             validated = adapter.validate_proposal(proposal)
             if not validated.get("ok"):
                 rejection = last_error = str(validated.get("reason") or "validator_rejected")

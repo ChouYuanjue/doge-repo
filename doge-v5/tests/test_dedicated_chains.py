@@ -147,7 +147,7 @@ class _CthuvianPromptProvider:
         if '"english"' in prompt and "SOURCE:" in prompt:
             return SimpleNamespace(completion_text=json.dumps({"english": self.english}))
         for word, reply in self.proposals.items():
-            if f"SOURCE_TERM: {word}\n" not in prompt:
+            if f"word={word}\n" not in prompt:
                 continue
             if isinstance(reply, list):
                 text = reply.pop(0) if reply else ""
@@ -158,14 +158,8 @@ class _CthuvianPromptProvider:
 
 
 def _cth_proposal(word: str, surface: str) -> str:
-    return json.dumps({
-        "source_term": word,
-        "concept_type": "abstract",
-        "selected_roots": [],
-        "literal_gloss": word,
-        "needs_new_root": True,
-        "coined_surface": surface,
-    })
+    del word
+    return json.dumps({"r": [], "c": surface})
 
 
 class CthuvianDeepSeekTests(unittest.TestCase):
@@ -185,8 +179,8 @@ class CthuvianDeepSeekTests(unittest.TestCase):
             fake = _CthuvianPromptProvider("blue hidden city")
             result, meta = asyncio.run(self._obj(fake)._cthuvian_high("blue hidden city", adapter))
             self.assertEqual(len(fake.calls), 1)
-            self.assertIn("literal translation gateway", fake.calls[0]["system_prompt"])
-            self.assertIn("Do not simplify for downstream grammar", fake.calls[0]["system_prompt"])
+            self.assertIn("Literal translation to English", fake.calls[0]["system_prompt"])
+            self.assertLessEqual(fake.calls[0]["max_tokens"], 160)
             self.assertEqual(meta["english_source"], "blue hidden city")
             self.assertTrue(meta["word_level"])
             self.assertFalse(meta["fallback"])
@@ -206,10 +200,12 @@ class CthuvianDeepSeekTests(unittest.TestCase):
             )
             result, meta = asyncio.run(self._obj(fake)._cthuvian_high("I know quantumwidget", adapter))
             self.assertEqual(len(fake.calls), 2)
-            term_calls = [x for x in fake.calls if "SOURCE_TERM:" in str(x.get("prompt") or "")]
+            term_calls = [x for x in fake.calls if "word=" in str(x.get("prompt") or "")]
             self.assertEqual(len(term_calls), 1)
-            self.assertIn("SOURCE_TERM: quantumwidget\n", term_calls[0]["prompt"])
-            self.assertIn("exactly one English lexical token", term_calls[0]["system_prompt"])
+            self.assertIn("word=quantumwidget\n", term_calls[0]["prompt"])
+            self.assertIn('JSON only {"r":[],"c":""}', term_calls[0]["system_prompt"])
+            self.assertLessEqual(term_calls[0]["max_tokens"], 64)
+            self.assertLess(len(term_calls[0]["system_prompt"]) + len(term_calls[0]["prompt"]), 1100)
             self.assertEqual(result["sealed_tokens"], 0)
             self.assertIn("zha'thul", result["cthuvian"])
             self.assertEqual(adapter.learned_count(), 1)
@@ -235,13 +231,14 @@ class CthuvianDeepSeekTests(unittest.TestCase):
                 "dreaming": _cth_proposal("dreaming", "zha'thul"),
             })
             result, meta = asyncio.run(self._obj(fake)._cthuvian_high(source, adapter))
-            term_calls = [x for x in fake.calls if "SOURCE_TERM:" in str(x.get("prompt") or "")]
+            term_calls = [x for x in fake.calls if "word=" in str(x.get("prompt") or "")]
             self.assertEqual(len(fake.calls), 3)  # one English bridge + two per-word proposals
             self.assertEqual(len(term_calls), 2)
             prompts = [str(x["prompt"]) for x in term_calls]
-            self.assertTrue(any("SOURCE_TERM: his\n" in x for x in prompts))
-            self.assertTrue(any("SOURCE_TERM: dreaming\n" in x for x in prompts))
-            self.assertFalse(any("SOURCE_TERM: his house" in x or "SOURCE_TERM: waits dreaming" in x for x in prompts))
+            self.assertTrue(any("word=his\n" in x for x in prompts))
+            self.assertTrue(any("word=dreaming\n" in x for x in prompts))
+            self.assertFalse(any("word=his house" in x or "word=waits dreaming" in x for x in prompts))
+            self.assertTrue(all(len(x["system_prompt"]) + len(x["prompt"]) < 1100 for x in term_calls))
             self.assertEqual({x["source"] for x in meta["generated_words"]}, {"his", "dreaming"})
             self.assertEqual(adapter.learned_count(), 2)
             self.assertEqual(result["sealed_tokens"], 0)
@@ -265,6 +262,18 @@ class CthuvianDeepSeekTests(unittest.TestCase):
             self.assertEqual(adapter.learned_count(), 0)
             self.assertEqual(adapter.learned_bytes(), before)
             self.assertFalse(registry.exists())
+
+    def test_compact_root_reply_expands_into_deterministic_semantic_compound(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            registry = Path(tmp) / "learned-registry.json"
+            adapter = CthuvianAdapter(self.root, registry)
+            fake = _CthuvianPromptProvider("frobnicator", {
+                "frobnicator": json.dumps({"r": ["FMAGL"], "c": ""}),
+            })
+            result, meta = asyncio.run(self._obj(fake)._cthuvian_high("frobnicator", adapter))
+            self.assertEqual(result["cthuvian"], "fmagl")
+            self.assertEqual(meta["generated_words"][0]["strategy"], "semantic_compound")
+            self.assertEqual(adapter.lookup("frobnicator").rc, "fmagl")
 
     def test_multilingual_input_is_translated_by_model_then_enters_same_word_pipeline(self):
         with tempfile.TemporaryDirectory() as tmp:
