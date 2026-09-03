@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import re
+import time
 import unicodedata
 from pathlib import Path
 
@@ -335,11 +336,19 @@ class DogeLinguistics(Star):
             'If already English, copy it. Preserve names, numbers, negation, participants and tense. No commentary or RC-1.'
         )
         prompt = '{"english":"..."}\nSOURCE: ' + text
+        started = time.perf_counter()
         resp = await provider.text_chat(prompt=prompt, system_prompt=system, temperature=0.0, max_tokens=160)
+        elapsed = time.perf_counter() - started
         payload = self._json_payload(resp.completion_text or "")
         english = " ".join(str(payload.get("english") or "").strip().split())
         if not english:
             raise ValueError("language-to-English model returned empty output")
+        logger.info(
+            "Cthuvian English bridge %.3fs input_chars=%d output_chars=%d",
+            elapsed,
+            len(str(text or "")),
+            len(english),
+        )
         return english
 
     @staticmethod
@@ -373,7 +382,15 @@ class DogeLinguistics(Star):
         last_error = "proposal_failed"
         for _attempt in range(3):
             term_system, term_prompt = adapter.proposal_prompt(word, english, rejection)
+            started = time.perf_counter()
             resp = await provider.text_chat(prompt=term_prompt, system_prompt=term_system, temperature=0.0, max_tokens=64)
+            logger.info(
+                "Cthuvian term proposal %.3fs attempt=%d source_chars=%d prompt_chars=%d",
+                time.perf_counter() - started,
+                _attempt + 1,
+                len(word),
+                len(term_system) + len(term_prompt),
+            )
             try:
                 proposal = self._json_payload(resp.completion_text or "")
             except Exception as exc:
@@ -395,12 +412,23 @@ class DogeLinguistics(Star):
         provider, provider_id = dedicated_deepseek(self.context)
         english = await self._cthuvian_to_english(text, provider)
         missing = list(adapter.high_missing_words(english))
+        logger.info(
+            "Cthuvian high lexical plan words=%d missing=%d",
+            len(adapter.high_words(english)),
+            len(missing),
+        )
         learned: list[dict] = []
         if missing:
+            started = time.perf_counter()
             proposed = list(await asyncio.gather(*[
                 self._cthuvian_generate_word(word, english, adapter, provider, provider_id)
                 for word in missing
             ]))
+            logger.info(
+                "Cthuvian high proposal batch %.3fs missing=%d",
+                time.perf_counter() - started,
+                len(missing),
+            )
             learned = await asyncio.to_thread(
                 adapter.accept_proposals_batch,
                 [(item["source"], item["proposal"]) for item in proposed],
