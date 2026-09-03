@@ -315,3 +315,37 @@ class UpstreamProposalRules:
             f"roots={self.compact_root_catalog()}{retry}"
         )
         return system, prompt
+
+    def batch_proposal_prompt(
+        self,
+        source_terms: list[str] | tuple[str, ...],
+        context_text: str,
+        rejection_reasons: dict[str, str] | None = None,
+    ) -> tuple[str, str]:
+        """One compact request for an ordered batch of independent lexical terms."""
+        words = [str(x).strip().lower() for x in source_terms if str(x).strip()]
+        if not words:
+            raise ValueError("empty Cthuvian proposal batch")
+        system = (
+            'RC-1 batch coin. JSON only {"x":[{"r":[],"c":""}]}. '
+            'x length/order must exactly match w. For each word: r=1-3 listed root IDs only for an exact fit; '
+            'otherwise r=[] and c=a new lowercase form using letters/apostrophes/hyphens with an apostrophe or '
+            'cth/fht/mgl/ngl/th/gh/kh/sh/ll/rr. Each item is for that one word only.'
+        )
+        context = " ".join(str(context_text or "").split())[:160]
+        retry = ""
+        if rejection_reasons:
+            compact_reject = {
+                word: str(rejection_reasons.get(word) or "")[:48]
+                for word in words
+                if rejection_reasons.get(word)
+            }
+            if compact_reject:
+                retry = "\nreject=" + json.dumps(compact_reject, ensure_ascii=False, separators=(",", ":"))
+        prompt = (
+            "w=" + json.dumps(words, ensure_ascii=False, separators=(",", ":")) + "\n"
+            + "ctx=" + context + "\n"
+            + "roots=" + self.compact_root_catalog()
+            + retry
+        )
+        return system, prompt

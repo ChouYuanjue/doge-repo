@@ -12,6 +12,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, StarTools, register
 
+from data.plugins.doge_shared.agent_tools import DogeCthuvianTool, register_domain_tools
 from data.plugins.doge_shared.presentation import image_result, long_result, text_result
 from data.plugins.doge_shared.provider_routes import dedicated_deepseek
 from data.plugins.doge_shared.raw_command import command_payload, split_head
@@ -57,7 +58,7 @@ def _format_segments(segments, max_items: int = 14) -> str:
     return " ｜ ".join(parts)
 
 
-@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.9.4")
+@register("doge_linguistics", "runnel", "Doge v5 语言学、古文字与构造语言工具", "5.9.6")
 class DogeLinguistics(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -66,6 +67,7 @@ class DogeLinguistics(Star):
         self._tangut: TangutDictionary | None = None
         self._tangut_lock = asyncio.Lock()
         self._cthuvian: CthuvianAdapter | None = None
+        register_domain_tools(context, "doge_linguistics", DogeCthuvianTool())
 
     async def _dictionary(self) -> TangutDictionary:
         if self._tangut is not None:
@@ -330,26 +332,20 @@ class DogeLinguistics(Star):
             raise ValueError("model response is not a JSON object")
         return payload
 
-    async def _cthuvian_to_english(self, text: str, provider) -> str:
-        system = (
-            'Literal translation to English. JSON only {"english":"..."}. '
-            'If already English, copy it. Preserve names, numbers, negation, participants and tense. No commentary or RC-1.'
-        )
-        prompt = '{"english":"..."}\nSOURCE: ' + text
-        started = time.perf_counter()
-        resp = await provider.text_chat(prompt=prompt, system_prompt=system, temperature=0.0, max_tokens=160)
-        elapsed = time.perf_counter() - started
-        payload = self._json_payload(resp.completion_text or "")
-        english = " ".join(str(payload.get("english") or "").strip().split())
-        if not english:
-            raise ValueError("language-to-English model returned empty output")
-        logger.info(
-            "Cthuvian English bridge %.3fs input_chars=%d output_chars=%d",
-            elapsed,
-            len(str(text or "")),
-            len(english),
-        )
-        return english
+    @staticmethod
+    def _cthuvian_require_english(text: str) -> str:
+        """Formal command layer accepts English; the ambient Agent translates first."""
+        value = " ".join(str(text or "").strip().split())
+        if not value:
+            raise ValueError("缺少英文文本")
+        for ch in value:
+            if not ch.isalpha() or ord(ch) < 128:
+                continue
+            if "LATIN" not in unicodedata.name(ch, ""):
+                raise ValueError(
+                    "Cthuvian 正向正式指令只接收英文。非英文输入请直接用自然语言让豆子翻译；Agent 会在当前推理里先译成英文，不会额外调用翻译 API。"
+                )
+        return value
 
     @staticmethod
     def _cthuvian_expand_compact_proposal(word: str, payload: dict) -> dict:
@@ -374,43 +370,83 @@ class DogeLinguistics(Star):
             "coined_surface": coined,
         }
 
-    async def _cthuvian_generate_word(self, word: str, english: str, adapter: CthuvianAdapter, provider, provider_id: str) -> dict:
-        existing = adapter.lookup(word)
-        if existing is not None:
-            return {"source": word, "rc": existing.rc, "created": False, "strategy": existing.strategy}
-        rejection = ""
+    async def _cthuvian_generate_batch(
+        self,
+        words: list[str],
+        english: str,
+        adapter: CthuvianAdapter,
+        provider,
+        provider_id: str,
+    ) -> list[dict]:
+        """Generate all unseen lexical entries in one ordered request; retry rejects once."""
+        ordered = list(dict.fromkeys(str(x).strip().lower() for x in words if str(x).strip()))
+        if not ordered:
+            return []
+        accepted: dict[str, dict] = {}
+        pending = ordered[:]
+        rejection_reasons: dict[str, str] = {}
         last_error = "proposal_failed"
-        for _attempt in range(3):
-            term_system, term_prompt = adapter.proposal_prompt(word, english, rejection)
+
+        for attempt in range(2):
+            term_system, term_prompt = adapter.batch_proposal_prompt(pending, english, rejection_reasons)
+            max_tokens = min(384, max(64, 32 + 28 * len(pending)))
             started = time.perf_counter()
-            resp = await provider.text_chat(prompt=term_prompt, system_prompt=term_system, temperature=0.0, max_tokens=64)
+            resp = await provider.text_chat(
+                prompt=term_prompt,
+                system_prompt=term_system,
+                temperature=0.0,
+                max_tokens=max_tokens,
+                request_max_retries=1,
+                thinking={"type": "disabled"},
+                response_format={"type": "json_object"},
+            )
+            elapsed = time.perf_counter() - started
             logger.info(
-                "Cthuvian term proposal %.3fs attempt=%d source_chars=%d prompt_chars=%d",
-                time.perf_counter() - started,
-                _attempt + 1,
-                len(word),
+                "Cthuvian term batch %.3fs attempt=%d missing=%d prompt_chars=%d max_tokens=%d",
+                elapsed,
+                attempt + 1,
+                len(pending),
                 len(term_system) + len(term_prompt),
+                max_tokens,
             )
             try:
-                proposal = self._json_payload(resp.completion_text or "")
+                payload = self._json_payload(resp.completion_text or "")
+                items = payload.get("x")
+                if not isinstance(items, list) or len(items) != len(pending):
+                    raise ValueError("batch_shape_mismatch")
             except Exception as exc:
-                rejection = last_error = f"invalid_json:{exc}"
-                continue
-            proposal = self._cthuvian_expand_compact_proposal(word, proposal)
-            validated = adapter.validate_proposal(proposal)
-            if not validated.get("ok"):
-                rejection = last_error = str(validated.get("reason") or "validator_rejected")
-                continue
-            # Validation here is deliberately non-mutating. The sentence-level
-            # caller commits all word proposals atomically only after every
-            # missing word has a valid proposal.
-            return {"source": word, "proposal": proposal, "validated": validated}
-        raise ValueError(f"high-register term generation failed for {word}: {last_error}")
+                last_error = f"invalid_batch:{exc}"
+                rejection_reasons = {word: last_error for word in pending}
+                if attempt == 0:
+                    continue
+                break
 
-    async def _cthuvian_high(self, text: str, adapter: CthuvianAdapter) -> tuple[dict, dict]:
-        """Strict high register: model->English, then per-word RC-1, no fallback."""
-        provider, provider_id = dedicated_deepseek(self.context)
-        english = await self._cthuvian_to_english(text, provider)
+            next_pending: list[str] = []
+            next_rejections: dict[str, str] = {}
+            for word, item in zip(pending, items, strict=True):
+                if not isinstance(item, dict):
+                    next_pending.append(word)
+                    next_rejections[word] = "proposal_not_object"
+                    continue
+                proposal = self._cthuvian_expand_compact_proposal(word, item)
+                validated = adapter.validate_proposal(proposal)
+                if not validated.get("ok"):
+                    next_pending.append(word)
+                    next_rejections[word] = str(validated.get("reason") or "validator_rejected")
+                    continue
+                accepted[word] = {"source": word, "proposal": proposal, "validated": validated}
+
+            if not next_pending:
+                return [accepted[word] for word in ordered]
+            last_error = ", ".join(f"{word}:{next_rejections[word]}" for word in next_pending)
+            pending = next_pending
+            rejection_reasons = next_rejections
+
+        raise ValueError(f"high-register batch term generation failed: {last_error}")
+
+    async def _cthuvian_high(self, english: str, adapter: CthuvianAdapter) -> tuple[dict, dict]:
+        """Strict high register: Agent-supplied English, local lookup, one batch term request, no fallback."""
+        english = self._cthuvian_require_english(english)
         missing = list(adapter.high_missing_words(english))
         logger.info(
             "Cthuvian high lexical plan words=%d missing=%d",
@@ -418,14 +454,13 @@ class DogeLinguistics(Star):
             len(missing),
         )
         learned: list[dict] = []
+        provider_id: str | None = None
         if missing:
+            provider, provider_id = dedicated_deepseek(self.context)
             started = time.perf_counter()
-            proposed = list(await asyncio.gather(*[
-                self._cthuvian_generate_word(word, english, adapter, provider, provider_id)
-                for word in missing
-            ]))
+            proposed = await self._cthuvian_generate_batch(missing, english, adapter, provider, provider_id)
             logger.info(
-                "Cthuvian high proposal batch %.3fs missing=%d",
+                "Cthuvian high proposal batch total %.3fs missing=%d",
                 time.perf_counter() - started,
                 len(missing),
             )
@@ -439,12 +474,12 @@ class DogeLinguistics(Star):
             raise ValueError("high-register invariant failed: fallback/sealed output detected")
         return result, {
             "provider_id": provider_id,
-            "source_text": text,
             "english_source": english,
             "generated_words": [x for x in learned if x.get("created")],
             "reused_words": [x for x in learned if not x.get("created")],
             "omitted_grammar_words": list(result.get("omitted_grammar_words") or []),
             "word_level": True,
+            "batched_generation": True,
             "fallback": False,
         }
 
@@ -460,14 +495,12 @@ class DogeLinguistics(Star):
         adapter = self._cth()
         if action in {"to", "low", "translate", "high", "chant"}:
             register = "high" if action in {"high", "chant"} else "low"
-            planner_meta = None
+            english = self._cthuvian_require_english(text)
+            meta = None
             if register == "high":
-                result, planner_meta = await self._cthuvian_high(text, adapter)
+                result, meta = await self._cthuvian_high(english, adapter)
             else:
-                provider, bridge_id = dedicated_deepseek(self.context)
-                english = await self._cthuvian_to_english(text, provider)
                 result = await asyncio.to_thread(adapter.translate, english, register)
-                planner_meta = {"provider_id": bridge_id, "source_text": text, "english_source": english, "fallback": False}
             provenance = result["provenance"]
             label = f"RC-1 · {register}"
             extra = ""
@@ -475,15 +508,11 @@ class DogeLinguistics(Star):
                 extra = "\n（未能可靠解析，以上为可逆 sealed 编码，不是词典翻译。）"
             elif register == "low" and provenance == "hybrid":
                 extra = f"\n（含 {result['sealed_tokens']} 个未收录片段；只是本次临时编码，不会入词典。）"
-            if register == "low" and planner_meta and planner_meta.get("english_source") != text:
-                extra += "\n英文中间语：" + str(planner_meta["english_source"])
-            elif register == "high" and planner_meta:
-                created = planner_meta.get("generated_words") or []
+            elif register == "high" and meta:
+                created = meta.get("generated_words") or []
                 if created:
                     learned = ", ".join("{} <-> {}".format(item["source"], item["rc"]) for item in created)
                     extra = "\n新词已永久入词典：" + learned
-                if planner_meta.get("english_source") != text:
-                    extra += "\n英文中间语：" + str(planner_meta["english_source"])
             yield text_result(event, f"{label}\n{result['cthuvian']}{extra}", markdown=False)
             return
         if action in {"from", "gloss", "reverse"}:

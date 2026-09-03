@@ -3238,8 +3238,8 @@
     {
       "id": "lang.cthuvian.to",
       "path": "lang cthuvian to",
-      "summary": "任意语言→专用模型忠实英文中间语→R’lyehian/Cthuvian 低语体；低语保留可逆 sealed 容错。",
-      "usage": "/lang cthuvian to <文本>",
+      "summary": "English→R’lyehian/Cthuvian 低语体；自然语言非英文请求由当前 Agent 自己先忠实翻成英文，正式指令不再额外调用翻译模型。",
+      "usage": "/lang cthuvian to <English>",
       "aliases": [
         "lang cthuvian low",
         "lang cthuvian translate",
@@ -3255,13 +3255,13 @@
       ],
       "args": "required",
       "kind": "command",
-      "agent_notes": "正向输入先由专用模型只做忠实英文翻译；RC-1 低语随后走固定译器。低语允许对词表/语法外材料使用可逆 sealed 编码。"
+      "agent_notes": "若用户原文不是英文，你必须在当前 Agent 推理中自己忠实翻成英文，只把英文传给 /lang cthuvian to；不额外调用任何翻译 API/模型/工具。正式指令层只接收英文。低语随后走固定 RC-1 译器，并允许词表/语法外材料使用可逆 sealed 编码。"
     },
     {
       "id": "lang.cthuvian.high",
       "path": "lang cthuvian high",
-      "summary": "任意语言→专用模型忠实英文中间语→逐词 Cthuvian 高语体；已知词固定映射，缺词逐词并行造词并整批原子入词典；无句法门槛、无 fallback。",
-      "usage": "/lang cthuvian high <文本>",
+      "summary": "English→逐词 Cthuvian 高语体；已知词纯本地复用，全部未见词一次结构化批量造词并原子入词典；无句法门槛、无 fallback。",
+      "usage": "/lang cthuvian high <English>",
       "aliases": [
         "lang cthuvian chant",
         "lang cth chant",
@@ -3273,7 +3273,7 @@
       ],
       "args": "required",
       "kind": "command",
-      "agent_notes": "高语不调用 clause grammar 作为门槛，也绝不使用 sealed/chunk/lexical fallback。英文中间语冻结后逐个 lexical token 解析；每个缺词单独向 DeepSeek 提案，所有提案先校验，全部成功后才一次原子写 learned registry。任何缺词失败则整次高语失败且 registry 不产生半提交。"
+      "agent_notes": "若用户原文不是英文，你必须在当前 Agent 推理中自己忠实翻成英文，只把英文传给 /lang cthuvian high；不额外调用任何翻译 API/模型/工具。高语不调用 clause grammar，也绝不使用 sealed/chunk/lexical fallback。英文逐个 lexical token 本地查表；若有未见词，将全部未见词按原顺序一次结构化批量送 DeepSeek，正常只 1 次请求；仅首轮校验失败的词允许再批量重试 1 次。所有候选全部通过后才一次原子写 learned registry。"
     },
     {
       "id": "lang.cthuvian.from",

@@ -135,31 +135,22 @@ class ArenaDeepSeekTests(unittest.TestCase):
         self.assertTrue(got.endswith("结果：小乙胜"))
 
 
-class _CthuvianPromptProvider:
-    def __init__(self, english: str, proposals: dict[str, str | list[str]] | None = None):
-        self.english = english
-        self.proposals = dict(proposals or {})
+class _CthuvianBatchProvider:
+    def __init__(self, replies: list[str]):
+        self.replies = list(replies)
         self.calls: list[dict] = []
 
     async def text_chat(self, **kwargs):
         self.calls.append(kwargs)
-        prompt = str(kwargs.get("prompt") or "")
-        if '"english"' in prompt and "SOURCE:" in prompt:
-            return SimpleNamespace(completion_text=json.dumps({"english": self.english}))
-        for word, reply in self.proposals.items():
-            if f"word={word}\n" not in prompt:
-                continue
-            if isinstance(reply, list):
-                text = reply.pop(0) if reply else ""
-            else:
-                text = reply
-            return SimpleNamespace(completion_text=text)
-        return SimpleNamespace(completion_text="")
+        return SimpleNamespace(completion_text=self.replies.pop(0) if self.replies else "")
 
 
-def _cth_proposal(word: str, surface: str) -> str:
-    del word
-    return json.dumps({"r": [], "c": surface})
+def _batch(*items: dict) -> str:
+    return json.dumps({"x": list(items)})
+
+
+def _coin(surface: str) -> dict:
+    return {"r": [], "c": surface}
 
 
 class CthuvianDeepSeekTests(unittest.TestCase):
@@ -172,73 +163,64 @@ class CthuvianDeepSeekTests(unittest.TestCase):
         obj.context = _FakeContext(direct=fake)
         return obj
 
-    def test_high_register_uses_model_only_as_english_bridge_when_words_are_known(self):
+    def test_known_high_words_need_zero_extra_model_calls(self):
         with tempfile.TemporaryDirectory() as tmp:
-            registry = Path(tmp) / "learned-registry.json"
-            adapter = CthuvianAdapter(self.root, registry)
-            fake = _CthuvianPromptProvider("blue hidden city")
-            result, meta = asyncio.run(self._obj(fake)._cthuvian_high("blue hidden city", adapter))
-            self.assertEqual(len(fake.calls), 1)
-            self.assertIn("Literal translation to English", fake.calls[0]["system_prompt"])
-            self.assertLessEqual(fake.calls[0]["max_tokens"], 160)
-            self.assertEqual(meta["english_source"], "blue hidden city")
-            self.assertTrue(meta["word_level"])
-            self.assertFalse(meta["fallback"])
+            adapter = CthuvianAdapter(self.root, Path(tmp) / "learned-registry.json")
+            fake = _CthuvianBatchProvider([])
+            obj = self._obj(fake)
+            result, meta = asyncio.run(obj._cthuvian_high("blue hidden city", adapter))
+            self.assertEqual(fake.calls, [])
+            self.assertEqual(obj.context.requested, [])
+            self.assertIsNone(meta["provider_id"])
+            self.assertTrue(meta["batched_generation"])
             self.assertEqual(result["provenance"], "lexicon")
             self.assertEqual(result["sealed_tokens"], 0)
             self.assertEqual(result["words"], ["blue", "hidden", "city"])
-            self.assertNotIn("'zhro", result["cthuvian"])
-            self.assertFalse(registry.exists())
 
-    def test_high_register_new_word_is_persisted_then_reused_without_term_generation(self):
+    def test_one_missing_word_is_one_batch_request_and_then_reused_locally(self):
         with tempfile.TemporaryDirectory() as tmp:
             registry = Path(tmp) / "learned-registry.json"
             adapter = CthuvianAdapter(self.root, registry)
-            fake = _CthuvianPromptProvider(
-                "I know quantumwidget",
-                {"quantumwidget": _cth_proposal("quantumwidget", "zha'thul")},
-            )
-            result, meta = asyncio.run(self._obj(fake)._cthuvian_high("I know quantumwidget", adapter))
-            self.assertEqual(len(fake.calls), 2)
-            term_calls = [x for x in fake.calls if "word=" in str(x.get("prompt") or "")]
-            self.assertEqual(len(term_calls), 1)
-            self.assertIn("word=quantumwidget\n", term_calls[0]["prompt"])
-            self.assertIn('JSON only {"r":[],"c":""}', term_calls[0]["system_prompt"])
-            self.assertLessEqual(term_calls[0]["max_tokens"], 64)
-            self.assertLess(len(term_calls[0]["system_prompt"]) + len(term_calls[0]["prompt"]), 1100)
+            fake = _CthuvianBatchProvider([_batch(_coin("zha'thul"))])
+            obj = self._obj(fake)
+            result, meta = asyncio.run(obj._cthuvian_high("I know quantumwidget", adapter))
+            self.assertEqual(len(fake.calls), 1)
+            call = fake.calls[0]
+            self.assertIn('w=["quantumwidget"]', call["prompt"])
+            self.assertIn('JSON only {"x":[{"r":[],"c":""}]}', call["system_prompt"])
+            self.assertLessEqual(call["max_tokens"], 96)
+            self.assertLess(len(call["system_prompt"]) + len(call["prompt"]), 1400)
+            self.assertEqual(call["request_max_retries"], 1)
+            self.assertEqual(call["thinking"], {"type": "disabled"})
+            self.assertEqual(call["response_format"], {"type": "json_object"})
             self.assertEqual(result["sealed_tokens"], 0)
             self.assertIn("zha'thul", result["cthuvian"])
-            self.assertEqual(adapter.learned_count(), 1)
             self.assertEqual(meta["generated_words"][0]["source"], "quantumwidget")
+            self.assertEqual(adapter.learned_count(), 1)
 
             reloaded = CthuvianAdapter(self.root, registry)
-            fake2 = _CthuvianPromptProvider("I know quantumwidget")
-            result2, meta2 = asyncio.run(self._obj(fake2)._cthuvian_high("I know quantumwidget", reloaded))
-            self.assertEqual(len(fake2.calls), 1)  # English bridge only.
+            fake2 = _CthuvianBatchProvider([])
+            obj2 = self._obj(fake2)
+            result2, meta2 = asyncio.run(obj2._cthuvian_high("I know quantumwidget", reloaded))
+            self.assertEqual(fake2.calls, [])
+            self.assertEqual(obj2.context.requested, [])
             self.assertEqual(result2["cthuvian"], result["cthuvian"])
             self.assertEqual(meta2["generated_words"], [])
-            self.assertEqual(reloaded.learned_count(), 1)
             self.assertIn("quantumwidget", reloaded.gloss("zha'thul")["best_gloss"])
 
-    def test_high_register_classic_sentence_generates_only_missing_words_individually(self):
+    def test_classic_sentence_batches_all_missing_words_once_in_order(self):
         with tempfile.TemporaryDirectory() as tmp:
             registry = Path(tmp) / "learned-registry.json"
             adapter = CthuvianAdapter(self.root, registry)
             source = "In his house at R'lyeh, dead Cthulhu waits dreaming."
             self.assertEqual(adapter.high_missing_words(source), ("his", "dreaming"))
-            fake = _CthuvianPromptProvider(source, {
-                "his": _cth_proposal("his", "qth'vra"),
-                "dreaming": _cth_proposal("dreaming", "zha'thul"),
-            })
+            fake = _CthuvianBatchProvider([_batch(_coin("qth'vra"), _coin("zha'thul"))])
             result, meta = asyncio.run(self._obj(fake)._cthuvian_high(source, adapter))
-            term_calls = [x for x in fake.calls if "word=" in str(x.get("prompt") or "")]
-            self.assertEqual(len(fake.calls), 3)  # one English bridge + two per-word proposals
-            self.assertEqual(len(term_calls), 2)
-            prompts = [str(x["prompt"]) for x in term_calls]
-            self.assertTrue(any("word=his\n" in x for x in prompts))
-            self.assertTrue(any("word=dreaming\n" in x for x in prompts))
-            self.assertFalse(any("word=his house" in x or "word=waits dreaming" in x for x in prompts))
-            self.assertTrue(all(len(x["system_prompt"]) + len(x["prompt"]) < 1100 for x in term_calls))
+            self.assertEqual(len(fake.calls), 1)
+            call = fake.calls[0]
+            self.assertIn('w=["his","dreaming"]', call["prompt"])
+            self.assertEqual(call["prompt"].count("roots="), 1)
+            self.assertLess(len(call["system_prompt"]) + len(call["prompt"]), 1500)
             self.assertEqual({x["source"] for x in meta["generated_words"]}, {"his", "dreaming"})
             self.assertEqual(adapter.learned_count(), 2)
             self.assertEqual(result["sealed_tokens"], 0)
@@ -247,18 +229,37 @@ class CthuvianDeepSeekTests(unittest.TestCase):
             self.assertIn("Cthulhu", result["cthuvian"])
             self.assertIn("fhtagn", result["cthuvian"])
 
-    def test_high_register_generation_failure_is_hard_error_and_registry_is_unchanged(self):
+    def test_partial_batch_retries_only_rejected_words(self):
         with tempfile.TemporaryDirectory() as tmp:
             registry = Path(tmp) / "learned-registry.json"
             adapter = CthuvianAdapter(self.root, registry)
-            bad = _cth_proposal("quantumwidget", "quantumwidget")
-            fake = _CthuvianPromptProvider("frobnicator quantumwidget", {
-                "frobnicator": _cth_proposal("frobnicator", "qth'vra"),
-                "quantumwidget": [bad, bad, bad],
-            })
+            fake = _CthuvianBatchProvider([
+                _batch(_coin("qth'vra"), _coin("quantumwidget")),
+                _batch(_coin("zha'thul")),
+            ])
+            result, meta = asyncio.run(self._obj(fake)._cthuvian_high("frobnicator quantumwidget", adapter))
+            self.assertEqual(len(fake.calls), 2)
+            self.assertIn('w=["frobnicator","quantumwidget"]', fake.calls[0]["prompt"])
+            self.assertIn('w=["quantumwidget"]', fake.calls[1]["prompt"])
+            self.assertNotIn('w=["frobnicator","quantumwidget"]', fake.calls[1]["prompt"])
+            self.assertIn("reject=", fake.calls[1]["prompt"])
+            self.assertEqual({x["source"] for x in meta["generated_words"]}, {"frobnicator", "quantumwidget"})
+            self.assertEqual(adapter.learned_count(), 2)
+            self.assertEqual(result["sealed_tokens"], 0)
+
+    def test_batch_failure_is_hard_error_and_registry_stays_unchanged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            registry = Path(tmp) / "learned-registry.json"
+            adapter = CthuvianAdapter(self.root, registry)
+            bad = _coin("quantumwidget")
+            fake = _CthuvianBatchProvider([
+                _batch(_coin("qth'vra"), bad),
+                _batch(bad),
+            ])
             before = adapter.learned_bytes()
-            with self.assertRaisesRegex(ValueError, "term generation failed for quantumwidget"):
+            with self.assertRaisesRegex(ValueError, "batch term generation failed"):
                 asyncio.run(self._obj(fake)._cthuvian_high("frobnicator quantumwidget", adapter))
+            self.assertEqual(len(fake.calls), 2)
             self.assertEqual(adapter.learned_count(), 0)
             self.assertEqual(adapter.learned_bytes(), before)
             self.assertFalse(registry.exists())
@@ -267,26 +268,30 @@ class CthuvianDeepSeekTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             registry = Path(tmp) / "learned-registry.json"
             adapter = CthuvianAdapter(self.root, registry)
-            fake = _CthuvianPromptProvider("frobnicator", {
-                "frobnicator": json.dumps({"r": ["FMAGL"], "c": ""}),
-            })
+            fake = _CthuvianBatchProvider([_batch({"r": ["FMAGL"], "c": ""})])
             result, meta = asyncio.run(self._obj(fake)._cthuvian_high("frobnicator", adapter))
             self.assertEqual(result["cthuvian"], "fmagl")
             self.assertEqual(meta["generated_words"][0]["strategy"], "semantic_compound")
             self.assertEqual(adapter.lookup("frobnicator").rc, "fmagl")
 
-    def test_multilingual_input_is_translated_by_model_then_enters_same_word_pipeline(self):
+    def test_non_english_formal_input_is_rejected_without_provider_call(self):
         with tempfile.TemporaryDirectory() as tmp:
-            registry = Path(tmp) / "learned-registry.json"
-            adapter = CthuvianAdapter(self.root, registry)
-            fake = _CthuvianPromptProvider("blue hidden city")
-            result, meta = asyncio.run(self._obj(fake)._cthuvian_high("蓝色的隐藏城市", adapter))
-            self.assertEqual(len(fake.calls), 1)
-            self.assertEqual(meta["source_text"], "蓝色的隐藏城市")
-            self.assertEqual(meta["english_source"], "blue hidden city")
-            self.assertEqual(result["words"], ["blue", "hidden", "city"])
-            self.assertEqual(result["sealed_tokens"], 0)
-            self.assertFalse(registry.exists())
+            adapter = CthuvianAdapter(self.root, Path(tmp) / "learned-registry.json")
+            fake = _CthuvianBatchProvider([])
+            obj = self._obj(fake)
+            with self.assertRaisesRegex(ValueError, "只接收英文"):
+                asyncio.run(obj._cthuvian_high("蓝色的隐藏城市", adapter))
+            self.assertEqual(fake.calls, [])
+            self.assertEqual(obj.context.requested, [])
+
+    def test_registry_tells_agent_to_translate_itself_before_cthuvian_command(self):
+        registry = json.loads((PLUGINS / "doge_shared" / "resources" / "capability_registry.json").read_text())
+        high = next(x for x in registry["operations"] if x.get("id") == "lang.cthuvian.high")
+        notes = str(high.get("agent_notes") or "")
+        self.assertIn("Agent", notes)
+        self.assertIn("自己", notes)
+        self.assertIn("英文", notes)
+        self.assertIn("不额外调用", notes)
 
 
 if __name__ == "__main__":

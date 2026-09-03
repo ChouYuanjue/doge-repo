@@ -937,10 +937,10 @@ COMMAND  /lang cthuvian
 R'lyehian / Cthuvian
 
 SUBCOMMANDS
-  to               任意语言→专用模型忠实英文中间语→R’lyehian/Cthuvian 低语体；低语保留可逆 sealed 容错。
-    /lang cthuvian to <文本>
-  high             任意语言→专用模型忠实英文中间语→逐词 Cthuvian 高语体；已知词固定映射，缺词逐词并行造词并整批原子入词典；无句法门槛、无 fallback。
-    /lang cthuvian high <文本>
+  to               English→R’lyehian/Cthuvian 低语体；自然语言非英文请求由当前 Agent 自己先忠实翻成英文，正式指令不再额外调用翻译模型。
+    /lang cthuvian to <English>
+  high             English→逐词 Cthuvian 高语体；已知词纯本地复用，全部未见词一次结构化批量造词并原子入词典；无句法门槛、无 fallback。
+    /lang cthuvian high <English>
   from             R’lyehian/Cthuvian→English gloss。
     /lang cthuvian from <RC-1>
 

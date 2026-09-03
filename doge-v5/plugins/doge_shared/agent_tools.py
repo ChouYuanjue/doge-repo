@@ -11,6 +11,7 @@ from .services import BingService, ChartService, ChemService, CodecService, Math
 from .weather import WeatherService
 from .lookup import LookupService
 from .chaoli import ChaoliService
+from .agent_bridge import execute_formal_command
 
 @dataclass
 class DogeMathTool(FunctionTool[AstrAgentContext]):
@@ -201,6 +202,37 @@ class DogeLookupTool(FunctionTool[AstrAgentContext]):
         if action=="wolfram": return await LookupService.wolfram(query)
         return await LookupService.auto(query,lang)
 
+
+@dataclass
+class DogeCthuvianTool(FunctionTool[AstrAgentContext]):
+    name: str = "doge_cthuvian"
+    description: str = (
+        "低延迟 RC-1 Cthuvian/R'lyehian 翻译工具。正向 low/high 的 text 必须是你在当前 Agent 推理中自己忠实翻好的英文；"
+        "不要为翻英文再调用任何模型、翻译工具或 capability_search。high 会本地复用已知词，所有未见英文词一次结构化批量造词并原子入表。"
+        "from 用于 RC-1→English gloss。"
+    )
+    parameters: dict = Field(default_factory=lambda: {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["low", "high", "from"]},
+            "text": {
+                "type": "string",
+                "description": "low/high: Agent 自己翻译后的 English；from: RC-1/Cthuvian 原文",
+            },
+        },
+        "required": ["action", "text"],
+    })
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+        action = str(kwargs.get("action") or "").strip().lower()
+        text = str(kwargs.get("text") or "").strip()
+        if action not in {"low", "high", "from"}:
+            raise ValueError("unknown Cthuvian action")
+        if not text:
+            raise ValueError("Cthuvian text is empty")
+        command_action = "to" if action == "low" else action
+        return await execute_formal_command(context, f"/lang cthuvian {command_action} {text}")
+
 @dataclass
 class DogeChaoliTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_chaoli"
@@ -247,7 +279,7 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
         if a=="status": return await ChaoliService.status()
         raise ValueError("unknown chaoli action")
 
-TOOLS=(DogeMathTool,DogeChemTool,DogeCodecTool,DogeWeatherTool,DogeNasaTool,DogeBingTool,DogeChartTool,DogePaperTool,DogeBioTool,DogeMaterialTool,DogeAstroTool,DogeTrialTool,DogeLookupTool,DogeChaoliTool)
+TOOLS=(DogeMathTool,DogeChemTool,DogeCodecTool,DogeWeatherTool,DogeNasaTool,DogeBingTool,DogeChartTool,DogePaperTool,DogeBioTool,DogeMaterialTool,DogeAstroTool,DogeTrialTool,DogeLookupTool,DogeCthuvianTool,DogeChaoliTool)
 
 
 def register_domain_tools(context, plugin_name: str, *tools):

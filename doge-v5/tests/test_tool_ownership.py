@@ -3,7 +3,7 @@ import sys,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'plugins'))
-from doge_shared.agent_tools import DogeMathTool,DogePaperTool,register_domain_tools
+from doge_shared.agent_tools import DogeCthuvianTool,DogeMathTool,DogePaperTool,register_domain_tools
 
 class FakeContext:
  def __init__(self): self.tools=[]
@@ -20,5 +20,12 @@ class ToolOwnershipTests(unittest.TestCase):
   self.assertNotEqual(m.handler_module_path,p.handler_module_path)
   self.assertTrue(m.handler_module_path.startswith('data.plugins.doge_math.main'))
   self.assertTrue(p.handler_module_path.startswith('data.plugins.doge_papers.main'))
+
+ def test_cthuvian_tool_is_linguistics_owned(self):
+  c=FakeContext(); tool=register_domain_tools(c,'doge_linguistics',DogeCthuvianTool())[0]
+  self.assertEqual(tool.name,'doge_cthuvian')
+  self.assertEqual(tool.handler_module_path,'data.plugins.doge_linguistics.main')
+  self.assertIn('当前 Agent 推理中自己忠实翻好的英文',tool.description)
+  self.assertIn('一次结构化批量造词',tool.description)
 
 if __name__=='__main__': unittest.main()

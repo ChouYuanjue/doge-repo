@@ -691,6 +691,14 @@ class CthuvianAdapter:
     def proposal_prompt(self, source_term: str, context_text: str, rejection_reason: str = "") -> tuple[str, str]:
         return self.proposal_rules.proposal_prompt(source_term, context_text, rejection_reason)
 
+    def batch_proposal_prompt(
+        self,
+        source_terms: list[str] | tuple[str, ...],
+        context_text: str,
+        rejection_reasons: dict[str, str] | None = None,
+    ) -> tuple[str, str]:
+        return self.proposal_rules.batch_proposal_prompt(source_terms, context_text, rejection_reasons)
+
     def accept_proposal(self, source: str, proposal: dict, model_profile: str | None = None) -> dict:
         normalized = normalize_english(source)
         payload = dict(proposal or {})
