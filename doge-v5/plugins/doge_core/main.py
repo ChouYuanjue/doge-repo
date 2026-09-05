@@ -27,6 +27,7 @@ from data.plugins.doge_shared.help_live import (
 from data.plugins.doge_shared.module_control import disabled_plugins, filter_toolset_for_session
 from data.plugins.doge_shared.materials import MATERIALS
 from data.plugins.doge_shared.persona_runtime import PersonaRuntime, ReplyBudget
+from data.plugins.doge_shared.parallel_agent import install_parallel_agent_patch
 from data.plugins.doge_shared.presentation import image_result, markdown_to_plain, text_result
 from data.plugins.doge_shared.session_control import RESEARCH_PERSONA_ID, get_session_persona_id, is_agent_enabled
 from data.plugins.doge_shared.release import DOGE_VERSION
@@ -164,6 +165,11 @@ class DogeCore(Star):
             DogeCapabilityTool(),
             DogePresentTool(),
         )
+
+
+    @filter.on_astrbot_loaded()
+    async def install_parallel_agent_runtime(self):
+        await install_parallel_agent_patch()
 
     def _normalize_platform_history_timestamps(self) -> None:
         """Make AstrBot's SQLite UTC-naive history timestamps UTC-aware at the shared read boundary."""
