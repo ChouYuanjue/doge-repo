@@ -549,7 +549,8 @@ class DogePresentTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_present"
     description: str = (
         "展示 doge_capability 捕获的精选图片，并支持 blocks 按顺序组织文字→图片→文字。"
-        "多公式解释优先用 blocks 保留交替结构；不要把所有图片无脑堆到答案末尾。"
+        "这是终止型直发工具：调用时必须把用户需要看到的最终文字也一并放进 blocks/caption；"
+        "发送成功后当前 Agent 会立即结束，不会再生成第二段总结。"
     )
     parameters: dict = Field(default_factory=lambda: {
         "type": "object",
@@ -622,4 +623,8 @@ class DogePresentTool(FunctionTool[AstrAgentContext]):
             chain.append(Plain(caption))
         if not chain:
             return "No selected presentation content is available: " + ", ".join(missing or ids)
-        return await _send_presentation_bounded(event, chain)
+        # AstrBot treats a tool returning None as a terminal direct-send tool:
+        # the payload has already been delivered, so the Agent loop ends here
+        # instead of making one more provider call that merely paraphrases it.
+        await _send_presentation_bounded(event, chain)
+        return None

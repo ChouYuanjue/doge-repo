@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 from astrbot.api import logger
+from astrbot.core.utils.active_event_registry import active_event_registry
 
 
 class _ParallelExecutionLockManager:
@@ -154,6 +155,24 @@ async def _parallel_save_to_history(self, event, req, llm_response, all_messages
             )
 
 
+def _runner_event(runner):
+    return getattr(getattr(getattr(runner, "run_context", None), "context", None), "event", None)
+
+
+def _parallel_register_active_runner(_umo: str, runner) -> None:
+    """Register each concurrent Agent by its owning event, never in a UMO single slot."""
+    event = _runner_event(runner)
+    if event is not None:
+        active_event_registry.register_agent_stop_callback(event, runner.request_stop)
+
+
+def _parallel_unregister_active_runner(_umo: str, runner) -> None:
+    """Unregister exactly this runner even when sibling Agents share the same UMO."""
+    event = _runner_event(runner)
+    if event is not None:
+        active_event_registry.unregister_agent_stop_callback(event)
+
+
 async def install_parallel_agent_patch() -> None:
     """Install Doge's AstrBot-4.27 parallel-session compatibility patch once."""
     global _installed, _original_save
@@ -172,10 +191,21 @@ async def install_parallel_agent_patch() -> None:
         internal.InternalAgentSubStage._save_to_history = _parallel_save_to_history
         internal.session_lock_manager = _ParallelExecutionLockManager()
 
-        # AstrBot follow-up capture folds later messages from the same sender into
-        # an active agent. Doge treats each incoming message as an independent
-        # request, so it must start its own runner instead.
+        # AstrBot's follow-up helper stores only one active runner per UMO. That
+        # model is incompatible with Doge's independent concurrent requests.
+        # The framework's active_event_registry is already multi-event, so bind
+        # stop callbacks there directly and unregister each runner independently.
+        internal.register_active_runner = _parallel_register_active_runner
+        internal.unregister_active_runner = _parallel_unregister_active_runner
+
+        # Same-sender follow-up capture would fold a later message into the older
+        # runner. Doge intentionally starts a fresh Agent for every woken message.
         internal.try_capture_follow_up = lambda _event: None
+        try:
+            from astrbot.core.pipeline.process_stage import follow_up
+            follow_up._ACTIVE_AGENT_RUNNERS.clear()
+        except Exception:
+            pass
         internal._doge_parallel_agent_patch = True
         _installed = True
         logger.info(

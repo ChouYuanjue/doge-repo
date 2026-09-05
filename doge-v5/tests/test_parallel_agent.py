@@ -10,7 +10,13 @@ PLUGINS = ROOT / "plugins"
 if str(PLUGINS) not in sys.path:
     sys.path.insert(0, str(PLUGINS))
 
-from doge_shared.parallel_agent import _ParallelExecutionLockManager, merge_parallel_history
+from doge_shared import parallel_agent
+from doge_shared.parallel_agent import (
+    _ParallelExecutionLockManager,
+    _parallel_register_active_runner,
+    _parallel_unregister_active_runner,
+    merge_parallel_history,
+)
 
 
 class ParallelAgentTests(unittest.TestCase):
@@ -34,6 +40,44 @@ class ParallelAgentTests(unittest.TestCase):
             return count
 
         self.assertEqual(asyncio.run(run()), 2)
+
+
+    def test_concurrent_runners_register_and_unregister_per_event(self):
+        class Event:
+            pass
+
+        class Runner:
+            def __init__(self, event):
+                self.run_context = type("RunContext", (), {"context": type("Ctx", (), {"event": event})()})()
+                self.stops = 0
+            def request_stop(self):
+                self.stops += 1
+
+        class Registry:
+            def __init__(self):
+                self.callbacks = {}
+            def register_agent_stop_callback(self, event, callback):
+                self.callbacks[event] = callback
+            def unregister_agent_stop_callback(self, event):
+                self.callbacks.pop(event, None)
+
+        old = parallel_agent.active_event_registry
+        fake = Registry()
+        parallel_agent.active_event_registry = fake
+        try:
+            ea, eb = Event(), Event()
+            a, b = Runner(ea), Runner(eb)
+            _parallel_register_active_runner("same-umo", a)
+            _parallel_register_active_runner("same-umo", b)
+            self.assertEqual(set(fake.callbacks), {ea, eb})
+            _parallel_unregister_active_runner("same-umo", a)
+            self.assertEqual(set(fake.callbacks), {eb})
+            fake.callbacks[eb]()
+            self.assertEqual((a.stops, b.stops), (0, 1))
+            _parallel_unregister_active_runner("same-umo", b)
+            self.assertEqual(fake.callbacks, {})
+        finally:
+            parallel_agent.active_event_registry = old
 
     def test_parallel_runs_append_both_tails(self):
         h = [{"role": "user", "content": "old"}, {"role": "assistant", "content": "old-a"}]

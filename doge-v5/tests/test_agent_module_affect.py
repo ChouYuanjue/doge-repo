@@ -523,7 +523,7 @@ class AgentBridgeMetadataTests(unittest.TestCase):
                 {'type':'text','text':'然后代入'},
                 {'type':'image','asset_id':'img-b'},
             ]))
-            self.assertIn('sent directly', result)
+            self.assertIsNone(result)
             self.assertEqual(len(event.sent), 1)
             chain = event.sent[0].chain
             self.assertEqual([type(x).__name__ for x in chain], ['Plain','Image','Plain','Image'])
@@ -553,7 +553,7 @@ class AgentBridgeMetadataTests(unittest.TestCase):
             try:
                 result = await DogePresentTool().call(ctx, asset_ids=['img-a'], caption='测试')
                 self.assertTrue(event.started.is_set())
-                self.assertIn('acknowledgement is pending', result)
+                self.assertIsNone(result)
                 self.assertEqual(len(event.sent), 1)
                 self.assertGreaterEqual(len(agent_bridge._DETACHED_SEND_TASKS), 1)
                 event.release.set()
