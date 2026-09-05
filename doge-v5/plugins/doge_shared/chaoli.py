@@ -53,6 +53,7 @@ class ThreadCard:
     updated: str
     replies: str
     url: str
+    crc: str = ""
 
     def line(self) -> str:
         meta = []
@@ -312,6 +313,7 @@ class ChaoliService:
                 tid, cls._text(link), cls._text(li.select_one(".excerpt")),
                 channel, channel_slug, author, author_id, started,
                 last_author, last_author_id, updated, replies, urljoin(BASE, href),
+                str(li.get("data-crc") or "").strip(),
             ))
             if len(rows) >= max(1, min(limit, 30)):
                 break
@@ -346,10 +348,16 @@ class ChaoliService:
         return f"超理搜索 · {query} · {scope}\n\n" + "\n\n".join(x.line() for x in cards)
 
     @classmethod
-    async def latest(cls, channel: str = "all", limit: int = 10) -> str:
+    async def latest_cards(cls, channel: str = "all", limit: int = 10) -> list[ThreadCard]:
+        """Return strongly-bound cards for polling/subscription code without reparsing display text."""
         slug = cls._channel_slug(channel)
         path = "/" if slug == "all" else f"/index.php/conversations/{slug}/"
-        cards = cls._parse_cards(await cls._get(path), limit, expected_channel=slug)
+        return cls._parse_cards(await cls._get(path), limit, expected_channel=slug)
+
+    @classmethod
+    async def latest(cls, channel: str = "all", limit: int = 10) -> str:
+        slug = cls._channel_slug(channel)
+        cards = await cls.latest_cards(slug, limit)
         title = "超理 · 最新" if slug == "all" else f"超理 · {cards[0].channel}"
         return title + "\n\n" + "\n\n".join(x.line() for x in cards)
 

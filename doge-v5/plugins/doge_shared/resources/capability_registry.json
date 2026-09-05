@@ -224,7 +224,7 @@
       "category": "play"
     },
     "chaoli": {
-      "summary": "超理论坛严格只读：原生帖子搜索/分板/帖子/楼层/用户活动；作者、最后回复者、楼层和用户均按页面实体强绑定，引用与本人正文分离。",
+      "summary": "超理论坛严格只读：原生帖子搜索/分板/帖子/楼层/用户活动，以及群级新帖/旧帖新回复订阅推送；作者、最后回复者、楼层和用户均按页面实体强绑定。",
       "category": "research"
     }
   },
@@ -3860,6 +3860,15 @@
       "usage": "/chaoli status",
       "aliases": [],
       "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "chaoli.push",
+      "path": "chaoli push",
+      "summary": "本群订阅超理新动态；新帖与旧帖新回复分别识别。首次开启只建立当前水位，不补发历史；修改订阅仅限本群群主/管理员。",
+      "usage": "/chaoli push on [板块] | off [板块] | status | test [板块]",
+      "aliases": [],
+      "args": "optional",
       "kind": "command"
     }
   ],

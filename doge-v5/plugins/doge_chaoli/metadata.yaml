@@ -1,5 +1,5 @@
 name: doge_chaoli
-version: 5.10.26
-desc: 超理论坛原生搜索、只读浏览、帖子/楼层、用户活动与引用链
+version: 5.10.27
+desc: 超理论坛原生搜索、只读浏览、帖子/楼层、用户活动、引用链与群订阅推送
 author: runnel
 repo: https://github.com/ChouYuanjue/doge-repo
