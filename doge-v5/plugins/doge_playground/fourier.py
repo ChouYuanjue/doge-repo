@@ -84,22 +84,29 @@ class FourierRenderer:
         size=cls.MAX_SIDE
         image=Image.new('L',(size,size),255)
         draw=ImageDraw.Draw(image)
+        # Prefer a real CJK font. The previous paths missed the distro's actual
+        # Noto location and silently fell back to PIL's tiny bitmap font, which
+        # produced 6-12 px contours on a 900 px canvas (and no usable Chinese).
         fonts=[
+            '/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc',
+            '/usr/share/fonts/google-droid/DroidSansFallback.ttf',
+            '/usr/share/fonts/dejavu/DejaVuSans.ttf',
             '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
             '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
             '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
         ]
-        font_path=next((p for p in fonts if Path(p).exists()),None)
+        font_path=next((candidate for candidate in fonts if Path(candidate).exists()),None)
         if not font_path:
-            font=ImageFont.load_default()
-        else:
-            font=None
-            for fs in range(260,23,-6):
-                candidate=ImageFont.truetype(font_path,fs)
-                box=draw.textbbox((0,0),text,font=candidate)
-                if box[2]-box[0] <= size*.86 and box[3]-box[1] <= size*.80:
-                    font=candidate; break
-            font=font or ImageFont.truetype(font_path,24)
+            raise FourierError('服务器缺少可用于 Fourier text 的 TrueType/OpenType 字体')
+        font=None
+        # Fill most of the source canvas. A single glyph can therefore be large,
+        # while a longer (<=10 chars) string automatically receives a smaller size.
+        for fs in range(760,23,-8):
+            candidate=ImageFont.truetype(font_path,fs)
+            box=draw.textbbox((0,0),text,font=candidate)
+            if box[2]-box[0] <= size*.82 and box[3]-box[1] <= size*.78:
+                font=candidate; break
+        font=font or ImageFont.truetype(font_path,24)
         box=draw.textbbox((0,0),text,font=font)
         x=(size-(box[2]-box[0]))/2-box[0]; y=(size-(box[3]-box[1]))/2-box[1]
         draw.text((x,y),text,font=font,fill=0)
@@ -206,6 +213,7 @@ class FourierRenderer:
         scale=.76*cls.CANVAS/max(image.width,image.height)
         cx0=image.width/2; cy0=image.height/2
         def normalize(z): return ((z.real-cx0)*scale) + 1j*(-(z.imag-cy0)*scale)
+        guide_paths=[normalize(c[:,0] + 1j*c[:,1]) for c in contours]
         if mode=='merge':
             paths=[normalize(cls._resample(cls._order_merge(contours),samples))]
         else:
@@ -229,19 +237,25 @@ class FourierRenderer:
         out_frames=[]; center=cls.CANVAS/2
         for fi in range(frames):
             t=fi/frames
-            canvas=Image.new('RGB',(cls.CANVAS,cls.CANVAS),'white'); draw=ImageDraw.Draw(canvas)
+            canvas=Image.new('RGB',(cls.CANVAS,cls.CANVAS),(252,252,250)); draw=ImageDraw.Draw(canvas)
+            # A faint target outline keeps the object legible in compact QQ GIF
+            # previews while the dark Fourier trace remains the visual subject.
+            for guide in guide_paths:
+                if len(guide)>1:
+                    pts=[(center+p.real,center-p.imag) for p in guide]
+                    draw.line(pts+[pts[0]],fill=(226,228,234),width=2)
             for coeffs,trace in zip(coeff_sets,traces):
                 dc=next((v for k,v in coeffs if k==0),0j); pos=dc
                 for k,coef in coeffs:
                     if k==0: continue
                     start=pos; pos += coef*np.exp(2j*math.pi*k*t)
                     x=center+start.real; y=center-start.imag; r=abs(coef)
-                    if r>=1.2: draw.ellipse((x-r,y-r,x+r,y+r),outline=(210,214,226),width=1)
-                    draw.line((center+start.real,center-start.imag,center+pos.real,center-pos.imag),fill=(82,91,132),width=1)
+                    if r>=1.2: draw.ellipse((x-r,y-r,x+r,y+r),outline=(194,199,214),width=1)
+                    draw.line((center+start.real,center-start.imag,center+pos.real,center-pos.imag),fill=(72,82,126),width=2)
                 trace.append(pos)
                 if len(trace)>1:
-                    draw.line([(center+p.real,center-p.imag) for p in trace],fill=(18,20,28),width=2)
-                draw.ellipse((center+pos.real-2.5,center-pos.imag-2.5,center+pos.real+2.5,center-pos.imag+2.5),fill=(170,40,52))
+                    draw.line([(center+p.real,center-p.imag) for p in trace],fill=(12,14,22),width=4)
+                draw.ellipse((center+pos.real-4,center-pos.imag-4,center+pos.real+4,center-pos.imag+4),fill=(170,36,50))
             # Adaptive palette keeps GIF substantially smaller without changing
             # geometry; no image-generation model is involved.
             out_frames.append(canvas.convert('P',palette=Image.Palette.ADAPTIVE,colors=48))
