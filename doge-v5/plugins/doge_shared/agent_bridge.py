@@ -15,7 +15,7 @@ from pydantic.dataclasses import dataclass
 from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.tool import FunctionTool
 from astrbot.core.astr_agent_context import AstrAgentContext
-from astrbot.core.message.components import File, Image, Plain
+from astrbot.core.message.components import File, Image, Music, Plain
 from astrbot.core.message.message_event_result import MessageChain, MessageEventResult
 from astrbot.core.star.filter.command import CommandFilter
 from astrbot.core.star.star import star_map
@@ -93,7 +93,7 @@ async def _capture_file(event, comp: File, asset_root: Path, assets: dict) -> st
     return asset_id
 
 
-async def _capture_chain(event, chain, asset_root: Path, assets: dict, texts: list[str], media: list[dict], content: list[dict] | None = None) -> None:
+async def _capture_chain(event, chain, asset_root: Path, assets: dict, texts: list[str], media: list[dict], content: list[dict] | None = None, direct_rich: list | None = None) -> None:
     if chain is None:
         return
     components = getattr(chain, "chain", chain)
@@ -118,6 +118,16 @@ async def _capture_chain(event, chain, asset_root: Path, assets: dict, texts: li
             media.append(item)
             if content is not None:
                 content.append(dict(item))
+        elif isinstance(comp, Music):
+            # Music cards are ephemeral transport actions, not assets the model
+            # should re-present later. Preserve the exact component and deliver
+            # it through the original event.send after the formal handler ends.
+            item = {"type": "music", "delivery": "direct"}
+            media.append(item)
+            if content is not None:
+                content.append(dict(item))
+            if direct_rich is not None:
+                direct_rich.append(comp)
         else:
             item = {"type": comp.__class__.__name__.lower(), "note": "Use the direct command for this rich output."}
             media.append(item)
@@ -184,6 +194,7 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
     texts: list[str] = []
     media: list[dict] = []
     content: list[dict] = []
+    direct_rich: list = []
     assets = event.get_extra(_ASSET_KEY)
     if not isinstance(assets, dict):
         assets = {}
@@ -197,7 +208,7 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         asset_root = Path("/tmp/doge-agent-assets")
 
     async def capture_send(message) -> None:
-        await _capture_chain(event, message, asset_root, assets, texts, media, content)
+        await _capture_chain(event, message, asset_root, assets, texts, media, content, direct_rich)
 
     try:
         event.message_str = body
@@ -217,13 +228,13 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         if inspect.isasyncgen(ready):
             async for ret in ready:
                 if isinstance(ret, MessageEventResult):
-                    await _capture_chain(event, ret, asset_root, assets, texts, media, content)
+                    await _capture_chain(event, ret, asset_root, assets, texts, media, content, direct_rich)
                 elif isinstance(ret, str):
                     texts.append(ret)
         elif inspect.isawaitable(ready):
             ret = await ready
             if isinstance(ret, MessageEventResult):
-                await _capture_chain(event, ret, asset_root, assets, texts, media, content)
+                await _capture_chain(event, ret, asset_root, assets, texts, media, content, direct_rich)
             elif isinstance(ret, str):
                 texts.append(ret)
         elif ready is not None:
@@ -232,7 +243,7 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         # Some wrappers communicate only through event.set_result().
         residual = event.get_result()
         if residual is not None and residual is not old_result:
-            await _capture_chain(event, residual, asset_root, assets, texts, media, content)
+            await _capture_chain(event, residual, asset_root, assets, texts, media, content, direct_rich)
     finally:
         event.send = old_send
         event.message_str = old_message
@@ -265,6 +276,24 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         await old_send(MessageChain([File(name=name, file=str(path))]))
         sent_files.append(str(item["id"]))
 
+    # Immediate rich transport outputs (currently native Music cards) are
+    # delivered exactly once. Generator yield + residual event result can expose
+    # the same component twice, so de-duplicate by its OneBot payload.
+    rich_sent: list[dict] = []
+    rich_seen: set[str] = set()
+    for comp in direct_rich:
+        try:
+            payload = comp.toDict()
+            fingerprint = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+        except Exception:
+            payload = {"type": comp.__class__.__name__.lower()}
+            fingerprint = repr(payload)
+        if fingerprint in rich_seen:
+            continue
+        rich_seen.add(fingerprint)
+        await old_send(MessageChain([comp]))
+        rich_sent.append(payload)
+
     # De-duplicate text because generator yield + residual event result can point
     # to the same MessageEventResult in wrapper-heavy plugins.
     deduped: list[str] = []
@@ -285,10 +314,11 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         "media": media,
         "content": content,
         "files_sent": sent_files,
+        "rich_sent": rich_sent,
         "direct_command": command,
         "guidance": (
             "Synthesize the useful parts instead of dumping this object. "
-            "File outputs listed in files_sent have already been delivered to the user; do not ask them to repeat the command. "
+            "File outputs listed in files_sent and rich outputs listed in rich_sent have already been delivered to the user; do not ask them to repeat the command. "
             "The content field preserves the original text/media order. "
             "For explanations with multiple rendered images, use doge_present.blocks to send a true text-image-text sequence instead of batching all images at the end. "
             "Only present image media that materially improves the answer. Mention direct_command only when an explicit raw command would genuinely help the user."

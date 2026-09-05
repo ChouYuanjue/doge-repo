@@ -25,6 +25,29 @@ _REAL_WORK_CONTEXT = re.compile(
 def clear_real_work_context(text: str) -> bool:
     return bool(_REAL_WORK_CONTEXT.search(str(text or "")))
 
+# The tiny n-gram model is intentionally NOT a free-standing classifier. It is
+# only allowed to vote after the text already looks like a problem/benchmark
+# prompt. This protects ordinary short requests, names, image requests, and
+# technical discussion from accidental lexical collisions in the 2 KiB model.
+_BENCHMARK_SHAPE = re.compile(
+    r"(?:"
+    r"^(?:请)?(?:证明|求证|解答|求解|计算|求出|写出).{2,}|"
+    r"(?:给定|已知|设有|设一个).{0,100}(?:求|计算|证明|返回|输出|实现)|"
+    r"(?:随机|概率|恰有|至少|至多).{0,80}\d|\d.{0,80}(?:随机|概率|恰有|至少|至多)|"
+    r"(?:write\s+(?:a|an)\s+(?:function|program)|prove\b|given\b.{0,120}(?:find|return|compute|calculate)|how\s+many\b|calculate\b)|"
+    r"(?:input|output|sample|constraints?).{0,120}(?:input|output|sample|constraints?)|"
+    r"(?:function|def)\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\).{0,120}(?:return|returns?)"
+    r")",
+    re.I | re.S,
+)
+
+
+def benchmark_shape_candidate(text: str) -> bool:
+    value = str(text or "").strip()
+    if not value:
+        return False
+    return bool(_BENCHMARK_SHAPE.search(value))
+
 
 class TinyBenchmarkGate:
     """Dependency-free int8 hashed character n-gram benchmark detector.
@@ -81,6 +104,8 @@ class TinyBenchmarkGate:
     def is_benchmark(self, text: str) -> bool:
         value = str(text or "").strip()
         if not value or clear_real_work_context(value):
+            return False
+        if not benchmark_shape_candidate(value):
             return False
         return self.score(value) >= self.threshold
 

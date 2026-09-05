@@ -178,6 +178,17 @@ class TransportMarkdownTests(unittest.TestCase):
         finally:
             core_module.is_agent_enabled = old
 
+    def test_boundary_gate_never_intercepts_original_slash_command_after_wake_stripping(self):
+        class Event:
+            message_str = "admin agent on"
+            message_obj = types.SimpleNamespace(message_str="/admin agent on")
+
+        async def run():
+            event = Event()
+            return [item async for item in DogeCore.reject_obvious_boundary_request(object(), event)]
+
+        self.assertEqual(asyncio.run(run()), [])
+
     def test_agent_reenable_command_survives_wake_prefix_stripping(self):
         class Event:
             unified_msg_origin = "napcat:GroupMessage:g"

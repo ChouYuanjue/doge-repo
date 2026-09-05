@@ -30,7 +30,7 @@ from data.plugins.doge_shared.persona_runtime import PersonaRuntime, ReplyBudget
 from data.plugins.doge_shared.presentation import image_result, markdown_to_plain, text_result
 from data.plugins.doge_shared.session_control import RESEARCH_PERSONA_ID, get_session_persona_id, is_agent_enabled
 from data.plugins.doge_shared.release import DOGE_VERSION
-from data.plugins.doge_shared.raw_command import command_payload
+from data.plugins.doge_shared.raw_command import command_payload, original_message_text
 from data.plugins.doge_shared.runtime_stats import (
     UsageCounter,
     product_counts,
@@ -275,6 +275,11 @@ class DogeCore(Star):
 
     @filter.event_message_type(filter.EventMessageType.ALL, priority=9500)
     async def reject_obvious_boundary_request(self, event: AstrMessageEvent):
+        # WakingCheck may already have stripped '/' from event.message_str.
+        # Risk gates must exempt explicit product commands using the untouched
+        # transport text, just like the Agent on/off recovery path above.
+        if original_message_text(event).lstrip().startswith("/"):
+            return
         text = self._benchmark_text(event)
         if not self._benchmark_addressed_to_doge(event, text):
             return
@@ -284,10 +289,15 @@ class DogeCore(Star):
             sender = ""
         scope = event.unified_msg_origin + (f"|sender:{sender}" if sender else "")
         mode = await self._persona_mode(event)
+        category = self.persona_runtime.refusal_category(text, mode=mode)
         reply = self.persona_runtime.pre_llm_refusal(scope, text, mode=mode)
         if not reply:
             return
-        logger.info("Doge request refused before LLM/tool execution.")
+        diag = self.persona_runtime.benchmark_diagnostics(text)
+        logger.info(
+            "Doge request refused before LLM/tool execution: category=%s benchmark_hard=%s benchmark_shape=%s benchmark_score=%.3f threshold=%.3f",
+            category, diag["hard"], diag["shape"], diag["score"], diag["threshold"],
+        )
         yield event.plain_result(reply)
         event.stop_event()
 

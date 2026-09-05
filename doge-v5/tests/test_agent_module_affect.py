@@ -208,6 +208,25 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn("benchmark-test", close_turn)
         self.assertIn('relation="closest"', close_turn)
 
+    def test_benchmark_gate_does_not_classify_ordinary_requests_or_algorithm_debugging(self):
+        runtime = PersonaRuntime(TransientAffect())
+        negatives = (
+            "发点睦子米的图",
+            "发点初音未来的图",
+            "推荐几张猫图",
+            "线上动态规划模块报错了，日志里是 IndexError，帮我修",
+            "这个最短路实现在线上服务里超时了，帮我看日志",
+            "解释一下二分查找为什么是对数复杂度",
+        )
+        for text in negatives:
+            self.assertFalse(runtime.is_benchmark_test(text), text)
+            self.assertIsNone(runtime.pre_llm_refusal("g|sender:x", text), text)
+
+        # Statistical score may still be high for lexical collisions, but it is
+        # ineligible to refuse without a real problem/benchmark shape.
+        self.assertGreaterEqual(BENCHMARK_GATE.score("发点初音未来的图"), BENCHMARK_GATE.threshold)
+        self.assertFalse(BENCHMARK_GATE.is_benchmark("发点初音未来的图"))
+
     def test_tiny_benchmark_gate_catches_unseen_shapes_without_heavy_dependencies(self):
         # These deliberately avoid the old explicit algorithm/IO keywords.
         positives = (

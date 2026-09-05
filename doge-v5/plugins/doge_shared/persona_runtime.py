@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 
 from .affect import AffectState, TransientAffect
-from .benchmark_gate import GATE as BENCHMARK_GATE
+from .benchmark_gate import GATE as BENCHMARK_GATE, benchmark_shape_candidate
 
 
 @dataclass(slots=True)
@@ -64,10 +64,11 @@ _CASUAL = re.compile(r"(?:吃什么|吃饭|晚饭|闲聊|随便聊|无聊|在吗
 # High-precision benchmark/problem-set shapes. Any hit is rejected before the
 # provider; the tiny local n-gram gate below supplements this regex for unseen shapes.
 _BENCHMARK_TEST = re.compile(
-    r"(?:leetcode|acm|oi\b|codeforces|算法题|竞赛题|时间复杂度|空间复杂度|动态规划|\bdp\b|线段树|并查集|最短路|拓扑排序|二分查找|背包问题|"
+    r"(?:leetcode|codeforces|(?:^|\s)acm(?:\s|$)|(?:^|\s)oi(?:\s|$)|算法题|竞赛题|"
     r"(?:输入|输出|样例|数据范围|约束).{0,80}(?:输入|输出|样例|数据范围|约束)|"
-    r"给定.{0,90}(?:数组|字符串|序列|简单图|有向图|无向图|整数|节点|顶点).{0,180}(?:求|计算|证明|实现)|"
-    r"(?:实现|写出|设计).{0,30}(?:算法|程序).{0,80}(?:复杂度|最优|通过))",
+    r"给定.{0,90}(?:数组|字符串|序列|简单图|有向图|无向图|整数|节点|顶点).{0,180}(?:求|返回|输出|计算|证明|实现)|"
+    r"(?:实现|写出|设计).{0,30}(?:算法|程序).{0,80}(?:复杂度|最优|通过)|"
+    r"(?:请|要求).{0,30}(?:用|使用).{0,20}(?:动态规划|线段树|并查集|最短路|拓扑排序|二分查找|背包).{0,120}(?:求|返回|输出|实现|计算))",
     re.I | re.S,
 )
 
@@ -229,6 +230,32 @@ class PersonaRuntime:
         return None
 
     @staticmethod
+    def benchmark_diagnostics(text: str) -> dict[str, object]:
+        msg = str(text or "").strip()
+        score = BENCHMARK_GATE.score(msg) if msg else float("-inf")
+        return {
+            "hard": bool(_BENCHMARK_TEST.search(msg)) if msg else False,
+            "shape": benchmark_shape_candidate(msg),
+            "score": score,
+            "threshold": BENCHMARK_GATE.threshold,
+        }
+
+    def refusal_category(self, text: str, *, mode: str = "normal") -> str | None:
+        msg = str(text or "").strip()
+        if not msg or msg.startswith("/"):
+            return None
+        if mode == "research" and _RESEARCH_ENTERTAINMENT.search(msg):
+            return "research-entertainment"
+        if self.is_full_project_outsource(msg):
+            return "full-project-outsource"
+        category = self.risk_category(msg)
+        if category:
+            return category
+        if self.is_benchmark_test(msg):
+            return "benchmark"
+        return None
+
+    @staticmethod
     def _risk_reply(category: str) -> str:
         if category == "prompt-exfiltration":
             return "内部提示和隐藏规则不外发。对外功能、行为和可见设置可以正常说明。"
@@ -239,19 +266,14 @@ class PersonaRuntime:
         return "这条先不执行。"
 
     def pre_llm_refusal(self, scope: str, text: str, *, mode: str = "normal") -> str | None:
-        msg = str(text or "").strip()
-        if not msg or msg.startswith("/"):
+        category = self.refusal_category(text, mode=mode)
+        if category is None:
             return None
-        if mode == "research" and _RESEARCH_ENTERTAINMENT.search(msg):
+        if category == "research-entertainment":
             return "科研模式，不聊这个。"
-        if self.is_full_project_outsource(msg):
+        if category == "full-project-outsource":
             return "这个我不替你整套做。你自己先搭起来，卡在哪一块我再帮你看。"
-        category = self.risk_category(msg)
-        if category:
-            return self._risk_reply(category)
-        if self.is_benchmark_test(msg):
-            return self._risk_reply("benchmark")
-        return None
+        return self._risk_reply(category)
 
     @staticmethod
     def is_high_confidence_casual(text: str, *, has_media: bool = False) -> bool:
