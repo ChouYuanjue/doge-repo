@@ -83,10 +83,11 @@
     {
       "id": "media",
       "title": "媒体 / 小工具",
-      "summary": "图片识别、Pixiv 插画搜索、幻影坦克和少量不值得单独成域的小工具。",
+      "summary": "图片识别、Pixiv 插画搜索、网易云点歌、幻影坦克和少量不值得单独成域的小工具。",
       "commands": [
         "media",
         "pixiv",
+        "music",
         "util"
       ]
     },
@@ -230,6 +231,10 @@
     },
     "pixiv": {
       "summary": "Pixiv 插画搜索：使用 Lolicon 元数据 API 与服务器可达图片镜像；固定关闭 R18、过滤 AI 生成作品。",
+      "category": "media"
+    },
+    "music": {
+      "summary": "网易云音乐搜索与 QQ 原生音乐卡片点歌；先搜索再按序号选择，不下载整首歌、不转码。",
       "category": "media"
     }
   },
@@ -3913,6 +3918,44 @@
       "path": "pixiv status",
       "summary": "检查 Lolicon 元数据 API 与当前图片镜像下载链路。",
       "usage": "/pixiv status",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "music.search",
+      "path": "music",
+      "summary": "搜索网易云歌曲并缓存本会话前 5 条结果，供后续按序号点歌。",
+      "usage": "/music <关键词>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "music.play",
+      "path": "music play",
+      "summary": "播放最近一次搜索结果中的序号；也可显式给关键词并播放其搜索第一条。",
+      "usage": "/music play <序号|关键词>",
+      "aliases": [
+        "music pick"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "music.id",
+      "path": "music id",
+      "summary": "按明确的网易云歌曲 ID 发送原生 QQ 音乐卡片。",
+      "usage": "/music id <网易云歌曲ID>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "music.status",
+      "path": "music status",
+      "summary": "检查网易云公开搜索链路是否可达。",
+      "usage": "/music status",
       "aliases": [],
       "args": "none",
       "kind": "command"

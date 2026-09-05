@@ -148,8 +148,8 @@
     },
     {
       "name": "doge_music",
-      "status": "planned",
-      "default": false
+      "status": "formal",
+      "default": true
     },
     {
       "name": "doge_minecraft",

@@ -61,7 +61,7 @@ class SplitLayoutTests(unittest.TestCase):
             "help", "ver", "status", "statics", "admin",
             "math", "util", "paper", "bio", "chem", "mat", "astro", "trial",
             "lab", "fourier", "tex", "typst", "md", "snippet", "game", "fuse", "arena", "social",
-            "lang", "media", "run", "lookup", "chaoli", "pixiv", "diagram", "ai", "cs", "eng",
+            "lang", "media", "run", "lookup", "chaoli", "pixiv", "music", "diagram", "ai", "cs", "eng",
         }
         self.assertEqual(commands_for(DEFAULT), expected)
 
@@ -74,7 +74,7 @@ class SplitLayoutTests(unittest.TestCase):
             "perc", "phil", "poem", "insult", "fru", "rua", "jeffjoke", "px",
             "yan", "se", "genshin", "honkai", "pack", "doubao", "lcha", "ltran",
             "lsd", "lflux", "lcon", "limg", "amuse", "netool", "chart", "api",
-            "emojimix", "meme", "mirage", "music", "lyrics", "vv", "trace", "st",
+            "emojimix", "meme", "mirage", "lyrics", "vv", "trace", "st",
             "mc", "law", "anime", "say", "arknights",
         }
         self.assertTrue(retired.isdisjoint(commands_for(DEFAULT)))

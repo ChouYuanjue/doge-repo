@@ -131,6 +131,11 @@
       "kind": "external-grounded+mirrored-image",
       "source": "MIT-vendored GetPx Lolicon v2 client/downloader subset; metadata from api.lolicon.app with r18=0 and excludeAI=true; local second-pass rejects x_restrict!=0 and ai_type=2; image bytes are downloaded through the Lolicon-returned or configured GetPx-compatible mirror route, currently verified with i.pixiv.re, then validated by Pillow before sending",
       "fallback": "no Pixiv-official direct connection is required; if Lolicon metadata or all allowed mirror downloads fail, return an explicit error rather than fabricate artwork metadata or silently substitute unrelated images"
+    },
+    "doge_music": {
+      "kind": "external-grounded",
+      "source": "NetEase Cloud Music public HTTPS search endpoint (music.163.com/api/search/get/web); selected song IDs are sent through AstrBot/OneBot native NetEase music cards (music type=163), without downloading or transcoding whole songs",
+      "fallback": "fail closed when NetEase search is unavailable or returns no bound song ID; search results are presented for explicit user selection, and no LLM guessing, synthetic song metadata, third-party playback API, lyrics image, or hot-comment substitution is used"
     }
   }
 }

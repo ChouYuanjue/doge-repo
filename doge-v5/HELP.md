@@ -23,8 +23,8 @@ GROUPS
              西夏文、汉字历史音系、RRPL 与构造语言。
   play        38  游戏 / 群聊实验
              小游戏、解谜、概念炼金、荒诞竞技场与可按群开启的社交增强。
-  media       13  媒体 / 小工具
-             图片识别、Pixiv 插画搜索、幻影坦克和少量不值得单独成域的小工具。
+  media       17  媒体 / 小工具
+             图片识别、Pixiv 插画搜索、网易云点歌、幻影坦克和少量不值得单独成域的小工具。
   admin       15  管理
              AstrBot 框架级会话与管理指令，统一收在 /admin 下。
   legacy      81  Legacy / 历史博物馆（默认不加载）
@@ -40,9 +40,9 @@ QUICK START
   /help legacy          历史功能状态
 
 SCALE
-  顶层指令       33
-  正式叶子功能   248
-  正式调用形式   524  （含 276 个兼容别名）
+  顶层指令       34
+  正式叶子功能   252
+  正式调用形式   529  （含 277 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -1238,18 +1238,19 @@ BACK
 
 ## 媒体 / 小工具 (`media`)
 
-图片识别、Pixiv 插画搜索、幻影坦克和少量不值得单独成域的小工具。
+图片识别、Pixiv 插画搜索、网易云点歌、幻影坦克和少量不值得单独成域的小工具。
 
 ### `/media`
 
 ```text
 GROUP  media
 媒体 / 小工具
-图片识别、Pixiv 插画搜索、幻影坦克和少量不值得单独成域的小工具。
+图片识别、Pixiv 插画搜索、网易云点歌、幻影坦克和少量不值得单独成域的小工具。
 
 COMMANDS
   /media         4  视觉小实验：AnimeTrace 图片识别与本地幻影坦克。
   /pixiv         4  Pixiv 插画搜索：使用 Lolicon 元数据 API 与服务器可达图片镜像；固定关闭 R18、过滤 AI 生成作品。
+  /music         4  网易云音乐搜索与 QQ 原生音乐卡片点歌；先搜索再按序号选择，不下载整首歌、不转码。
   /util          5  有用但不值得单独成域的小工具：codec、天气、APOD、Bing 等。
 
 NEXT
@@ -1315,6 +1316,31 @@ SUBCOMMANDS
 
 NEXT
   /help pixiv random
+
+BACK
+  /help
+```
+
+### `/music`
+
+```text
+COMMAND  /music
+网易云音乐搜索与 QQ 原生音乐卡片点歌；先搜索再按序号选择，不下载整首歌、不转码。
+
+DIRECT
+  /music <关键词>
+    搜索网易云歌曲并缓存本会话前 5 条结果，供后续按序号点歌。
+
+SUBCOMMANDS
+  play             播放最近一次搜索结果中的序号；也可显式给关键词并播放其搜索第一条。
+    /music play <序号|关键词>
+  id               按明确的网易云歌曲 ID 发送原生 QQ 音乐卡片。
+    /music id <网易云歌曲ID>
+  status           检查网易云公开搜索链路是否可达。
+    /music status
+
+NEXT
+  /help music play
 
 BACK
   /help

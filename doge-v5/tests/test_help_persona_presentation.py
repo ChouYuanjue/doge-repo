@@ -35,13 +35,13 @@ class CapabilityRegistryTests(unittest.TestCase):
             "help", "ver", "status", "statics", "admin",
             "math", "util", "paper", "bio", "chem", "mat", "astro", "trial",
             "lab", "fourier", "tex", "typst", "md", "snippet", "game", "fuse", "arena", "social",
-            "lang", "media", "run", "lookup", "chaoli", "pixiv", "diagram", "ai", "cs", "eng",
+            "lang", "media", "run", "lookup", "chaoli", "pixiv", "music", "diagram", "ai", "cs", "eng",
         }
         self.assertEqual(commands, expected)
         listed = {c for cat in r["categories"] for c in cat["commands"]}
         self.assertEqual(listed, expected)
         c = counts()
-        self.assertEqual(c["top_level"], 33)
+        self.assertEqual(c["top_level"], 34)
         self.assertEqual(c["functions"], len(r["operations"]))
         self.assertEqual(c["forms"], c["functions"] + c["aliases"])
         self.assertEqual(c["aliases"], sum(len(op.get("aliases", [])) for op in r["operations"]))
@@ -255,6 +255,10 @@ class PersonaTests(unittest.TestCase):
                 json.dumps({"absolute_admin_ids": ["2700074128", "existing-admin"]}), encoding="utf-8"
             )
             installer.install(runtime, backup=False); installer.install(runtime, backup=False)
+            self.assertTrue((data / "plugins" / "doge_pixiv").is_symlink())
+            self.assertEqual((data / "plugins" / "doge_pixiv").resolve(), (PLUGINS / "doge_pixiv").resolve())
+            self.assertTrue((data / "plugins" / "doge_music").is_symlink())
+            self.assertTrue((data / "plugins" / "doge_shared").is_symlink())
             out = json.loads((data / "cmd_config.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(out["provider_settings"]["default_personality"], "doge")
             self.assertEqual(out["provider_settings"]["default_provider_id"], "keep-me")

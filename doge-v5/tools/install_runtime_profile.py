@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PERSONA_DIR = ROOT / "persona"
 DEFAULT_PERSONA_ID = "doge"
 CORE_CONFIG_NAME = "doge_core_config.json"
+MANIFEST_PATH = ROOT / "plugin_manifest.json"
+PLUGIN_SOURCE_DIR = ROOT / "plugins"
 
 
 def load_json_bom(path: Path) -> dict:
@@ -24,7 +26,47 @@ def write_json_preserve_bom(path: Path, data: dict) -> None:
     path.write_text(text, encoding="utf-8-sig" if bom else "utf-8")
 
 
+
+def sync_default_plugin_links(runtime: Path) -> list[str]:
+    """Ensure repo-managed default plugins are present in AstrBot's runtime.
+
+    Existing real directories are never overwritten. Repo-managed symlinks are
+    repaired when stale, and missing default plugins are linked automatically.
+    This prevents a newly added formal plugin from being committed but silently
+    absent from production.
+    """
+    manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    names = {
+        str(item.get("name") or "")
+        for item in manifest.get("plugins", [])
+        if item.get("default") and str(item.get("name") or "")
+    }
+    names.add("doge_shared")
+    runtime_plugins = runtime / "data" / "plugins"
+    runtime_plugins.mkdir(parents=True, exist_ok=True)
+    linked: list[str] = []
+    for name in sorted(names):
+        source = (PLUGIN_SOURCE_DIR / name).resolve()
+        if not source.is_dir():
+            raise FileNotFoundError(f"Default Doge plugin source missing: {name}")
+        target = runtime_plugins / name
+        if target.is_symlink():
+            try:
+                if target.resolve() == source:
+                    continue
+            except OSError:
+                pass
+            target.unlink()
+        elif target.exists():
+            # A runtime-local plugin directory may intentionally be managed by
+            # AstrBot. Never replace user data/code destructively.
+            continue
+        target.symlink_to(source, target_is_directory=True)
+        linked.append(name)
+    return linked
+
 def install(runtime: Path, *, backup: bool = True) -> None:
+    linked_plugins = sync_default_plugin_links(runtime)
     personas = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(PERSONA_DIR.glob("*.json"))]
     if not personas:
         raise FileNotFoundError("Doge personas not found")
@@ -150,6 +192,7 @@ def install(runtime: Path, *, backup: bool = True) -> None:
                 )
         conn.commit()
 
+    print("default_plugins_linked=" + str(len(linked_plugins)))
     print("personas=" + ",".join(item["persona_id"] for item in personas))
     print("default_personality=" + cfg["provider_settings"]["default_personality"])
     print("disable_builtin_commands=" + str(cfg["disable_builtin_commands"]).lower())
