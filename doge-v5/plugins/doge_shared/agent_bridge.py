@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 import re
@@ -12,6 +13,7 @@ from zoneinfo import ZoneInfo
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
+from astrbot import logger
 from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.tool import FunctionTool
 from astrbot.core.astr_agent_context import AstrAgentContext
@@ -26,6 +28,8 @@ from .module_control import is_plugin_enabled
 
 _ASSET_KEY = "_doge_agent_assets"
 _MAX_TOOL_TEXT = 18000
+_PRESENT_ACK_WAIT_S = 1.5
+_DETACHED_SEND_TASKS: set[asyncio.Task] = set()
 
 
 def _normalize_command(command: str) -> str:
@@ -43,6 +47,57 @@ def _likely_help(command: str) -> str:
         if operations_for_prefix(prefix):
             return f"/help {prefix}"
     return "/help"
+
+
+def _track_detached_send(task: asyncio.Task) -> None:
+    """Keep a transport send alive after the Agent stops waiting for its ACK."""
+    _DETACHED_SEND_TASKS.add(task)
+
+    def _done(done: asyncio.Task) -> None:
+        _DETACHED_SEND_TASKS.discard(done)
+        try:
+            done.result()
+        except asyncio.CancelledError:
+            logger.debug("Detached Doge presentation send was cancelled.")
+        except Exception as exc:
+            # NapCat may report retcode=1200 after QQ has already accepted and
+            # displayed the message.  Never retry here: duplicate rich media is
+            # worse than an ambiguous acknowledgement.
+            logger.warning(
+                "Detached Doge presentation send finished without ACK: %s: %s",
+                type(exc).__name__,
+                exc,
+            )
+
+    task.add_done_callback(_done)
+
+
+async def _send_presentation_bounded(event, chain: list, *, ack_wait_s: float | None = None) -> str:
+    """Send rich media without binding the Agent lifetime to NapCat's ACK.
+
+    QQ/NapCat can display an image immediately yet fail to acknowledge the OneBot
+    action until its ~10s transport timeout.  Start the real event.send task, wait
+    briefly for normal fast acknowledgements, then leave only that same task running
+    in the background.  We deliberately do not retry on timeout because production
+    evidence shows the original message may already be visible to the user.
+    """
+    result = MessageEventResult(chain=list(chain))
+    result.use_markdown(False)
+    message = MessageChain(chain=result.chain, type="tool_direct_result")
+    task = asyncio.create_task(event.send(message), name="doge-present-send")
+    _track_detached_send(task)
+    wait_s = _PRESENT_ACK_WAIT_S if ack_wait_s is None else max(0.0, float(ack_wait_s))
+    if wait_s <= 0:
+        return "Presentation dispatched directly to the user; transport acknowledgement is pending. Do not resend it."
+    try:
+        await asyncio.wait_for(asyncio.shield(task), timeout=wait_s)
+        return "Presentation sent directly to the user. Do not resend it."
+    except asyncio.TimeoutError:
+        return "Presentation dispatched directly to the user; transport acknowledgement is pending. Do not resend it."
+    except Exception:
+        # A quick, unambiguous transport failure should still fail the tool.
+        # Only the slow ACK path is detached.
+        raise
 
 
 async def _capture_image(event, comp: Image, asset_root: Path, assets: dict) -> str:
@@ -567,6 +622,4 @@ class DogePresentTool(FunctionTool[AstrAgentContext]):
             chain.append(Plain(caption))
         if not chain:
             return "No selected presentation content is available: " + ", ".join(missing or ids)
-        result = MessageEventResult(chain=chain)
-        result.use_markdown(False)
-        return result
+        return await _send_presentation_bounded(event, chain)

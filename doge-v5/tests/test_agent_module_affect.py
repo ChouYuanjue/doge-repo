@@ -19,6 +19,7 @@ from doge_shared.capabilities import agent_capability_prompt, search_capabilitie
 from doge_shared.module_control import available_doge_plugins, is_group_admin, resolve_module
 from doge_shared.persona_runtime import PersonaRuntime
 import doge_shared.session_control as session_control
+import doge_shared.agent_bridge as agent_bridge
 
 
 class AffectTests(unittest.TestCase):
@@ -494,12 +495,16 @@ class AgentBridgeMetadataTests(unittest.TestCase):
             self.assertIn(str(copied), event.tracked)
 
     def test_present_blocks_preserve_text_image_text_order(self):
-        from types import SimpleNamespace
         from astrbot.core.message.components import Image, Plain
 
         class Event:
-            def __init__(self, assets): self.assets=assets
-            def get_extra(self, key, default=None): return self.assets if key == "_doge_agent_assets" else default
+            def __init__(self, assets):
+                self.assets = assets
+                self.sent = []
+            def get_extra(self, key, default=None):
+                return self.assets if key == "_doge_agent_assets" else default
+            async def send(self, message):
+                self.sent.append(message)
 
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)
@@ -510,16 +515,57 @@ class AgentBridgeMetadataTests(unittest.TestCase):
                 'img-a': {'kind':'image','path':str(a)},
                 'img-b': {'kind':'image','path':str(b)},
             }
-            ctx=SimpleNamespace(context=SimpleNamespace(event=Event(assets)))
+            event = Event(assets)
+            ctx=SimpleNamespace(context=SimpleNamespace(event=event))
             result=asyncio.run(DogePresentTool().call(ctx, blocks=[
                 {'type':'text','text':'先看第一步'},
                 {'type':'image','asset_id':'img-a'},
                 {'type':'text','text':'然后代入'},
                 {'type':'image','asset_id':'img-b'},
             ]))
-            self.assertEqual([type(x).__name__ for x in result.chain], ['Plain','Image','Plain','Image'])
-            self.assertEqual(result.chain[0].text, '先看第一步')
-            self.assertEqual(result.chain[2].text, '然后代入')
+            self.assertIn('sent directly', result)
+            self.assertEqual(len(event.sent), 1)
+            chain = event.sent[0].chain
+            self.assertEqual([type(x).__name__ for x in chain], ['Plain','Image','Plain','Image'])
+            self.assertEqual(chain[0].text, '先看第一步')
+            self.assertEqual(chain[2].text, '然后代入')
+
+    def test_present_does_not_wait_for_slow_transport_ack(self):
+        class Event:
+            def __init__(self):
+                self.started = asyncio.Event()
+                self.release = asyncio.Event()
+                self.sent = []
+            def get_extra(self, key, default=None):
+                if key == "_doge_agent_assets":
+                    return {'img-a': {'kind':'image','url':'https://example.invalid/a.png'}}
+                return default
+            async def send(self, message):
+                self.sent.append(message)
+                self.started.set()
+                await self.release.wait()
+
+        async def scenario():
+            event = Event()
+            ctx = SimpleNamespace(context=SimpleNamespace(event=event))
+            old_wait = agent_bridge._PRESENT_ACK_WAIT_S
+            agent_bridge._PRESENT_ACK_WAIT_S = 0.01
+            try:
+                result = await DogePresentTool().call(ctx, asset_ids=['img-a'], caption='测试')
+                self.assertTrue(event.started.is_set())
+                self.assertIn('acknowledgement is pending', result)
+                self.assertEqual(len(event.sent), 1)
+                self.assertGreaterEqual(len(agent_bridge._DETACHED_SEND_TASKS), 1)
+                event.release.set()
+                pending = list(agent_bridge._DETACHED_SEND_TASKS)
+                if pending:
+                    await asyncio.gather(*pending, return_exceptions=True)
+                await asyncio.sleep(0)
+                self.assertEqual(len(agent_bridge._DETACHED_SEND_TASKS), 0)
+            finally:
+                agent_bridge._PRESENT_ACK_WAIT_S = old_wait
+
+        asyncio.run(scenario())
 
     def test_agent_inventory_is_compact_and_leaf_details_are_searchable(self):
         prompt = agent_capability_prompt()
