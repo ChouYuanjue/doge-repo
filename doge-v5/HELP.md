@@ -23,8 +23,8 @@ GROUPS
              西夏文、汉字历史音系、RRPL 与构造语言。
   play        38  游戏 / 群聊实验
              小游戏、解谜、概念炼金、荒诞竞技场与可按群开启的社交增强。
-  media        9  媒体 / 小工具
-             图片识别、幻影坦克和少量不值得单独成域的小工具。
+  media       13  媒体 / 小工具
+             图片识别、Pixiv 插画搜索、幻影坦克和少量不值得单独成域的小工具。
   admin       15  管理
              AstrBot 框架级会话与管理指令，统一收在 /admin 下。
   legacy      81  Legacy / 历史博物馆（默认不加载）
@@ -40,9 +40,9 @@ QUICK START
   /help legacy          历史功能状态
 
 SCALE
-  顶层指令       32
-  正式叶子功能   244
-  正式调用形式   517  （含 273 个兼容别名）
+  顶层指令       33
+  正式叶子功能   248
+  正式调用形式   524  （含 276 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -1238,17 +1238,18 @@ BACK
 
 ## 媒体 / 小工具 (`media`)
 
-图片识别、幻影坦克和少量不值得单独成域的小工具。
+图片识别、Pixiv 插画搜索、幻影坦克和少量不值得单独成域的小工具。
 
 ### `/media`
 
 ```text
 GROUP  media
 媒体 / 小工具
-图片识别、幻影坦克和少量不值得单独成域的小工具。
+图片识别、Pixiv 插画搜索、幻影坦克和少量不值得单独成域的小工具。
 
 COMMANDS
   /media         4  视觉小实验：AnimeTrace 图片识别与本地幻影坦克。
+  /pixiv         4  Pixiv 插画搜索：使用 Lolicon 元数据 API 与服务器可达图片镜像；固定关闭 R18、过滤 AI 生成作品。
   /util          5  有用但不值得单独成域的小工具：codec、天气、APOD、Bing 等。
 
 NEXT
@@ -1292,6 +1293,31 @@ NEXT
 
 BACK
   /help media
+```
+
+### `/pixiv`
+
+```text
+COMMAND  /pixiv
+Pixiv 插画搜索：使用 Lolicon 元数据 API 与服务器可达图片镜像；固定关闭 R18、过滤 AI 生成作品。
+
+DIRECT
+  /pixiv <标签> [数量]
+    按标签/关键词搜索 Pixiv 插画；群聊最多 3 张，私聊最多 5 张；固定 R18=off、AI filtered。
+
+SUBCOMMANDS
+  random           随机获取非 R18、非 AI Pixiv 插画。
+    /pixiv random [数量]
+  artist           按 Pixiv 画师 UID 获取作品；仍使用 Lolicon 与图片镜像链。
+    /pixiv artist <uid> [数量]
+  status           检查 Lolicon 元数据 API 与当前图片镜像下载链路。
+    /pixiv status
+
+NEXT
+  /help pixiv random
+
+BACK
+  /help
 ```
 
 ### `/util`

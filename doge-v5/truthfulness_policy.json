@@ -126,6 +126,11 @@
       "kind": "external-grounded",
       "source": "chaoli.club via local selective VLESS proxy and curl_cffi Chrome-compatible HTTP fingerprint; search uses Chaoli/esoTalk native POST AJAX with page session/token; theme cards require ID/channel consistency and separately bind first author vs last replier; floor parser uses real displayed floor numbers, preserves deleted-floor placeholders, and separates blockquote authors/content from current-floor text; user names are verified against real profile titles and activities bind profile/action/post/time before output",
       "fallback": "fail closed on unknown/mismatched board, inconsistent theme/card IDs, ambiguous duplicate usernames, unavailable pages, or unbound activity records; no nickname-to-real-identity inference, no cross-author quote flattening, no silent board fallback, and no synthetic search/index result is presented as native forum fact"
+    },
+    "doge_pixiv": {
+      "kind": "external-grounded+mirrored-image",
+      "source": "MIT-vendored GetPx Lolicon v2 client/downloader subset; metadata from api.lolicon.app with r18=0 and excludeAI=true; local second-pass rejects x_restrict!=0 and ai_type=2; image bytes are downloaded through the Lolicon-returned or configured GetPx-compatible mirror route, currently verified with i.pixiv.re, then validated by Pillow before sending",
+      "fallback": "no Pixiv-official direct connection is required; if Lolicon metadata or all allowed mirror downloads fail, return an explicit error rather than fabricate artwork metadata or silently substitute unrelated images"
     }
   }
 }

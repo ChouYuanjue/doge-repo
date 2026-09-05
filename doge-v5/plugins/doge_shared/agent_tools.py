@@ -233,6 +233,42 @@ class DogeCthuvianTool(FunctionTool[AstrAgentContext]):
         command_action = "to" if action == "low" else action
         return await execute_formal_command(context, f"/lang cthuvian {command_action} {text}")
 
+
+@dataclass
+class DogePixivTool(FunctionTool[AstrAgentContext]):
+    name: str = "doge_pixiv"
+    description: str = (
+        "Pixiv 插画搜索工具。通过 Doge 的 /pixiv 正式能力搜索标签、随机插画或指定画师 UID。"
+        "固定关闭 R18 并过滤 AI 生成作品；服务器主链使用 Lolicon 元数据与可达图片镜像。"
+    )
+    parameters: dict = Field(default_factory=lambda: {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["search", "random", "artist"]},
+            "query": {"type": "string", "description": "search 时的标签/关键词"},
+            "uid": {"type": "string", "description": "artist 时的 Pixiv 画师 UID"},
+            "count": {"type": "integer", "minimum": 1, "maximum": 5},
+        },
+        "required": ["action"],
+    })
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+        action = str(kwargs.get("action") or "").strip().lower()
+        count = max(1, min(int(kwargs.get("count", 1)), 5))
+        if action == "search":
+            query = str(kwargs.get("query") or "").strip()
+            if not query:
+                raise ValueError("pixiv search query is empty")
+            return await execute_formal_command(context, f"/pixiv {query} {count}")
+        if action == "random":
+            return await execute_formal_command(context, f"/pixiv random {count}")
+        if action == "artist":
+            uid = str(kwargs.get("uid") or "").strip()
+            if not uid.isdigit():
+                raise ValueError("pixiv artist uid must be numeric")
+            return await execute_formal_command(context, f"/pixiv artist {uid} {count}")
+        raise ValueError("unknown pixiv action")
+
 @dataclass
 class DogeChaoliTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_chaoli"
@@ -279,7 +315,7 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
         if a=="status": return await ChaoliService.status()
         raise ValueError("unknown chaoli action")
 
-TOOLS=(DogeMathTool,DogeChemTool,DogeCodecTool,DogeWeatherTool,DogeNasaTool,DogeBingTool,DogeChartTool,DogePaperTool,DogeBioTool,DogeMaterialTool,DogeAstroTool,DogeTrialTool,DogeLookupTool,DogeCthuvianTool,DogeChaoliTool)
+TOOLS=(DogeMathTool,DogeChemTool,DogeCodecTool,DogeWeatherTool,DogeNasaTool,DogeBingTool,DogeChartTool,DogePaperTool,DogeBioTool,DogeMaterialTool,DogeAstroTool,DogeTrialTool,DogeLookupTool,DogeCthuvianTool,DogePixivTool,DogeChaoliTool)
 
 
 def register_domain_tools(context, plugin_name: str, *tools):

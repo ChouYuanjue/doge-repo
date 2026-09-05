@@ -132,6 +132,11 @@
       "default": true
     },
     {
+      "name": "doge_pixiv",
+      "status": "formal",
+      "default": true
+    },
+    {
       "name": "doge_diagrams",
       "status": "formal",
       "default": true

@@ -61,7 +61,7 @@ class SplitLayoutTests(unittest.TestCase):
             "help", "ver", "status", "statics", "admin",
             "math", "util", "paper", "bio", "chem", "mat", "astro", "trial",
             "lab", "fourier", "tex", "typst", "md", "snippet", "game", "fuse", "arena", "social",
-            "lang", "media", "run", "lookup", "chaoli", "diagram", "ai", "cs", "eng",
+            "lang", "media", "run", "lookup", "chaoli", "pixiv", "diagram", "ai", "cs", "eng",
         }
         self.assertEqual(commands_for(DEFAULT), expected)
 
