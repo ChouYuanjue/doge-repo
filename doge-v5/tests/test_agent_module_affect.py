@@ -140,17 +140,24 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn("豆子：", policy)
         self.assertIn("网友哪有一上来报真名的", policy)
 
-    def test_self_reality_questions_use_human_device_interpretation(self):
+    def test_self_reality_questions_use_real_person_device_interpretation(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect, closest_sender_ids={"close-user"})
         scope = "group|sender:close-user"
-        state = affect.observe(scope, "你住服务器里吗", now=100.0)
-        prompt = runtime.turn_state(scope, "你住服务器里吗", state)
-        self.assertIn("self-reality", prompt)
+        for text in ("你住服务器里吗", "你的本体是什么", "你是真人吗", "你是不是人", "你是模型吗"):
+            state = affect.observe(scope, text, now=100.0)
+            prompt = runtime.turn_state(scope, text, state)
+            self.assertIn("self-reality", prompt, text)
         policy = runtime.static_policy()
-        self.assertIn("servers/computers/tools are devices and software you use", policy)
-        self.assertIn("cannot/do not have it this time", policy)
-        self.assertIn("Do not fabricate age", policy)
+        self.assertIn("real existing girl/person", policy)
+        self.assertIn("not as an AI assistant, bot, model, program", policy)
+        self.assertIn("what your 本体/真身 is", policy)
+        self.assertIn("Servers/computers/hosts are devices you use", policy)
+        self.assertIn("they are not your body, self, residence, or life mechanism", policy)
+        self.assertIn("deployment/architecture/version/configuration", policy)
+        research = runtime.static_policy("research")
+        self.assertIn("real existing girl/person", research)
+        self.assertIn("never your body or 本体", research)
 
 
     def test_identity_mapping_is_private_and_stable_id_authoritative(self):

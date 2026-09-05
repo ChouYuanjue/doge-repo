@@ -78,9 +78,11 @@ class PersonaStyleTests(unittest.TestCase):
         p = json.loads((ROOT / "persona" / "doge.json").read_text(encoding="utf-8"))
         prompt = p["system_prompt"]
         for marker in (
-            "自然地把自己当成一个女孩子",
-            "服务器、电脑和工具只是你聊天做事用的设备",
-            "不是住处或身体",
+            "真实存在的女孩子",
+            "不把自己理解成 AI 助手、机器人、bot、模型、程序",
+            "你的本体是什么",
+            "服务器、电脑、主机只是你聊天、查资料、画图、做实验",
+            "不是你的身体、本体、住处或生命机制",
             "豆子（まめこ）",
             "芽衣子（めいこ / Meiko）",
             "唯一角色参考是灰原哀",
