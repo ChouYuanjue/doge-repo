@@ -67,6 +67,115 @@ class PixivServiceTests(unittest.TestCase):
             restored = SeenStore(path)
             self.assertIn("3:0", restored.data["group:1"])
 
+    def test_seen_store_rotates_pages_per_query_scope(self):
+        with tempfile.TemporaryDirectory() as td:
+            store = SeenStore(Path(td) / "seen.json")
+            key_a = "group:1|search:patchouli"
+            key_b = "group:1|search:miku"
+            self.assertEqual([store.next_page(key_a) for _ in range(3)], [1, 2, 3])
+            self.assertEqual(store.next_page(key_b), 1)
+            restored = SeenStore(Path(td) / "seen.json")
+            self.assertEqual(restored.next_page(key_a), 4)
+            self.assertEqual(restored.next_page(key_b), 2)
+
+    def test_web_detail_normalization_keeps_r18_and_ai_hard_fields(self):
+        from doge_pixiv.service import PixivWebClient
+        safe = PixivWebClient._normalize_detail({
+            "illustId": "123",
+            "illustTitle": "safe",
+            "userId": "5",
+            "userName": "artist",
+            "xRestrict": 0,
+            "aiType": 1,
+            "width": 3000,
+            "height": 2000,
+            "urls": {"original": "https://i.pximg.net/a.png", "regular": "https://i.pximg.net/b.jpg"},
+            "tags": {"tags": [{"tag": "東方"}]},
+        })
+        ai = dict(safe, ai_type=2)
+        r18 = dict(safe, x_restrict=1)
+        self.assertTrue(PixivService._hard_allowed(safe))
+        self.assertFalse(PixivService._hard_allowed(ai))
+        self.assertFalse(PixivService._hard_allowed(r18))
+        self.assertEqual(safe["meta_single_page"]["original_image_url"], "https://i.pximg.net/a.png")
+
+    def test_web_search_rotates_pages_and_downloads_original_first(self):
+        from doge_pixiv.service import PixivError
+
+        class FakeWeb:
+            available = True
+            def __init__(self, root):
+                self.root = Path(root)
+                self.pages = []
+                self.downloads = []
+            async def search(self, query, *, page=1):
+                self.pages.append(page)
+                pid = str(page * 100 + 1)
+                return ([{
+                    "id": pid + ":0", "pid": pid, "page": 0,
+                    "title": f"work-{pid}", "user": {"id": "7", "name": "artist"},
+                    "x_restrict": 0, "ai_type": 1, "width": 3000, "height": 2000,
+                    "meta_single_page": {"original_image_url": ""}, "image_urls": {},
+                }], 1000)
+            async def detail(self, pid):
+                return {
+                    "id": pid + ":0", "pid": pid, "page": 0,
+                    "title": f"work-{pid}", "user": {"id": "7", "name": "artist"},
+                    "x_restrict": 0, "ai_type": 1, "width": 3000, "height": 2000,
+                    "meta_single_page": {"original_image_url": f"https://i.pximg.net/{pid}-original.png"},
+                    "image_urls": {"large": f"https://i.pximg.net/{pid}-regular.jpg"},
+                }
+            async def download_image(self, url, *, pid, max_bytes, timeout=18.0):
+                self.downloads.append(url)
+                path = self.root / f"{pid}-{len(self.downloads)}.png"
+                path.write_bytes(b"image")
+                return str(path), path.stat().st_size
+
+        with tempfile.TemporaryDirectory() as td:
+            service = PixivService(td)
+            fake = FakeWeb(td)
+            service.web = fake
+            first = __import__('asyncio').run(service.search("patchouli", count=1, scope="group:1"))
+            second = __import__('asyncio').run(service.search("patchouli", count=1, scope="group:1"))
+            self.assertEqual(fake.pages, [1, 2])
+            self.assertEqual([first[0].pid, second[0].pid], ["101", "201"])
+            self.assertTrue(fake.downloads[0].endswith("101-original.png"))
+            self.assertTrue(fake.downloads[1].endswith("201-original.png"))
+            self.assertEqual(first[0].quality, "original")
+            self.assertEqual(second[0].quality, "original")
+
+    def test_web_original_failure_falls_back_to_regular(self):
+        from doge_pixiv.service import PixivError
+
+        class FakeWeb:
+            def __init__(self, root):
+                self.root = Path(root)
+                self.calls = []
+            async def download_image(self, url, *, pid, max_bytes, timeout=18.0):
+                self.calls.append(url)
+                if "original" in url:
+                    raise PixivError("too large")
+                path = self.root / "regular.jpg"
+                path.write_bytes(b"image")
+                return str(path), path.stat().st_size
+
+        with tempfile.TemporaryDirectory() as td:
+            service = PixivService(td)
+            fake = FakeWeb(td)
+            service.web = fake
+            item = {
+                "id": "9:0", "pid": "9", "page": 0, "title": "x",
+                "user": {"id": "1", "name": "a"}, "x_restrict": 0, "ai_type": 1,
+                "meta_single_page": {"original_image_url": "https://i.pximg.net/9-original.png"},
+                "image_urls": {"large": "https://i.pximg.net/9-regular.jpg"},
+            }
+            image = __import__('asyncio').run(service._download_web_item(item))
+            self.assertEqual(image.quality, "regular")
+            self.assertEqual(fake.calls, [
+                "https://i.pximg.net/9-original.png",
+                "https://i.pximg.net/9-regular.jpg",
+            ])
+
     def test_count_parser_supports_spaces_and_clamps_group_limit(self):
         self.assertEqual(DogePixiv._split_count("初音 ミク 3", 1, 3), ("初音 ミク", 3))
         self.assertEqual(DogePixiv._split_count("初音ミク 99", 1, 3), ("初音ミク", 3))

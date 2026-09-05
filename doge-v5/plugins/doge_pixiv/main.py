@@ -19,11 +19,11 @@ HELP = """Doge Pixiv /pixiv
   /pixiv <标签> [数量]          按标签找插画；群聊最多 3 张，私聊最多 5 张
   /pixiv random [数量]         随机插画
   /pixiv artist <uid> [数量]   按 Pixiv 画师 UID 找作品
-  /pixiv status                检查当前 Lolicon / 图片镜像链路
-固定策略：R18 关闭，AI 生成作品过滤。主链路使用 Lolicon 元数据 API 和可达图片反代，不要求服务器直连 Pixiv。"""
+  /pixiv status                检查官方 Web / 原图 CDN / 回退链路
+固定策略：R18 关闭，AI 生成作品过滤。标签搜索优先使用 Pixiv 官方 Web 候选池与原图 CDN；Lolicon 作为随机图、画师搜索和故障回退。"""
 
 
-@register("doge_pixiv", "runnel", "Pixiv 插画搜索：Lolicon 元数据与可达图片镜像，固定过滤 R18/AI", "1.0.0")
+@register("doge_pixiv", "runnel", "Pixiv 插画搜索：官方 Web 候选池、原图 CDN 与 Lolicon 回退，固定过滤 R18/AI", "1.1.0")
 class DogePixiv(Star):
     def __init__(self, context: Context):
         super().__init__(context)

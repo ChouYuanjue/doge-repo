@@ -1249,7 +1249,7 @@ GROUP  media
 
 COMMANDS
   /media         4  视觉小实验：AnimeTrace 图片识别与本地幻影坦克。
-  /pixiv         4  Pixiv 插画搜索：使用 Lolicon 元数据 API 与服务器可达图片镜像；固定关闭 R18、过滤 AI 生成作品。
+  /pixiv         4  Pixiv 插画搜索：标签搜索优先使用 Pixiv 官方 Web 候选池与原图 CDN，Lolicon 负责随机/画师与故障回退；固定关闭 R18、过滤 AI 生成作品。
   /music         4  网易云音乐搜索与 QQ 原生音乐卡片点歌；先搜索再按序号选择，不下载整首歌、不转码。
   /util          5  有用但不值得单独成域的小工具：codec、天气、APOD、Bing 等。
 
@@ -1300,18 +1300,18 @@ BACK
 
 ```text
 COMMAND  /pixiv
-Pixiv 插画搜索：使用 Lolicon 元数据 API 与服务器可达图片镜像；固定关闭 R18、过滤 AI 生成作品。
+Pixiv 插画搜索：标签搜索优先使用 Pixiv 官方 Web 候选池与原图 CDN，Lolicon 负责随机/画师与故障回退；固定关闭 R18、过滤 AI 生成作品。
 
 DIRECT
   /pixiv <标签> [数量]
-    按标签/关键词搜索 Pixiv 插画；群聊最多 3 张，私聊最多 5 张；固定 R18=off、AI filtered。
+    按标签/关键词搜索 Pixiv 插画；官方候选池按会话/关键词翻页去重，原图优先；群聊最多 3 张，私聊最多 5 张；固定 R18=off、AI filtered。
 
 SUBCOMMANDS
   random           随机获取非 R18、非 AI Pixiv 插画。
     /pixiv random [数量]
-  artist           按 Pixiv 画师 UID 获取作品；仍使用 Lolicon 与图片镜像链。
+  artist           按 Pixiv 画师 UID 获取作品；使用 Lolicon 元数据并优先取原图，固定过滤 R18/AI。
     /pixiv artist <uid> [数量]
-  status           检查 Lolicon 元数据 API 与当前图片镜像下载链路。
+  status           检查 Pixiv 官方 Web、原图 CDN 与 Lolicon 回退链路。
     /pixiv status
 
 NEXT

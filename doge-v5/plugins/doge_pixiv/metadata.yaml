@@ -1,5 +1,5 @@
 name: doge_pixiv
-version: 1.0.0
-desc: Pixiv 插画搜索：Lolicon 元数据与可达图片镜像，固定过滤 R18/AI
+version: 1.1.0
+desc: Pixiv 插画搜索：官方 Web 候选池、原图 CDN 与 Lolicon 回退，固定过滤 R18/AI
 author: runnel
 repo: https://github.com/ChouYuanjue/doge-repo
