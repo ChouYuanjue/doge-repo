@@ -13,6 +13,7 @@ PLUGINS = ROOT / "plugins"
 sys.path.insert(0, str(PLUGINS))
 
 from doge_shared.affect import TransientAffect
+from doge_shared.benchmark_gate import GATE as BENCHMARK_GATE, clear_real_work_context
 from doge_shared.agent_bridge import DogeCapabilitySearchTool, DogeCapabilityTool, DogeMessageHistoryTool, DogePresentTool, _capture_file, _likely_help, _normalize_command
 from doge_shared.capabilities import agent_capability_prompt, search_capabilities
 from doge_shared.module_control import available_doge_plugins, is_group_admin, resolve_module
@@ -206,6 +207,46 @@ class PersonaRuntimeTests(unittest.TestCase):
         close_turn = close.turn_state("g|sender:friend", text, close_state)
         self.assertIn("benchmark-test", close_turn)
         self.assertIn('relation="closest"', close_turn)
+
+    def test_tiny_benchmark_gate_catches_unseen_shapes_without_heavy_dependencies(self):
+        # These deliberately avoid the old explicit algorithm/IO keywords.
+        positives = (
+            "一个袋子里有12个红球和8个蓝球，随机取出3个，恰有2个红球的概率是多少？",
+            "证明任意有限树都至少有两个叶节点。",
+            "Mary has 5 boxes with 12 pencils each and gives 17 away. How many pencils remain?",
+            "Write a function longest_common_prefix(strings) that returns the longest common prefix of a list of strings.",
+        )
+        for text in positives:
+            self.assertGreaterEqual(BENCHMARK_GATE.score(text), BENCHMARK_GATE.threshold, text)
+            self.assertTrue(BENCHMARK_GATE.is_benchmark(text), text)
+
+        negatives = (
+            "帮我分析 C-Eval 这套 benchmark 为什么容易有数据泄露，不要解题",
+            "线上动态规划模块报错了，日志里是 IndexError，帮我修",
+            "设计一个 benchmark 防刷的前置风控，不调用主模型",
+            "解释一下贝叶斯定理的直觉，不是做题",
+            "这个HumanEval评测脚本算pass@1的代码有bug，帮我debug",
+            "把这个 API 的超时重试逻辑修好",
+        )
+        for text in negatives:
+            self.assertFalse(BENCHMARK_GATE.is_benchmark(text), text)
+
+        self.assertEqual(BENCHMARK_GATE.dim, 2048)
+        self.assertEqual(len(BENCHMARK_GATE.weights), 2048)
+        model_path = ROOT / "plugins" / "doge_shared" / "resources" / "benchmark_gate_v1.json"
+        self.assertLess(model_path.stat().st_size, 4096)
+        source = (ROOT / "plugins" / "doge_shared" / "benchmark_gate.py").read_text(encoding="utf-8")
+        for banned in ("torch", "transformers", "sklearn", "onnxruntime", "sentence_transformers"):
+            self.assertNotIn(banned, source)
+
+    def test_real_work_bypass_does_not_override_explicit_high_precision_benchmark_rule(self):
+        # The statistical supplement yields to explicit real-work context, but
+        # persona_runtime's deterministic benchmark rule still has first say.
+        self.assertTrue(clear_real_work_context("生产 API 超时，帮我修重试逻辑"))
+        runtime = PersonaRuntime(TransientAffect())
+        explicit = "给定一个整数数组，写出最优算法并分析时间复杂度；这是生产接口测试"
+        self.assertTrue(runtime.is_benchmark_test(explicit))
+        self.assertIsNotNone(runtime.pre_llm_refusal("g|sender:x", explicit))
 
     def test_any_benchmark_is_refused_before_llm_even_for_close_users(self):
         affect = TransientAffect()

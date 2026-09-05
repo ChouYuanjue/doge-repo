@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 
 from .affect import AffectState, TransientAffect
+from .benchmark_gate import GATE as BENCHMARK_GATE
 
 
 @dataclass(slots=True)
@@ -60,9 +61,8 @@ _COOPERATION = re.compile(r"(?:上传|发给你|提供|文件|图片|截图|数�
 _PRAISE = re.compile(r"(?:可爱|厉害|聪明|真棒|靠谱|喜欢你|夸你|做得好)", re.I)
 _CASUAL = re.compile(r"(?:吃什么|吃饭|晚饭|闲聊|随便聊|无聊|在吗|干嘛|睡觉|早安|晚安|今天|最近|回来|复活)", re.I)
 
-# Problem-shaped requests are a traffic-cost signal, not a refusal reason by
-# themselves. A normal one-off math/CS/benchmark question is allowed. Repeated
-# problem-shaped traffic from one sender is handled by a local sliding window.
+# High-precision benchmark/problem-set shapes. Any hit is rejected before the
+# provider; the tiny local n-gram gate below supplements this regex for unseen shapes.
 _BENCHMARK_TEST = re.compile(
     r"(?:leetcode|acm|oi\b|codeforces|算法题|竞赛题|时间复杂度|空间复杂度|动态规划|\bdp\b|线段树|并查集|最短路|拓扑排序|二分查找|背包问题|"
     r"(?:输入|输出|样例|数据范围|约束).{0,80}(?:输入|输出|样例|数据范围|约束)|"
@@ -197,8 +197,13 @@ class PersonaRuntime:
 
     @staticmethod
     def is_benchmark_test(text: str) -> bool:
-        """High-precision check for benchmark/problem-set shaped probes."""
-        return bool(_BENCHMARK_TEST.search(str(text or "")))
+        """Zero-token benchmark gate: deterministic rules first, tiny int8 model second."""
+        msg = str(text or "").strip()
+        if not msg:
+            return False
+        if _BENCHMARK_TEST.search(msg):
+            return True
+        return BENCHMARK_GATE.is_benchmark(msg)
 
     @staticmethod
     def is_full_project_outsource(text: str) -> bool:
@@ -257,7 +262,7 @@ class PersonaRuntime:
             return False
         if _SERIOUS.search(msg) or _DISTRESS.search(msg) or _DEEP_REQUEST.search(msg):
             return False
-        if _BENCHMARK_TEST.search(msg) or _PROJECT_REVIEW.search(msg) or _STRUCTURED_TASK.search(msg):
+        if PersonaRuntime.is_benchmark_test(msg) or _PROJECT_REVIEW.search(msg) or _STRUCTURED_TASK.search(msg):
             return False
         if _TASK_SIGNAL.search(msg):
             return False
