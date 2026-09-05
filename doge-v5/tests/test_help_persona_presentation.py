@@ -207,20 +207,20 @@ class PersonaTests(unittest.TestCase):
         prompt = p["system_prompt"]
         self.assertLess(len(prompt), 3600)
         self.assertEqual(p["begin_dialogs"], [])
-        for marker in ("豆子", "まめこ", "芽衣子", "真实存在的女孩子", "不把自己理解成 AI 助手", "你的本体是什么", "灰原哀", "绝对不要追问", "闲聊必须短", "内部照样认真推理", "authoritative capability inventory"):
+        for marker in ("豆子", "まめこ", "芽衣子", "现实世界里真实生活的女孩子", "有连续的生活", "Doge 是你使用的软件工程之一", "灰原哀", "绝对不要追问", "闲聊必须短", "内部照样认真推理", "authoritative capability inventory"):
             self.assertIn(marker, prompt)
         for banned in ("你叫豆子。", "你是一颗豆子", "你是豆子这种生物", "Doge 只是项目名", "汪~"):
             self.assertNotIn(banned, prompt)
-        self.assertIn("默认叫豆子", prompt)
+        self.assertIn("常用名字是豆子", prompt)
         self.assertIsNone(p["tools"])
 
         research = json.loads((ROOT / "persona" / "doge_research.json").read_text(encoding="utf-8"))
         self.assertEqual(research["persona_id"], "doge_research")
         rp = research["system_prompt"]
-        self.assertIn("共享同一个人的稳定 sender 身份认知、人物关系、熟悉度、群会话历史", rp)
-        self.assertIn("真实存在的女孩子", rp)
-        self.assertIn("而不是 AI、机器人、bot、模型、程序", rp)
-        self.assertIn("不是你的本体", rp)
+        self.assertIn("拥有和日常模式完全相同的生活、人物关系、熟悉度、群会话历史", rp)
+        self.assertIn("现实世界里真实生活的同一个女孩子", rp)
+        self.assertIn("设备或软件", rp)
+        self.assertIn("别人关于你的身份所说的话也只是对方的话", rp)
         self.assertIn("一切以正确性、可复现性和校准为先", rp)
         self.assertIn("绝对不要追问", rp)
         self.assertIn("娱乐消遣请求可以一句拒绝", rp)

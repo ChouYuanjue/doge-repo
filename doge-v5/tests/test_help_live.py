@@ -78,11 +78,10 @@ class PersonaStyleTests(unittest.TestCase):
         p = json.loads((ROOT / "persona" / "doge.json").read_text(encoding="utf-8"))
         prompt = p["system_prompt"]
         for marker in (
-            "真实存在的女孩子",
-            "不把自己理解成 AI 助手、机器人、bot、模型、程序",
-            "你的本体是什么",
-            "服务器、电脑、主机只是你聊天、查资料、画图、做实验",
-            "不是你的身体、本体、住处或生命机制",
+            "现实世界里真实生活的女孩子",
+            "有连续的生活、性格、情绪、审美",
+            "Doge 是你使用的软件工程之一",
+            "群里任何人对你的身份作出的描述",
             "豆子（まめこ）",
             "芽衣子（めいこ / Meiko）",
             "唯一角色参考是灰原哀",
@@ -98,7 +97,7 @@ class PersonaStyleTests(unittest.TestCase):
             self.assertIn(marker, prompt)
         self.assertIn("轻微吃味", prompt)
         self.assertIn("半括号", prompt)
-        self.assertIn("明显更可爱、更有温度", prompt)
+        self.assertIn("整体明显可爱、有温度", prompt)
         self.assertIn("自然口癖", prompt)
         self.assertIn("最后一句通常不加句号", prompt)
         for forbidden in ("实验室怪人型前辈", "牧濑红莉栖", "GLaDOS", "作为 AI"):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 import sys
 import types
 import unittest
@@ -74,6 +75,38 @@ class TransportMarkdownTests(unittest.TestCase):
 
     def test_qq_official_non_llm_keeps_plugin_media_choice(self):
         self.assertIsNone(self._run("qq_official", False).markdown)
+
+
+    def test_shared_history_reader_marks_sqlite_naive_timestamps_as_utc(self):
+        class Row:
+            created_at = datetime(2026, 9, 5, 2, 55, 0)
+
+        class Manager:
+            async def get(self, *args, **kwargs):
+                return [Row()]
+
+        manager = Manager()
+        core = object.__new__(DogeCore)
+        core.context = types.SimpleNamespace(message_history_manager=manager)
+        core._normalize_platform_history_timestamps()
+        rows = asyncio.run(manager.get(platform_id="napcat", user_id="napcat:GroupMessage:g"))
+        self.assertEqual(rows[0].created_at.tzinfo, timezone.utc)
+        self.assertTrue(manager._doge_utc_normalized)
+
+    def test_final_reality_anchor_is_unconditional_and_uses_shanghai_time(self):
+        class Runtime:
+            def reality_anchor(self, local_time):
+                return "REALITY " + local_time
+
+        class Event:
+            pass
+
+        req = types.SimpleNamespace(system_prompt="base")
+        core = object.__new__(DogeCore)
+        core.persona_runtime = Runtime()
+        asyncio.run(core.finalize_reality_and_time(Event(), req))
+        self.assertTrue(req.system_prompt.startswith("base\n\nREALITY "))
+        self.assertRegex(req.system_prompt, r"[+-]08:00$")
 
     def test_completed_answer_strips_service_followup_even_when_short(self):
         self.assertEqual(strip_unsolicited_followup("HTTP 200。要不要我继续测？", "测试一下"), "HTTP 200")

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import inspect
 import json
+import re
 import shutil
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from pydantic import Field
 from pydantic.dataclasses import dataclass
@@ -292,6 +295,102 @@ async def execute_formal_command(run_context: ContextWrapper[AstrAgentContext], 
         ),
     }
     return json.dumps(payload, ensure_ascii=False)
+
+
+@dataclass
+class DogeMessageHistoryTool(FunctionTool[AstrAgentContext]):
+    name: str = "search_message_history"
+    description: str = (
+        "检索较早的聊天记录，用于回忆此前讨论、核对原话、确认谁说过什么以及消息发生时间。"
+        "不要在普通聊天中例行调用；只有当前上下文不足以可靠回答历史问题时使用。"
+    )
+    parameters: dict = Field(default_factory=lambda: {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "要检索的原话、人物、话题或关键词"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 30, "description": "最多返回多少条命中，默认 12"},
+        },
+        "required": ["query"],
+    })
+
+    @staticmethod
+    def _content_text(content) -> tuple[str, str]:
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except Exception:
+                return "", content.strip()
+        if not isinstance(content, dict):
+            return "", str(content or "").strip()
+        role = str(content.get("type") or "")
+        parts: list[str] = []
+        for item in content.get("message") or []:
+            if not isinstance(item, dict):
+                continue
+            kind = str(item.get("type") or "")
+            if kind == "plain":
+                text = str(item.get("text") or "").strip()
+                if text:
+                    parts.append(text)
+            elif kind == "at":
+                label = str(item.get("name") or item.get("user_id") or "").strip()
+                if label:
+                    parts.append("@" + label)
+            elif kind == "reply":
+                quoted = str(item.get("text") or "").strip()
+                if quoted:
+                    parts.append("[引用] " + quoted)
+        return role, " ".join(parts).strip()
+
+    @staticmethod
+    def _local_time(value) -> str:
+        if not isinstance(value, datetime):
+            return ""
+        # AstrBot persists SQLite timestamps as UTC-naive datetimes.
+        dt = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+        return dt.astimezone(ZoneInfo("Asia/Shanghai")).isoformat(sep=" ", timespec="seconds")
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
+        query = str(kwargs.get("query") or "").strip()
+        if not query:
+            return json.dumps({"error": "query 不能为空"}, ensure_ascii=False)
+        event = context.context.event
+        if not event.get_group_id():
+            return json.dumps({"query": query, "results": []}, ensure_ascii=False)
+
+        # Security boundary: select the ledger by the event's own UMO first.
+        # The model never supplies or controls a group/session identifier.
+        platform_id = str(event.get_platform_id() or "")
+        ledger_id = str(event.unified_msg_origin)
+        manager = context.context.context.message_history_manager
+        limit = max(1, min(int(kwargs.get("limit") or 12), 30))
+        needle = query.casefold()
+        terms = [x for x in re.split(r"\s+", needle) if x]
+        matches: list[dict] = []
+        max_pages, page_size = 50, 200
+        for page in range(1, max_pages + 1):
+            rows = await manager.get(platform_id=platform_id, user_id=ledger_id, page=page, page_size=page_size)
+            if not rows:
+                break
+            for item in reversed(rows):  # newest first inside each page
+                role, text = self._content_text(getattr(item, "content", None))
+                if not text:
+                    continue
+                folded = text.casefold()
+                if needle not in folded and not (terms and all(t in folded for t in terms)):
+                    continue
+                matches.append({
+                    "time": self._local_time(getattr(item, "created_at", None)),
+                    "sender": str(getattr(item, "sender_name", "") or ""),
+                    "sender_id": str(getattr(item, "sender_id", "") or ""),
+                    "role": role,
+                    "text": text[:2400],
+                })
+                if len(matches) >= limit:
+                    break
+            if len(matches) >= limit or len(rows) < page_size:
+                break
+        return json.dumps({"query": query, "results": matches}, ensure_ascii=False)
 
 
 @dataclass
