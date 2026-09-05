@@ -239,7 +239,13 @@ class DogeCore(Star):
         """Agent OFF means command-only for that group, including passive plugins."""
         if not event.get_group_id():
             return
-        if str(event.message_str or "").lstrip().startswith("/"):
+        # WakingCheck strips the '/' wake prefix from event.message_str before
+        # plugin handlers run. AstrBotMessage.message_str preserves the original
+        # transport text, so command-only mode must inspect that field instead;
+        # otherwise /admin agent on self-locks after OFF.
+        message_obj = getattr(event, "message_obj", None)
+        original_text = str(getattr(message_obj, "message_str", "") or getattr(event, "message_str", "") or "").lstrip()
+        if original_text.startswith("/"):
             return
         if await is_agent_enabled(event.unified_msg_origin):
             return
@@ -420,6 +426,7 @@ class DogeCore(Star):
             budget = event.get_extra("_doge_reply_budget")
             if isinstance(budget, ReplyBudget):
                 text = self.persona_runtime.enforce_reply_budget(text, budget)
+                text = self.persona_runtime.normalize_casual_terminal_punctuation(text, budget)
             if str(event.get_platform_name() or "").lower() == "aiocqhttp":
                 text = markdown_to_plain(text)
             response.completion_text = text

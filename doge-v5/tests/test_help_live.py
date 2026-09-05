@@ -96,5 +96,8 @@ class PersonaStyleTests(unittest.TestCase):
             self.assertIn(marker, prompt)
         self.assertIn("轻微吃味", prompt)
         self.assertIn("半括号", prompt)
+        self.assertIn("明显更可爱、更有温度", prompt)
+        self.assertIn("自然口癖", prompt)
+        self.assertIn("最后一句通常不加句号", prompt)
         for forbidden in ("实验室怪人型前辈", "牧濑红莉栖", "GLaDOS", "作为 AI"):
             self.assertNotIn(forbidden, prompt)

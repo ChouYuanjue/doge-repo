@@ -119,8 +119,13 @@ class PersonaRuntimeTests(unittest.TestCase):
         turns = [runtime.turn_state(scope, f"我回来啦{i}", state) for i in range(40)]
         self.assertTrue(all('relation="closest"' in item for item in turns))
         paren_count = sum('paren="1"' in item for item in turns)
-        self.assertLess(paren_count, 20)
+        self.assertGreater(paren_count, 2)
+        self.assertLess(paren_count, 22)
         self.assertTrue(all('particles="' in item for item in turns))
+        policy = runtime.static_policy()
+        self.assertIn("preferred local catchphrases", policy)
+        self.assertIn("cute and warm even when short", policy)
+        self.assertIn("final sentence usually has no full stop", policy)
 
     def test_public_name_is_douzi_and_real_name_stays_private(self):
         affect = TransientAffect()
@@ -292,6 +297,19 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertLessEqual(len(clipped), 180)
         self.assertLessEqual(len(clipped.split("\n\n")), 2)
         self.assertEqual(runtime.pre_llm_refusal("g|sender:x", "讲个笑话", mode="research"), "科研模式，不聊这个。")
+
+    def test_normal_casual_phone_chat_drops_only_terminal_full_stop(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect)
+        casual = runtime.reply_budget("我回来啦")
+        research = runtime.reply_budget("陪我聊会儿", mode="research")
+        task = runtime.reply_budget("帮我分析这个实验日志")
+        self.assertEqual(runtime.normalize_casual_terminal_punctuation("回来啦。", casual), "回来啦")
+        self.assertEqual(runtime.normalize_casual_terminal_punctuation("欸，回来啦！", casual), "欸，回来啦！")
+        self.assertEqual(runtime.normalize_casual_terminal_punctuation("第一句。\n\n第二句。", casual), "第一句\n\n第二句")
+        self.assertEqual(runtime.normalize_casual_terminal_punctuation("科研模式。", research), "科研模式。")
+        self.assertEqual(runtime.normalize_casual_terminal_punctuation("任务结论。", task), "任务结论。")
+
 
     def test_quoted_benchmark_shape_is_still_detected(self):
         affect = TransientAffect()

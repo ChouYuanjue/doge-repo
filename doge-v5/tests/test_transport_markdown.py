@@ -113,8 +113,9 @@ class TransportMarkdownTests(unittest.TestCase):
 
     def test_agent_off_group_is_strictly_command_only(self):
         class GateEvent:
-            def __init__(self, text, group="123"):
+            def __init__(self, text, group="123", original=None):
                 self.message_str = text
+                self.message_obj = types.SimpleNamespace(message_str=original if original is not None else text)
                 self.group = group
                 self.unified_msg_origin = "qq:GroupMessage:123"
                 self.stopped = False
@@ -134,7 +135,7 @@ class TransportMarkdownTests(unittest.TestCase):
             asyncio.run(core.enforce_group_agent_switch(natural))
             self.assertTrue(natural.stopped)
 
-            command = GateEvent("/math calc 1+1")
+            command = GateEvent("math calc 1+1", original="/math calc 1+1")
             asyncio.run(core.enforce_group_agent_switch(command))
             self.assertFalse(command.stopped)
 
@@ -143,6 +144,30 @@ class TransportMarkdownTests(unittest.TestCase):
             self.assertFalse(private.stopped)
         finally:
             core_module.is_agent_enabled = old
+
+    def test_agent_reenable_command_survives_wake_prefix_stripping(self):
+        class Event:
+            unified_msg_origin = "napcat:GroupMessage:g"
+            message_str = "admin agent on"  # WakingCheck has already stripped '/'.
+            message_obj = types.SimpleNamespace(message_str="/admin agent on")
+            stopped = False
+            def get_group_id(self): return "g"
+            def stop_event(self): self.stopped = True
+
+        async def run(enabled):
+            event = Event()
+            original = __import__('doge_core.main', fromlist=['is_agent_enabled']).is_agent_enabled
+            import doge_core.main as core_mod
+            async def fake(_umo): return enabled
+            core_mod.is_agent_enabled = fake
+            try:
+                await DogeCore.enforce_group_agent_switch(object(), event)
+            finally:
+                core_mod.is_agent_enabled = original
+            return event.stopped
+
+        self.assertFalse(asyncio.run(run(False)))
+
 
 
 if __name__ == "__main__":
