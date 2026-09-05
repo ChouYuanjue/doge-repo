@@ -19,6 +19,16 @@ from data.plugins.doge_shared.module_control import (
     set_module_enabled,
 )
 
+from data.plugins.doge_shared.session_control import (
+    NORMAL_PERSONA_ID,
+    RESEARCH_PERSONA_ID,
+    get_session_persona_id,
+    is_agent_enabled,
+    set_agent_enabled,
+    set_session_persona_mode,
+)
+
+
 
 @register("doge_admin", "runnel", "AstrBot 默认命令的 /admin 命名空间", "5.6.0")
 class DogeAdmin(Star):
@@ -45,7 +55,9 @@ class DogeAdmin(Star):
             "/admin name <alias> [admin]\n"
             "/admin provider [index] [model-index] [admin]\n"
             "/admin dashboard_update [admin]\n"
-            "/admin modules list|on <module>|off <module>|reset  [group admin]"
+            "/admin modules list|on <module>|off <module>|reset  [group admin]\n"
+            "/admin agent status|on|off  [group admin]\n"
+            "/admin persona status|normal|research  [group admin]"
         )
 
     @admin.command("sid")
@@ -78,9 +90,9 @@ class DogeAdmin(Star):
 
     async def _require_group_admin(self, event: AstrMessageEvent) -> None:
         if not event.get_group_id():
-            raise PermissionError("模块热插拔只在群聊中提供")
+            raise PermissionError("这个设置只在群聊中提供")
         if not await is_group_admin(event):
-            raise PermissionError("只有当前群的群主或群管理员可以修改模块")
+            raise PermissionError("只有当前群的群主或群管理员可以修改这个设置")
 
     @admin.group("modules")
     def modules(self):
@@ -114,6 +126,53 @@ class DogeAdmin(Star):
         await self._require_group_admin(event)
         await reset_modules(event.unified_msg_origin)
         yield event.plain_result("当前群模块已恢复默认：所有正式非 Legacy 模块开启。")
+
+    @admin.group("agent")
+    def agent(self):
+        """Per-group Agent/LLM switch; slash commands remain available when off."""
+
+    @agent.command("status")
+    async def agent_status(self, event: AstrMessageEvent):
+        await self._require_group_admin(event)
+        enabled = await is_agent_enabled(event.unified_msg_origin)
+        state = "ON" if enabled else "OFF"
+        suffix = "普通自然语言会进入 Agent。" if enabled else "普通自然语言不进入 Agent；/ 指令仍然可用。"
+        yield event.plain_result(f"当前群 Agent：{state}\n{suffix}")
+
+    @agent.command("on")
+    async def agent_on(self, event: AstrMessageEvent):
+        await self._require_group_admin(event)
+        await set_agent_enabled(event.unified_msg_origin, True)
+        yield event.plain_result("当前群 Agent 已开启。普通自然语言恢复进入 Agent。")
+
+    @agent.command("off")
+    async def agent_off(self, event: AstrMessageEvent):
+        await self._require_group_admin(event)
+        await set_agent_enabled(event.unified_msg_origin, False)
+        yield event.plain_result("当前群 Agent 已关闭。普通自然语言不再进入 Agent；所有 / 指令仍可正常使用。")
+
+    @admin.group("persona")
+    def persona(self):
+        """Per-group Doge persona mode."""
+
+    @persona.command("status")
+    async def persona_status(self, event: AstrMessageEvent):
+        await self._require_group_admin(event)
+        persona_id = await get_session_persona_id(event.unified_msg_origin) or NORMAL_PERSONA_ID
+        label = "research" if persona_id == RESEARCH_PERSONA_ID else "normal"
+        yield event.plain_result(f"当前群人格：{label}")
+
+    @persona.command("normal")
+    async def persona_normal(self, event: AstrMessageEvent):
+        await self._require_group_admin(event)
+        await set_session_persona_mode(event.unified_msg_origin, "normal")
+        yield event.plain_result("当前群已切换为日常人格。")
+
+    @persona.command("research")
+    async def persona_research(self, event: AstrMessageEvent):
+        await self._require_group_admin(event)
+        await set_session_persona_mode(event.unified_msg_origin, "research")
+        yield event.plain_result("当前群已切换为科研人格。人物关系、稳定身份认知和群会话历史继续共享。")
 
     @filter.permission_type(filter.PermissionType.ADMIN)
     @admin.command("name")

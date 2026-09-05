@@ -207,20 +207,28 @@ class PersonaTests(unittest.TestCase):
         prompt = p["system_prompt"]
         self.assertLess(len(prompt), 2600)
         self.assertEqual(p["begin_dialogs"], [])
-        for marker in ("豆子", "まめこ", "芽衣子", "私人的真实名字", "灰原哀", "内部照样认真推理", "工具调用完全放在幕后", "回复密度跟语境走", "authoritative capability inventory"):
+        for marker in ("豆子", "まめこ", "芽衣子", "灰原哀", "绝对不要追问", "闲聊必须短", "内部照样认真推理", "authoritative capability inventory"):
             self.assertIn(marker, prompt)
         for banned in ("你叫豆子。", "你是一颗豆子", "你是豆子这种生物", "Doge 只是项目名", "汪~"):
             self.assertNotIn(banned, prompt)
         self.assertIn("默认叫豆子", prompt)
-        self.assertIn("不主动把话题引到现实真名", prompt)
         self.assertIsNone(p["tools"])
+
+        research = json.loads((ROOT / "persona" / "doge_research.json").read_text(encoding="utf-8"))
+        self.assertEqual(research["persona_id"], "doge_research")
+        rp = research["system_prompt"]
+        self.assertIn("共享同一个人的稳定 sender 身份认知、人物关系、熟悉度、群会话历史", rp)
+        self.assertIn("一切以正确性、可复现性和校准为先", rp)
+        self.assertIn("绝对不要追问", rp)
+        self.assertIn("娱乐消遣请求可以一句拒绝", rp)
+        self.assertIsNone(research["tools"])
 
     def test_core_suppresses_user_visible_text_on_tool_call_turns(self):
         source = (PLUGINS / "doge_core" / "main.py").read_text(encoding="utf-8")
         self.assertIn("if response.tools_call_name:", source)
         self.assertIn('response.completion_text = ""', source)
         self.assertIn("only the post-tool final answer", source)
-        self.assertIn("Honor persona-state detail", source)
+        self.assertIn("Honor persona-state and reply-budget controls", source)
 
     def test_runtime_profile_installer_is_idempotent_and_preserves_unrelated_config(self):
         installer = _load_module("doge_runtime_installer", ROOT / "tools" / "install_runtime_profile.py")
@@ -254,13 +262,17 @@ class PersonaTests(unittest.TestCase):
             ps = out["platform_settings"]
             self.assertEqual(ps["forward_threshold"], 300)
             seg = ps["segmented_reply"]
-            self.assertTrue(seg["enable"])
+            self.assertFalse(seg["enable"])
             self.assertTrue(seg["only_llm_result"])
             self.assertEqual(seg["words_count_threshold"], 300)
             self.assertEqual(seg["split_mode"], "regex")
             self.assertEqual(seg["regex"], r".*?(?:\n{2,}|\Z)")
             self.assertEqual(seg["interval"], "0.4,1.0")
             self.assertFalse(ps["unique_session"])
+            self.assertTrue(out["provider_settings"]["buffer_intermediate_messages"])
+            self.assertFalse(out["provider_settings"]["streaming_response"])
+            self.assertFalse(out["provider_settings"]["show_tool_use_status"])
+            self.assertFalse(out["provider_settings"]["show_tool_call_result"])
             ltm = out["provider_ltm_settings"]
             self.assertTrue(ltm["group_message_history_enable"])
             self.assertFalse(ltm["group_icl_enable"])
@@ -271,8 +283,9 @@ class PersonaTests(unittest.TestCase):
             self.assertIn("group chat", prov_settings["llm_compress_instruction"])
             conn = sqlite3.connect(data / "data_v4.db")
             rows = conn.execute("SELECT persona_id,system_prompt,begin_dialogs FROM personas").fetchall(); conn.close()
-            self.assertEqual(len(rows), 1); self.assertEqual(rows[0][0], "doge")
-            self.assertEqual(len(json.loads(rows[0][2])) % 2, 0)
+            self.assertEqual({row[0] for row in rows}, {"doge", "doge_research"})
+            for row in rows:
+                self.assertEqual(len(json.loads(row[2])) % 2, 0)
 
 
 if __name__ == "__main__":

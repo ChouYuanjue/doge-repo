@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PERSONA = ROOT / "persona" / "doge.json"
+PERSONA_DIR = ROOT / "persona"
+DEFAULT_PERSONA_ID = "doge"
 CORE_CONFIG_NAME = "doge_core_config.json"
 
 
@@ -24,7 +25,12 @@ def write_json_preserve_bom(path: Path, data: dict) -> None:
 
 
 def install(runtime: Path, *, backup: bool = True) -> None:
-    persona = json.loads(PERSONA.read_text(encoding="utf-8"))
+    personas = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(PERSONA_DIR.glob("*.json"))]
+    if not personas:
+        raise FileNotFoundError("Doge personas not found")
+    persona = next((item for item in personas if item.get("persona_id") == DEFAULT_PERSONA_ID), None)
+    if persona is None:
+        raise RuntimeError("Default Doge persona is missing")
     config_path = runtime / "data" / "cmd_config.json"
     db_path = runtime / "data" / "data_v4.db"
     if not config_path.exists() or not db_path.exists():
@@ -56,12 +62,11 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     cfg["provider_settings"].setdefault("persona_pool", ["*"])
     cfg["disable_builtin_commands"] = True
 
-    # Chat presentation policy. AstrBot segments a single LLM result before it
-    # evaluates OneBot merged-forward conversion. Use the same 300-char boundary
-    # for both: <=300 may split only at blank lines; >300 is kept intact by the
-    # segmentation stage and then folded into one QQ merged-forward message.
-    # Agent tools that intentionally send multiple messages use independent sends
-    # and are not collapsed by this single-result policy.
+    # Chat presentation policy. Doge core owns blank-line/message-unit grouping:
+    # any multi-part model result becomes one QQ merged-forward. AstrBot's native
+    # segmented reply must therefore stay off or it would send each component
+    # independently after Doge's pre-send hook. The normal length threshold remains
+    # as a fallback for a single very long block.
     platform_settings = cfg.setdefault("platform_settings", {})
     # One group = one durable conversational session. Keeping unique_session
     # disabled avoids fragmenting a group into sender-specific histories and
@@ -70,7 +75,7 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     platform_settings["forward_threshold"] = 300
     segmented = platform_settings.setdefault("segmented_reply", {})
     segmented.update({
-        "enable": True,
+        "enable": False,
         "only_llm_result": True,
         "interval_method": "random",
         "interval": "0.4,1.0",
@@ -79,6 +84,14 @@ def install(runtime: Path, *, backup: bool = True) -> None:
         "regex": r".*?(?:\n{2,}|\Z)",
         "content_cleanup_rule": "",
     })
+
+    # Agent intermediate LLM messages are buffered into one result before the
+    # final Doge transport hook. Tool-use status chatter stays hidden.
+    provider_settings = cfg.setdefault("provider_settings", {})
+    provider_settings["streaming_response"] = False
+    provider_settings["show_tool_use_status"] = False
+    provider_settings["show_tool_call_result"] = False
+    provider_settings["buffer_intermediate_messages"] = True
 
 
     # Per-group session harness. Persist ambient group messages as a bounded
@@ -119,24 +132,25 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     write_json_preserve_bom(config_path, cfg)
 
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(sep=" ", timespec="seconds")
-    begin = json.dumps(persona.get("begin_dialogs") or [], ensure_ascii=False)
-    tools = None if persona.get("tools") is None else json.dumps(persona["tools"], ensure_ascii=False)
-    skills = None if persona.get("skills") is None else json.dumps(persona["skills"], ensure_ascii=False)
     with sqlite3.connect(db_path) as conn:
-        exists = conn.execute("SELECT 1 FROM personas WHERE persona_id=?", (persona["persona_id"],)).fetchone()
-        if exists:
-            conn.execute(
-                "UPDATE personas SET updated_at=?, system_prompt=?, begin_dialogs=?, tools=?, skills=?, custom_error_message=? WHERE persona_id=?",
-                (now, persona["system_prompt"], begin, tools, skills, persona.get("custom_error_message"), persona["persona_id"]),
-            )
-        else:
-            conn.execute(
-                "INSERT INTO personas(created_at,updated_at,persona_id,system_prompt,begin_dialogs,tools,skills,custom_error_message,folder_id,sort_order) VALUES(?,?,?,?,?,?,?,?,NULL,0)",
-                (now, now, persona["persona_id"], persona["system_prompt"], begin, tools, skills, persona.get("custom_error_message")),
-            )
+        for item in personas:
+            begin = json.dumps(item.get("begin_dialogs") or [], ensure_ascii=False)
+            tools = None if item.get("tools") is None else json.dumps(item["tools"], ensure_ascii=False)
+            skills = None if item.get("skills") is None else json.dumps(item["skills"], ensure_ascii=False)
+            exists = conn.execute("SELECT 1 FROM personas WHERE persona_id=?", (item["persona_id"],)).fetchone()
+            if exists:
+                conn.execute(
+                    "UPDATE personas SET updated_at=?, system_prompt=?, begin_dialogs=?, tools=?, skills=?, custom_error_message=? WHERE persona_id=?",
+                    (now, item["system_prompt"], begin, tools, skills, item.get("custom_error_message"), item["persona_id"]),
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO personas(created_at,updated_at,persona_id,system_prompt,begin_dialogs,tools,skills,custom_error_message,folder_id,sort_order) VALUES(?,?,?,?,?,?,?,?,NULL,0)",
+                    (now, now, item["persona_id"], item["system_prompt"], begin, tools, skills, item.get("custom_error_message")),
+                )
         conn.commit()
 
-    print(f"persona={persona['persona_id']}")
+    print("personas=" + ",".join(item["persona_id"] for item in personas))
     print("default_personality=" + cfg["provider_settings"]["default_personality"])
     print("disable_builtin_commands=" + str(cfg["disable_builtin_commands"]).lower())
     print("absolute_admins_applied=" + str(len(absolute_admin_ids)))

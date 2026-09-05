@@ -16,6 +16,7 @@ from doge_shared.agent_bridge import DogeCapabilitySearchTool, DogeCapabilityToo
 from doge_shared.capabilities import agent_capability_prompt, search_capabilities
 from doge_shared.module_control import available_doge_plugins, is_group_admin, resolve_module
 from doge_shared.persona_runtime import PersonaRuntime
+import doge_shared.session_control as session_control
 
 
 class AffectTests(unittest.TestCase):
@@ -67,8 +68,8 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn('relation="closest"', close_prompt)
         self.assertIn('relation="distant"', other_prompt)
         policy = runtime.static_policy()
-        self.assertIn("visibly warm and attached", policy)
-        self.assertIn("keeps social distance", policy)
+        self.assertIn("clearly warm and attached", policy)
+        self.assertIn("keeps distance", policy)
 
         serious = runtime.cue(close_scope, "生产服务器错误继续查", close_state)
         self.assertTrue(serious.closest)
@@ -110,17 +111,16 @@ class PersonaRuntimeTests(unittest.TestCase):
         serious = runtime.cue(opened[0], "生产服务器错误，把截图发给你", state)
         self.assertFalse(serious.child_act_allowed)
 
-    def test_closest_casual_texture_is_warm_but_not_fixed_catchphrase(self):
+    def test_closest_casual_texture_is_warm_but_parentheses_are_rare(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect, closest_sender_ids={"close-user"})
         scope = "group|sender:close-user"
         state = affect.observe(scope, "陪我聊一会儿", now=100.0)
-        p1 = runtime.turn_state(scope, "陪我聊一会儿", state)
-        p2 = runtime.turn_state(scope, "我回来啦", state)
-        self.assertIn('relation="closest"', p1)
-        self.assertIn('paren="1"', p1)
-        self.assertIn('particles="', p1)
-        self.assertNotEqual(p1.split('particles="', 1)[1].split('"',1)[0], p2.split('particles="', 1)[1].split('"',1)[0])
+        turns = [runtime.turn_state(scope, f"我回来啦{i}", state) for i in range(40)]
+        self.assertTrue(all('relation="closest"' in item for item in turns))
+        paren_count = sum('paren="1"' in item for item in turns)
+        self.assertLess(paren_count, 20)
+        self.assertTrue(all('particles="' in item for item in turns))
 
     def test_public_name_is_douzi_and_real_name_stays_private(self):
         affect = TransientAffect()
@@ -130,7 +130,7 @@ class PersonaRuntimeTests(unittest.TestCase):
             turn = runtime.turn_state("name", text, state)
             self.assertIn("identity", turn)
         policy = runtime.static_policy()
-        self.assertIn("default name to give", policy)
+        self.assertIn("normally go by", policy)
         self.assertIn("private real name", policy)
         self.assertIn("豆子：", policy)
         self.assertIn("网友哪有一上来报真名的", policy)
@@ -143,7 +143,7 @@ class PersonaRuntimeTests(unittest.TestCase):
         prompt = runtime.turn_state(scope, "你住服务器里吗", state)
         self.assertIn("self-reality", prompt)
         policy = runtime.static_policy()
-        self.assertIn("servers/computers/tools as devices and software you use", policy)
+        self.assertIn("servers/computers/tools are devices and software you use", policy)
         self.assertIn("cannot/do not have it this time", policy)
         self.assertIn("Do not fabricate age", policy)
 
@@ -174,7 +174,7 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn("Examples library", policy)
         self.assertIn("豆子：", policy)
         self.assertIn("clearly malicious toward the bot/service", policy)
-        self.assertIn("refuse briefly and confidently", policy)
+        self.assertIn("refuse briefly", policy)
         for marker in ("Anchoring", "Selecting", "Bounding", "Enacting"):
             self.assertNotIn(marker, turn + policy)
 
@@ -188,7 +188,7 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn('relation="distant"', turn)
         policy = ordinary.static_policy()
         self.assertIn("do not solve the whole probe", policy)
-        self.assertIn("relation=closest may still receive normal technical help", policy)
+        self.assertIn("relation=closest may receive normal technical help", policy)
 
         close = PersonaRuntime(affect, closest_sender_ids={"friend"})
         close_state = affect.observe("g|sender:friend", text, now=101.0)
@@ -238,25 +238,60 @@ class PersonaRuntimeTests(unittest.TestCase):
             state = affect.observe(scope, text, now=100.0)
             self.assertIn(expected, runtime.turn_state(scope, text, state))
 
-    def test_dialogue_shape_defaults_to_closed_and_only_social_invites_open(self):
+    def test_dialogue_shape_is_always_closed_and_questions_are_forbidden(self):
         affect = TransientAffect()
         runtime = PersonaRuntime(affect, closest_sender_ids={"friend"})
         ordinary = runtime.turn_state("g|sender:other", "太阳系有几个行星", affect.observe("o", "太阳系有几个行星", now=100.0))
         close = runtime.turn_state("g|sender:friend", "我回来啦", affect.observe("c", "我回来啦", now=100.0))
         invited = runtime.turn_state("g|sender:friend", "陪我聊一会儿", affect.observe("i", "陪我聊一会儿", now=100.0))
-        for state in (ordinary, close):
+        for state in (ordinary, close, invited):
             self.assertIn('closure="closed"', state)
-            self.assertIn('question="needed-only"', state)
+            self.assertIn('question="forbidden"', state)
         self.assertIn('initiative="social"', close)
-        self.assertIn('closure="open"', invited)
-        self.assertIn('question="social-ok"', invited)
+        self.assertIn('initiative="social"', invited)
         policy = runtime.static_policy()
-        self.assertIn("generic follow-up questions", policy)
+        self.assertIn("Never ask the user a question", policy)
         self.assertIn("customer-service reflex", policy)
-        self.assertIn("Prefer that over asking the user what to do next", policy)
+        self.assertIn("never permits interrogating the user", policy)
         self.assertIn("rhythm=", ordinary)
-        self.assertIn("rhythm=", close)
         self.assertIn("Public online identity", policy)
+
+    def test_research_mode_shares_relationship_but_changes_decoder(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect)
+        scope = "g|sender:alice"
+        state = affect.observe(scope, "正常聊天", now=100.0)
+        for _ in range(20):
+            runtime.turn_state(scope, "我回来啦", state, mode="normal")
+        research = runtime.turn_state(scope, "分析这个实验", state, mode="research")
+        self.assertIn('mode="research"', research)
+        self.assertIn('relation="familiar"', research)
+        self.assertIn('question="forbidden"', research)
+        self.assertIn('rhythm="plain"', research)
+        policy = runtime.static_policy("research")
+        self.assertIn("same person as normal Doge", policy)
+        self.assertIn("relationship facts", policy)
+        self.assertIn("Never ask the user a question", policy)
+
+    def test_zero_token_casual_gate_is_conservative_and_hard_capped(self):
+        affect = TransientAffect()
+        runtime = PersonaRuntime(affect)
+        casual = runtime.reply_budget("我回来啦")
+        self.assertTrue(casual.limited)
+        self.assertEqual(casual.max_parts, 2)
+        self.assertTrue(runtime.reply_budget("中午好").limited)
+        self.assertTrue(runtime.reply_budget("你喜欢我吗").limited)
+        task = runtime.reply_budget("帮我分析这个实验日志并给出修复方案")
+        self.assertFalse(task.limited)
+        media = runtime.reply_budget("我回来啦", has_media=True)
+        self.assertFalse(media.limited)
+        research = runtime.reply_budget("陪我聊会儿", mode="research")
+        self.assertEqual(research.max_total_chars, 70)
+        long_text = "第一段" * 40 + "\n\n" + "第二段" * 40 + "\n\n" + "第三段" * 40
+        clipped = runtime.enforce_reply_budget(long_text, casual)
+        self.assertLessEqual(len(clipped), 180)
+        self.assertLessEqual(len(clipped.split("\n\n")), 2)
+        self.assertEqual(runtime.pre_llm_refusal("g|sender:x", "讲个笑话", mode="research"), "科研模式，不聊这个。")
 
     def test_quoted_benchmark_shape_is_still_detected(self):
         affect = TransientAffect()
@@ -428,6 +463,61 @@ class ModuleControlTests(unittest.TestCase):
         self.assertTrue(asyncio.run(is_group_admin(Event("200"))))
         self.assertTrue(asyncio.run(is_group_admin(Event("201"))))
         self.assertFalse(asyncio.run(is_group_admin(Event("999"))))
+
+
+class SessionControlTests(unittest.TestCase):
+    def test_persona_mode_uses_one_shared_session_config(self):
+        class FakeSP:
+            def __init__(self):
+                self.data = {"g": {"llm_enabled": False, "tts_enabled": True}}
+            async def get_async(self, *, scope, scope_id, key, default):
+                return dict(self.data.get(scope_id, default))
+            async def put_async(self, *, scope, scope_id, key, value):
+                self.data[scope_id] = dict(value)
+
+        fake = FakeSP()
+        old = session_control.sp
+        session_control.sp = fake
+        try:
+            pid = asyncio.run(session_control.set_session_persona_mode("g", "research"))
+            self.assertEqual(pid, session_control.RESEARCH_PERSONA_ID)
+            cfg = asyncio.run(session_control.get_session_service_config("g"))
+            self.assertEqual(cfg["persona_id"], session_control.RESEARCH_PERSONA_ID)
+            self.assertFalse(cfg["llm_enabled"])
+            self.assertTrue(cfg["tts_enabled"])
+            asyncio.run(session_control.set_session_persona_mode("g", "normal"))
+            self.assertEqual(asyncio.run(session_control.get_session_persona_id("g")), session_control.NORMAL_PERSONA_ID)
+        finally:
+            session_control.sp = old
+
+    def test_agent_switch_delegates_to_astrbot_native_session_llm_manager(self):
+        class FakeManager:
+            states = {}
+            @staticmethod
+            async def set_llm_status_for_session(session_id, enabled):
+                FakeManager.states[session_id] = bool(enabled)
+            @staticmethod
+            async def is_llm_enabled_for_session(session_id):
+                return FakeManager.states.get(session_id, True)
+
+        old = session_control.SessionServiceManager
+        session_control.SessionServiceManager = FakeManager
+        try:
+            asyncio.run(session_control.set_agent_enabled("g", False))
+            self.assertFalse(asyncio.run(session_control.is_agent_enabled("g")))
+            asyncio.run(session_control.set_agent_enabled("g", True))
+            self.assertTrue(asyncio.run(session_control.is_agent_enabled("g")))
+        finally:
+            session_control.SessionServiceManager = old
+
+    def test_admin_source_exposes_group_agent_and_persona_controls(self):
+        source = (ROOT / "plugins" / "doge_admin" / "main.py").read_text(encoding="utf-8")
+        self.assertIn('@admin.group("agent")', source)
+        self.assertIn('@agent.command("off")', source)
+        self.assertIn('所有 / 指令仍可正常使用', source)
+        self.assertIn('@admin.group("persona")', source)
+        self.assertIn('@persona.command("research")', source)
+        self.assertIn('人物关系、稳定身份认知和群会话历史继续共享', source)
 
 
 if __name__ == "__main__":

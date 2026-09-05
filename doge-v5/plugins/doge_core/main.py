@@ -24,8 +24,9 @@ from data.plugins.doge_shared.help_live import (
 )
 from data.plugins.doge_shared.module_control import disabled_plugins, filter_toolset_for_session
 from data.plugins.doge_shared.materials import MATERIALS
-from data.plugins.doge_shared.persona_runtime import PersonaRuntime
+from data.plugins.doge_shared.persona_runtime import PersonaRuntime, ReplyBudget
 from data.plugins.doge_shared.presentation import image_result, markdown_to_plain, text_result
+from data.plugins.doge_shared.session_control import RESEARCH_PERSONA_ID, get_session_persona_id, is_agent_enabled
 from data.plugins.doge_shared.release import DOGE_VERSION
 from data.plugins.doge_shared.raw_command import command_payload
 from data.plugins.doge_shared.runtime_stats import (
@@ -38,10 +39,6 @@ from data.plugins.doge_shared.runtime_stats import (
 )
 
 
-_SOCIAL_QUESTION_INVITE_RE = re.compile(
-    r"陪我聊|聊(?:一|会|会儿|一下)|随便聊|继续聊|来聊天|说说话|问我|采访我|考我|出题|你(?:有|想).*问",
-    re.I,
-)
 _FOLLOWUP_MARKER_RE = re.compile(
     r"(?:[………呀欸唔嗯哼\s，,]*)?(?:"
     r"要不要我|需不需要我|还需要我|需要我(?:再|继续|帮|给)|要我(?:再|继续|帮|给)|"
@@ -58,61 +55,49 @@ _DIRECTED_QUESTION_RE = re.compile(
     r"你|您|会长|副会长|吃.{0,12}没|满意吗|够不够|是不是|是.{0,28}还是|验收|想.{0,16}吗|要.{0,16}吗",
     re.I,
 )
-_REQUIRED_CLARIFICATION_RE = re.compile(
-    r"缺少|缺个|需要(?:你)?(?:提供|告诉|上传|发|补充)|必须(?:先)?(?:知道|确认)|无法(?:继续|判断|确定)|"
-    r"请(?:提供|上传|发|告诉)|先确认|还得知道|信息不够|参数不全|具体(?:是|哪)|哪个版本|哪份文件|什么路径",
-    re.I,
-)
 _QUESTION_SENTENCE_RE = re.compile(r"(?s)(^|(?<=[。！!？?\n]))([^。！!？?\n]{1,180}[？?])")
 
 def strip_unsolicited_followup(text: str, user_text: str = "") -> str:
-    """Suppress conversational probing on closed turns, preserving real clarification."""
+    """Remove user-directed follow-up questions; Doge never asks for another turn."""
     original = str(text or "").rstrip()
-    user = str(user_text or "")
-    if not original or _SOCIAL_QUESTION_INVITE_RE.search(user):
-        return original
+    if not original:
+        return ""
     out = original
-    # First remove known service/banter tails, including tails without '?'.
-    for _ in range(4):
+    for _ in range(6):
         matches = list(_FOLLOWUP_MARKER_RE.finditer(out))
         if not matches:
             break
         m = matches[-1]
         prefix = out[:m.start()].rstrip()
-        if len(re.sub(r"\s+", "", prefix)) < 2:
-            break
         cut = m.start()
         boundary = max(prefix.rfind("\n"), prefix.rfind("。"), prefix.rfind("！"), prefix.rfind("？"), prefix.rfind("!"), prefix.rfind("?"))
-        if boundary >= 0 and cut - boundary <= 24:
+        if boundary >= 0 and cut - boundary <= 30:
             cut = boundary + 1
         out = out[:cut].rstrip(" \t\n，,。；;：:")
-
-    # Then remove directed question sentences that merely keep the user talking.
-    # A response that is itself mainly a question remains a legitimate clarification.
-    pieces = []
-    cursor = 0
-    changed = False
+    pieces=[]
+    cursor=0
+    changed=False
     for qm in _QUESTION_SENTENCE_RE.finditer(out):
-        sentence = qm.group(2).strip()
-        before = out[:qm.start(2)]
-        substantive_before = len(re.sub(r"\s+", "", before)) >= 2
-        local_context = (before[-100:] + sentence)
-        drop = (
-            substantive_before
-            and _DIRECTED_QUESTION_RE.search(sentence) is not None
-            and _REQUIRED_CLARIFICATION_RE.search(local_context) is None
-        )
-        if drop:
-            pieces.append(out[cursor:qm.start(1)])
-            cursor = qm.end(2)
-            changed = True
+        sentence=qm.group(2).strip()
+        if _DIRECTED_QUESTION_RE.search(sentence) is None:
+            continue
+        pieces.append(out[cursor:qm.start(1)])
+        cursor=qm.end(2)
+        changed=True
     if changed:
         pieces.append(out[cursor:])
-        out = "".join(pieces)
-        out = re.sub(r"[ \t]+\n", "\n", out)
-        out = re.sub(r"\n{3,}", "\n\n", out).strip()
-        out = re.sub(r"[，,；;：:]\s*$", "", out).rstrip()
-    return out or original
+        out="".join(pieces)
+    # Absolute closure guard: a follow-up/clarification question is almost always
+    # the final sentence. Remove a trailing question even when it omits an
+    # explicit second-person pronoun (e.g. “哪个版本？”).
+    trailing = re.search(r"(?s)(^|(?<=[。！!？?\n]))[^。！!？?\n]{1,180}[？?]\s*$", out)
+    if trailing:
+        out = out[:trailing.start()].rstrip(" \t\n，,。；;：:")
+    out=re.sub(r"[ \t]+\n", "\n", out)
+    out=re.sub(r"\n{3,}", "\n\n", out).strip()
+    out=re.sub(r"[，,；;：:]\s*$", "", out).rstrip()
+    return out
+
 
 
 @register("doge_core", "runnel", "Doge 核心运行、状态与统计", DOGE_VERSION)
@@ -223,6 +208,43 @@ class DogeCore(Star):
         head = re.sub(r"\s+", " ", str(text or "").strip())[:48].lower()
         return bool(re.match(r"^(?:@?豆子(?:\s*doge)?|doge)(?:\s|[:,，：]|$)", head, re.I))
 
+    async def _persona_mode(self, event: AstrMessageEvent, req: ProviderRequest | None = None) -> str:
+        persona_id = await get_session_persona_id(event.unified_msg_origin)
+        if not persona_id and req is not None and getattr(req, "conversation", None) is not None:
+            persona_id = str(getattr(req.conversation, "persona_id", "") or "").strip() or None
+        return "research" if persona_id == RESEARCH_PERSONA_ID else "normal"
+
+    @staticmethod
+    def _qq_merge_plain_parts(event: AstrMessageEvent, result) -> bool:
+        if not result.chain or not all(isinstance(comp, Comp.Plain) for comp in result.chain):
+            return False
+        parts: list[str] = []
+        for comp in result.chain:
+            text = str(comp.text or "").strip()
+            if not text:
+                continue
+            parts.extend(x.strip() for x in re.split(r"\n\s*\n+", text) if x.strip())
+        if len(parts) <= 1:
+            return False
+        result.chain = [
+            Comp.Nodes([
+                Comp.Node(uin=event.get_self_id(), name="豆子", content=[Comp.Plain(part)])
+                for part in parts
+            ])
+        ]
+        return True
+
+    @filter.event_message_type(filter.EventMessageType.ALL, priority=200000)
+    async def enforce_group_agent_switch(self, event: AstrMessageEvent):
+        """Agent OFF means command-only for that group, including passive plugins."""
+        if not event.get_group_id():
+            return
+        if str(event.message_str or "").lstrip().startswith("/"):
+            return
+        if await is_agent_enabled(event.unified_msg_origin):
+            return
+        event.stop_event()
+
     @filter.event_message_type(filter.EventMessageType.ALL, priority=9500)
     async def reject_obvious_boundary_request(self, event: AstrMessageEvent):
         text = self._benchmark_text(event)
@@ -233,7 +255,8 @@ class DogeCore(Star):
         except Exception:
             sender = ""
         scope = event.unified_msg_origin + (f"|sender:{sender}" if sender else "")
-        reply = self.persona_runtime.pre_llm_refusal(scope, text)
+        mode = await self._persona_mode(event)
+        reply = self.persona_runtime.pre_llm_refusal(scope, text, mode=mode)
         if not reply:
             return
         logger.info("Doge request refused before LLM/tool execution.")
@@ -246,7 +269,7 @@ class DogeCore(Star):
         self.counter.record(event.get_platform_name(), event.message_str or "")
         await MATERIALS.remember_event(event)
 
-    def _stable_runtime_system(self, platform: str) -> str:
+    def _stable_runtime_system(self, platform: str, mode: str = "normal") -> str:
         """Stable provider prefix shared by every turn on one transport.
 
         DeepSeek context caching is prefix-based.  Anything that changes per
@@ -255,12 +278,13 @@ class DogeCore(Star):
         """
         parts = [
             agent_capability_prompt(),
-            self.persona_runtime.static_policy(),
+            self.persona_runtime.static_policy(mode),
             (
                 "# User-visible reply contract\n"
                 "Act like a person who can quietly use tools, not an agent harness narrating a workflow. "
                 "Think, search, inspect, and call tools silently. If the same assistant turn contains a tool call, emit no visible prose with that call: no plan, progress, '我先看看', '查一下', or explanation of tool choice. "
-                "After tools finish, give only the final answer/result; do not recap the hidden workflow unless explicitly asked. Honor persona-state detail. "
+                "After tools finish, give only the final answer/result; do not recap the hidden workflow unless explicitly asked. Honor persona-state and reply-budget controls. "
+                "Never ask the user a question. Missing information must be stated declaratively with the resulting limitation. "
                 "Do not restate the question, add routine summary/结论 labels, generic offers, or a redundant recap after a direct media tool already sent the result."
             ),
             (
@@ -339,12 +363,27 @@ class DogeCore(Star):
         await filter_toolset_for_session(event.unified_msg_origin, req.func_tool)
         session_disabled = await disabled_plugins(event.unified_msg_origin)
 
+        mode = await self._persona_mode(event, req)
+        event.set_extra("_doge_persona_mode", mode)
+        has_media = bool(
+            req.image_urls
+            or req.audio_urls
+            or any(not isinstance(seg, (Comp.Plain, Comp.At, Comp.Reply)) for seg in event.get_messages())
+        )
+        budget = self.persona_runtime.reply_budget(
+            event.message_str or "",
+            mode=mode,
+            has_media=has_media,
+        )
+        event.set_extra("_doge_reply_budget", budget)
+
         platform = str(event.get_platform_name() or "").lower()
-        stable = self._stable_runtime_system(platform)
+        stable = self._stable_runtime_system(platform, mode)
         req.system_prompt = (req.system_prompt or "").rstrip() + "\n\n" + stable
 
         dynamic_parts = [
-            self.persona_runtime.turn_state(affect_scope, event.message_str or "", mood),
+            self.persona_runtime.turn_state(affect_scope, event.message_str or "", mood, mode=mode),
+            budget.prompt_hint(),
             self._speaker_context(event, sender),
         ]
         capability_truth = current_capability_context(event.message_str or "")
@@ -378,6 +417,9 @@ class DogeCore(Star):
         text = response.completion_text or ""
         if text:
             text = strip_unsolicited_followup(text, str(event.message_str or ""))
+            budget = event.get_extra("_doge_reply_budget")
+            if isinstance(budget, ReplyBudget):
+                text = self.persona_runtime.enforce_reply_budget(text, budget)
             if str(event.get_platform_name() or "").lower() == "aiocqhttp":
                 text = markdown_to_plain(text)
             response.completion_text = text
@@ -398,6 +440,8 @@ class DogeCore(Star):
         platform = str(event.get_platform_name() or "").lower()
         if platform == "aiocqhttp":
             result.use_markdown(False)
+            if result.is_model_result():
+                self._qq_merge_plain_parts(event, result)
         elif platform == "qq_official" and result.is_llm_result():
             result.use_markdown(True)
 

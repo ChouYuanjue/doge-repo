@@ -22,15 +22,20 @@ data_pkg.plugins = plugins_pkg  # type: ignore[attr-defined]
 sys.modules.setdefault("data", data_pkg)
 sys.modules.setdefault("data.plugins", plugins_pkg)
 
+import doge_core.main as core_module
 from doge_core.main import DogeCore, strip_unsolicited_followup
 
 
 class _Result:
-    def __init__(self, llm: bool):
+    def __init__(self, llm: bool, chain=None):
         self.llm = llm
         self.markdown = None
+        self.chain = list(chain or [])
 
     def is_llm_result(self) -> bool:
+        return self.llm
+
+    def is_model_result(self) -> bool:
         return self.llm
 
     def use_markdown(self, value):
@@ -49,22 +54,26 @@ class _Event:
     def get_result(self):
         return self.result
 
+    def get_self_id(self):
+        return "10000"
+
 
 class TransportMarkdownTests(unittest.TestCase):
-    def _run(self, platform: str, llm: bool):
-        result = _Result(llm)
+    def _run(self, platform: str, llm: bool, chain=None):
+        result = _Result(llm, chain=chain)
         event = _Event(platform, result)
-        asyncio.run(DogeCore.transport_markdown_result(object(), event))
-        return result.markdown
+        core = object.__new__(DogeCore)
+        asyncio.run(core.transport_markdown_result(event))
+        return result
 
     def test_qq_official_llm_forces_markdown(self):
-        self.assertIs(self._run("qq_official", True), True)
+        self.assertIs(self._run("qq_official", True).markdown, True)
 
     def test_napcat_onebot_forces_plain_text(self):
-        self.assertIs(self._run("aiocqhttp", True), False)
+        self.assertIs(self._run("aiocqhttp", True).markdown, False)
 
     def test_qq_official_non_llm_keeps_plugin_media_choice(self):
-        self.assertIsNone(self._run("qq_official", False))
+        self.assertIsNone(self._run("qq_official", False).markdown)
 
     def test_completed_answer_strips_service_followup_even_when_short(self):
         self.assertEqual(strip_unsolicited_followup("HTTP 200。要不要我继续测？", "测试一下"), "HTTP 200")
@@ -73,17 +82,67 @@ class TransportMarkdownTests(unittest.TestCase):
         src = "功能有 A/B。要搜什么或者想看哪个板的热帖，直接说就行啦。 ……呀，你该不会是想去论坛考古什么黑历史吧（"
         self.assertEqual(strip_unsolicited_followup(src, "看看功能"), "功能有 A/B")
 
-    def test_real_clarification_and_explicit_chat_question_are_preserved(self):
+    def test_declarative_missing_info_is_preserved_but_chat_questions_are_removed(self):
         self.assertEqual(strip_unsolicited_followup("这个任务缺少目标文件。请把文件发来。", "帮我改一下"), "这个任务缺少目标文件。请把文件发来。")
-        self.assertEqual(strip_unsolicited_followup("那你今天最想聊什么？", "陪我聊一会儿"), "那你今天最想聊什么？")
+        self.assertEqual(strip_unsolicited_followup("那你今天最想聊什么？", "陪我聊一会儿"), "")
 
     def test_closed_turn_removes_directed_social_probe_but_keeps_answer(self):
         self.assertEqual(strip_unsolicited_followup("呀，中午好。吃午饭了没呀？没吃的话先去吃饭。", "中午好"), "呀，中午好")
         self.assertEqual(strip_unsolicited_followup("这件事本身挺有意思。那他看完什么反应？没当场翘尾巴吧。", "我转给他看了"), "这件事本身挺有意思")
 
-    def test_required_directed_clarification_is_kept(self):
+    def test_required_directed_clarification_question_is_not_allowed(self):
         src = "这个报错缺少环境信息，需要你提供一下：你用的是哪个版本？"
-        self.assertEqual(strip_unsolicited_followup(src, "帮我修"), src)
+        self.assertNotIn("？", strip_unsolicited_followup(src, "帮我修"))
+        self.assertEqual(strip_unsolicited_followup("缺少环境信息。哪个版本？", "帮我修"), "缺少环境信息")
+
+    def test_multi_plain_model_result_becomes_one_nodes_component(self):
+        from astrbot.api import message_components as Comp
+        result = self._run("aiocqhttp", True, [Comp.Plain("第一段。\n\n第二段。")])
+        self.assertEqual(len(result.chain), 1)
+        self.assertIsInstance(result.chain[0], Comp.Nodes)
+        self.assertEqual(len(result.chain[0].nodes), 2)
+        self.assertEqual(result.chain[0].nodes[0].content[0].text, "第一段。")
+        self.assertEqual(result.chain[0].nodes[1].content[0].text, "第二段。")
+
+    def test_agent_buffered_multiple_plain_components_also_merge(self):
+        from astrbot.api import message_components as Comp
+        result = self._run("aiocqhttp", True, [Comp.Plain("中间结果"), Comp.Plain("最终结果")])
+        self.assertEqual(len(result.chain), 1)
+        self.assertIsInstance(result.chain[0], Comp.Nodes)
+        self.assertEqual(len(result.chain[0].nodes), 2)
+
+    def test_agent_off_group_is_strictly_command_only(self):
+        class GateEvent:
+            def __init__(self, text, group="123"):
+                self.message_str = text
+                self.group = group
+                self.unified_msg_origin = "qq:GroupMessage:123"
+                self.stopped = False
+            def get_group_id(self):
+                return self.group
+            def stop_event(self):
+                self.stopped = True
+
+        async def disabled(_umo):
+            return False
+
+        old = core_module.is_agent_enabled
+        core_module.is_agent_enabled = disabled
+        core = object.__new__(DogeCore)
+        try:
+            natural = GateEvent("你好")
+            asyncio.run(core.enforce_group_agent_switch(natural))
+            self.assertTrue(natural.stopped)
+
+            command = GateEvent("/math calc 1+1")
+            asyncio.run(core.enforce_group_agent_switch(command))
+            self.assertFalse(command.stopped)
+
+            private = GateEvent("你好", group="")
+            asyncio.run(core.enforce_group_agent_switch(private))
+            self.assertFalse(private.stopped)
+        finally:
+            core_module.is_agent_enabled = old
 
 
 if __name__ == "__main__":
