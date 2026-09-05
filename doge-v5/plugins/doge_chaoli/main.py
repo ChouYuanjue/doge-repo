@@ -10,7 +10,7 @@ from data.plugins.doge_shared.agent_tools import DogeChaoliTool, register_domain
 from data.plugins.doge_shared.chaoli import ChaoliError, ChaoliService
 from data.plugins.doge_shared.help_service import format_cli_error
 from data.plugins.doge_shared.presentation import long_result, text_result
-from data.plugins.doge_shared.raw_command import command_payload, split_head
+from data.plugins.doge_shared.raw_command import command_payload, original_message_text, split_head
 
 HELP = """Doge Chaoli /chaoli
   /chaoli search <查询> [--board 板块] [--limit N]
@@ -29,7 +29,7 @@ HELP = """Doge Chaoli /chaoli
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、只读浏览、楼层上下文、用户活动与引用链", "5.10.25")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、只读浏览、楼层上下文、用户活动与引用链", "5.10.26")
 class DogeChaoli(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -137,8 +137,11 @@ class DogeChaoli(Star):
 
     @filter.regex(r"https?://(?:www\.)?chaoli\.club/index\.php/\d+(?:/\d+)?(?:#[^\s]+)?$")
     async def auto_preview(self, event: AstrMessageEvent):
-        text = str(event.message_str or "").strip()
-        if text.startswith("/chaoli"):
+        # Passive preview is only for ordinary messages. AstrBot's wake stage may
+        # strip the leading slash from event.message_str, so use the untouched
+        # transport text to keep explicit commands from triggering a second handler.
+        text = original_message_text(event).strip()
+        if text.lstrip().startswith("/"):
             return
         m = re.search(r"https?://(?:www\.)?chaoli\.club/index\.php/\d+(?:/\d+)?", text, re.I)
         if not m:

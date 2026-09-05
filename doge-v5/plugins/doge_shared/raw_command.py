@@ -21,3 +21,18 @@ def split_head(payload: str, maxsplit: int = 1) -> list[str]:
     if not payload.strip():
         return []
     return payload.strip().split(None, maxsplit)
+
+
+def original_message_text(event) -> str:
+    """Return the transport-level message before AstrBot wake-prefix rewriting.
+
+    ``event.message_str`` may have its leading slash removed by WakingCheckStage.
+    ``message_obj.message_str`` retains the original transport text and must be
+    preferred for deciding whether a passive handler is allowed to run.
+    """
+    message_obj = getattr(event, "message_obj", None)
+    return str(
+        getattr(message_obj, "message_str", "")
+        or getattr(event, "message_str", "")
+        or ""
+    )

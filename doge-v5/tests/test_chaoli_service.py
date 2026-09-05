@@ -12,6 +12,7 @@ sys.path.insert(0, str(PLUGINS))
 
 from doge_shared.agent_tools import DogeChaoliTool
 from doge_shared.chaoli import ChaoliError, ChaoliService
+from doge_shared.raw_command import original_message_text
 
 
 LIST_HTML = """
@@ -87,6 +88,21 @@ class ChaoliParserTests(unittest.TestCase):
     def test_duplicate_exact_username_fails_closed(self):
         with self.assertRaisesRegex(ChaoliError, "同名"):
             ChaoliService._match_member_rows([(1, "same"), (2, "same")], "same")
+
+
+    def test_original_transport_text_survives_wake_prefix_stripping(self):
+        class Obj:
+            message_str = "/chaoli preview https://chaoli.club/index.php/12202"
+        class Event:
+            message_str = "chaoli preview https://chaoli.club/index.php/12202"
+            message_obj = Obj()
+        self.assertTrue(original_message_text(Event()).startswith("/chaoli"))
+
+    def test_auto_preview_source_uses_original_transport_text_and_skips_all_slash_commands(self):
+        source = (PLUGINS / "doge_chaoli" / "main.py").read_text(encoding="utf-8")
+        self.assertIn("text = original_message_text(event).strip()", source)
+        self.assertIn('text.lstrip().startswith("/")', source)
+        self.assertNotIn('text.startswith("/chaoli")', source)
 
     def test_agent_tool_exposes_native_search_without_reserved_context_parameter(self):
         tool = DogeChaoliTool()
