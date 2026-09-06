@@ -1,0 +1,4 @@
+# Vendored upstream preserves its original line endings/formatting; Doge-owned
+# integration files are tested separately, so do not apply repository whitespace
+# diagnostics to the imported backend tree.
+doge-v5/external_plugins/astrbot_plugin_stealer/** -whitespace

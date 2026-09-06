@@ -25,7 +25,7 @@ HELP = """Doge Meme /meme
 底层直接复用生产中的 astrbot_plugin_meme_generator；不另造模板引擎。"""
 
 
-@register("doge_memes", "runnel", "模板 meme 正式入口，直接复用成熟 meme-generator 引擎", "1.0.1")
+@register("doge_memes", "runnel", "模板 meme 正式入口：自动解析可取得的图片与 QQ 头像素材", "1.0.2")
 class DogeMemes(Star):
     def __init__(self, context: Context):
         super().__init__(context)

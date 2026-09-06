@@ -1,5 +1,5 @@
 name: doge_social
-version: 5.10.10
-desc: Doge 群聊社交增强：读空气、自动大表情与贴纸库；模板 meme 由独立 /meme 提供
+version: 5.10.11
+desc: Doge 群聊社交增强：读空气 + vendored 大表情/贴纸后端；模板 meme 由独立 /meme 提供
 author: runnel
 repo: https://github.com/ChouYuanjue/doge-repo

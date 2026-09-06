@@ -13,7 +13,7 @@ from data.plugins.doge_shared.raw_command import command_payload, split_head
 _SENTINEL = "__doge_no_group__"
 
 
-@register("doge_social", "runnel", "Doge 群聊社交增强：读空气与大表情/贴纸库", "5.10.10")
+@register("doge_social", "runnel", "Doge 群聊社交增强：读空气与 vendored 大表情/贴纸库", "5.10.11")
 class DogeSocial(Star):
     def __init__(self, context: Context):
         super().__init__(context)

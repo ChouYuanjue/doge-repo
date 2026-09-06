@@ -83,9 +83,9 @@
       "fallback": "no replacement cards; provider failure is explicit"
     },
     "doge_social": {
-      "kind": "pinned-upstream-social-engines",
-      "source": "pinned tagged QQ emoji/sticker library and group-chat air-reading plugins; Doge exposes the collected-image library as emoji/sticker only, while fixed-template meme generation is owned separately by doge_memes",
-      "fallback": "fail closed by group allow-list for emoji/sticker automation; /social emoji state never changes /meme template availability"
+      "kind": "vendored-social-backend+group-chat-engine",
+      "source": "Doge-vendored emoji/sticker backend derived from astrbot_plugin_stealer plus pinned group-chat air-reading engine; the vendored backend exposes no commands or LLM tools itself",
+      "fallback": "fail closed by group allow-list for emoji/sticker automation; all manual emoji/sticker operations go through /social emoji; /meme remains independently owned by doge_memes"
     },
     "doge_linguistics": {
       "kind": "grounded+provenance-labeled",
@@ -139,8 +139,8 @@
     },
     "doge_memes": {
       "kind": "pinned-upstream-template-renderer",
-      "source": "pinned astrbot_plugin_meme_generator / meme_generator template corpus and its image/reply/@avatar parameter collector",
-      "fallback": "explicit template/resource/error result; never substitute the collected QQ emoji/sticker library when a template meme is requested"
+      "source": "pinned astrbot_plugin_meme_generator / meme_generator template corpus and its runtime parameter collector; it resolves current/reply images, explicit QQ mentions, then auto-fills current sender and bot avatars when image slots remain",
+      "fallback": "explicit template/resource/error result; never ask for a retrievable sender avatar merely because template detail reports an image requirement; never substitute the collected QQ emoji/sticker library"
     },
     "doge_minecraft": {
       "kind": "external-grounded+local-renderer",

@@ -1,5 +1,5 @@
 name: doge_memes
-version: 1.0.1
-desc: 模板 meme 正式入口：复用成熟 meme-generator 模板、头像/引用参数与管理能力；与大表情/贴纸库独立
+version: 1.0.2
+desc: 模板 meme 正式入口：自动解析当前/引用图片、@对象与发送者头像；与大表情/贴纸库独立
 author: runnel, Zhalslar, SodaSizzle
 repo: https://github.com/ChouYuanjue/doge-repo

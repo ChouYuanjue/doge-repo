@@ -1,0 +1,27 @@
+name: astrbot_plugin_stealer
+display_name: Doge 大表情/贴纸后端
+author: nagatoquin33; Doge integration by runnel
+author_url: https://github.com/nagatoquin33
+desc: Doge vendored 大表情/贴纸后端：自动收集、语义索引、自动发送；不直接注册命令或 LLM 工具
+short_desc: Doge 内部的大表情/贴纸素材库后端；公开入口统一由 /social emoji 提供。
+repo: https://github.com/nagatoquin33/astrbot_plugin_stealer
+category: backend
+tags:
+  - emoji
+  - sticker
+  - 图片识别
+  - 情绪匹配
+  - 群聊
+help: |
+  这是 Doge 内部 vendored backend，不直接暴露用户命令或 LLM tool。
+  用户入口统一为 /social emoji ...；固定模板 meme 统一为 /meme ...。
+  自动收集、VLM 分类、语义索引、自动发送与 WebUI 数据管理能力仍由本后端提供。
+version: 2.8.9-doge.1
+support_platforms:
+  - aiocqhttp
+  - telegram
+  - qq_official
+astrbot_version: ">=4.24.1"
+pages:
+  - name: dashboard
+    title: 大表情/贴纸素材管理

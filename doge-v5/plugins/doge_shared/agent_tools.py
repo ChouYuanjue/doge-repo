@@ -11,7 +11,7 @@ from .services import BingService, ChartService, ChemService, CodecService, Math
 from .weather import WeatherService
 from .lookup import LookupService
 from .chaoli import ChaoliService
-from .agent_bridge import execute_formal_command
+from .agent_bridge import DogePresentTool, execute_formal_command
 
 @dataclass
 class DogeMathTool(FunctionTool[AstrAgentContext]):
@@ -253,7 +253,6 @@ async def _collect_external_tool(iterator) -> str:
 
 def _emoji_tool_text(text: str) -> str:
     text = str(text or "")
-    text = text.replace("search_meme", "search_emoji").replace("send_meme", "send_emoji")
     text = text.replace("表情包功能", "大表情/贴纸库功能")
     text = text.replace("表情包候选", "大表情/贴纸候选")
     text = text.replace("候选表情包", "候选大表情/贴纸")
@@ -267,14 +266,14 @@ def _emoji_tool_text(text: str) -> str:
 class DogeMemeTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_meme"
     description: str = (
-        "模板 meme 生成工具。只用于 meme-generator 的固定模板合成，例如‘摸头 meme’、‘鲁迅说’、‘结婚申请’等；"
-        "可使用当前/引用图片、@用户头像和文字参数。它与群聊收集的大表情/emoji/sticker 库完全独立，"
-        "绝不要因为 emoji/sticker 功能关闭就认为模板 meme 不可用。返回媒体 asset_id 后用 doge_present 发送。"
+        "固定模板 meme 生成工具，例如‘摸头 meme’、‘鲁迅说’、‘结婚申请’。用户要求制作/发送 meme 时直接 action=generate，"
+        "不要把 action=detail 当生成前置步骤。生成器会自动解析当前/引用图片、显式 @ 用户头像；图片仍不足时会自动获取当前发送者 QQ 头像，必要时再补 Bot 头像，"
+        "因此不要要求用户重复提供这些运行时已经能取得的素材。它与群聊收集的 emoji/sticker 库完全独立。生成成功后工具会直接发送图片并结束本轮。"
     )
     parameters: dict = Field(default_factory=lambda: {
         "type": "object",
         "properties": {
-            "action": {"type": "string", "enum": ["generate", "detail", "list", "status"]},
+            "action": {"type": "string", "enum": ["generate", "detail", "list", "status"], "description": "制作/发送 meme 必须用 generate；detail 只用于用户明确询问模板参数时。"},
             "template": {"type": "string", "description": "generate/detail 时的模板关键词，例如 摸头"},
             "text": {"type": "string", "description": "generate 时可选文字参数，多个参数按空格保留"},
             "page": {"type": "integer", "minimum": 1},
@@ -290,11 +289,35 @@ class DogeMemeTool(FunctionTool[AstrAgentContext]):
             if not template:
                 raise ValueError("meme template keyword is empty")
             payload = template + ((" " + text) if text else "")
-            return await execute_formal_command(context, f"/meme {payload}")
+            raw = await execute_formal_command(context, f"/meme {payload}")
+            try:
+                data = json.loads(raw)
+                ids = [
+                    str(item.get("id"))
+                    for item in (data.get("media") or [])
+                    if isinstance(item, dict) and item.get("type") == "image" and item.get("id")
+                ]
+            except Exception:
+                ids = []
+            if ids:
+                # A template-generation request has one unambiguous user-visible
+                # result. Send it immediately and terminate the Agent turn instead
+                # of asking the model to make another presentation decision.
+                return await DogePresentTool().call(context, asset_ids=ids)
+            return raw
         if action == "detail":
             if not template:
                 raise ValueError("meme template keyword is empty")
-            return await execute_formal_command(context, f"/meme detail {template}")
+            raw = await execute_formal_command(context, f"/meme detail {template}")
+            try:
+                data = json.loads(raw)
+                data["next_step"] = (
+                    "If the current user asked to MAKE/SEND this meme, call doge_meme again with action=generate now. "
+                    "Do not ask them for an avatar or image that the generator can resolve automatically from current/reply media, explicit mentions, or the current sender's QQ avatar."
+                )
+                return json.dumps(data, ensure_ascii=False)
+            except Exception:
+                return raw + "\nIf this is a generation request, call action=generate now; retrievable avatars/media do not need to be requested from the user."
         if action == "list":
             page = max(1, int(kwargs.get("page", 1)))
             return await execute_formal_command(context, f"/meme list {page}")
@@ -320,7 +343,7 @@ class DogeEmojiSearchTool(FunctionTool[AstrAgentContext]):
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
         engine = _external_star_from_run_context(context, "astrbot_plugin_stealer")
         event = context.context.event
-        text = await _collect_external_tool(engine.search_meme(event, str(kwargs.get("query") or "")))
+        text = await _collect_external_tool(engine.search_emoji(event, str(kwargs.get("query") or "")))
         text = _emoji_tool_text(text)
         if "已禁用大表情/贴纸库功能" in text:
             text += "\n这只表示当前会话的 emoji/sticker 库关闭；/meme 模板生成器不受影响。"
@@ -343,7 +366,7 @@ class DogeEmojiSendTool(FunctionTool[AstrAgentContext]):
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         engine = _external_star_from_run_context(context, "astrbot_plugin_stealer")
         event = context.context.event
-        text = _emoji_tool_text(await _collect_external_tool(engine.send_meme(event, int(kwargs.get("emoji_id")))))
+        text = _emoji_tool_text(await _collect_external_tool(engine.send_emoji(event, int(kwargs.get("emoji_id")))))
         if "发送成功" in text:
             return None
         return text
@@ -365,7 +388,7 @@ class DogeEmojiStealTool(FunctionTool[AstrAgentContext]):
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
         engine = _external_star_from_run_context(context, "astrbot_plugin_stealer")
         event = context.context.event
-        return _emoji_tool_text(await _collect_external_tool(engine.steal_sticker(event, str(kwargs.get("image_ref") or ""))))
+        return _emoji_tool_text(await _collect_external_tool(engine.steal_emoji(event, str(kwargs.get("image_ref") or ""))))
 
 
 @dataclass

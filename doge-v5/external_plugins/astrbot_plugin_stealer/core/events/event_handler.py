@@ -1,0 +1,815 @@
+import asyncio
+import os
+import random
+import threading
+import time
+from pathlib import Path
+from typing import Any
+
+from astrbot.api import logger
+from astrbot.api.event import AstrMessageEvent, MessageChain
+from astrbot.api.message_components import Image, Plain
+
+from ..util.safe_io import safe_remove_file
+from .background_steal_queue import BackgroundStealQueue
+from .event_context import get_event_session_key
+from .platform_detector import PlatformDetector
+from .image_download_service import ImageDownloadService
+
+
+class EventHandler:
+    """事件处理服务类，负责处理所有与插件相关的事件操作。"""
+
+    HTTP_TIMEOUT_SECONDS = 30
+    HTTP_CONNECTOR_LIMIT = 10
+    HTTP_CONNECTOR_LIMIT_PER_HOST = 5
+    HTTP_DNS_CACHE_SECONDS = 300
+
+    def __init__(self, plugin_instance: Any):
+        """初始化事件处理服务。
+
+        Args:
+            plugin_instance: Main 实例，用于访问插件的配置和服务
+        """
+        self.plugin = plugin_instance
+        self._cleaned = False  # 清理标志位
+
+        # 图片处理节流相关
+        self._last_process_time: float = 0.0  # 上次处理时间（用于interval和cooldown模式）
+
+        # 强制捕获窗口（需要锁保护）
+        self._force_capture_windows: dict[str, dict[str, object]] = {}
+        self._force_capture_lock = threading.RLock()  # 可重入锁，保护并发访问
+
+        # 子服务
+        self._platform_detector = PlatformDetector(plugin_instance)
+        self._image_download_service = ImageDownloadService(plugin_instance)
+        self._background_queue: BackgroundStealQueue | None = None
+
+    async def start_background_workers(self) -> None:
+        """Start the bounded passive-steal pipeline."""
+        if self._background_queue is None:
+            self._background_queue = BackgroundStealQueue(
+                self.plugin, capacity=32, worker_count=2
+            )
+        await self._background_queue.start()
+
+    async def stop_background_workers(self) -> None:
+        queue = self._background_queue
+        self._background_queue = None
+        if queue is not None:
+            await queue.stop()
+
+    # ===== 门面委托：子服务方法 =====
+
+    def _normalize_str(self, value: object) -> str:
+        """规范化字符串值，委托给 PlatformDetector。"""
+        return self._platform_detector._normalize_str(value)
+
+    def _get_event_platform_name(self, event: AstrMessageEvent | None = None) -> str:
+        """获取事件平台名（小写），失败时返回空字符串。"""
+        return self._platform_detector.get_platform_name(event)
+
+    def _is_telegram_event(self, event: AstrMessageEvent | None = None) -> bool:
+        """判断事件是否来自 Telegram 平台。"""
+        return self._platform_detector.is_telegram_event(event)
+
+    def _check_platform_emoji_metadata(self, *args, **kwargs) -> bool:
+        """检查图片元信息，判断是否为平台标记的表情包。"""
+        return self._platform_detector.check_platform_emoji_metadata(*args, **kwargs)
+
+    def _extract_store_emoji_urls(self, event: AstrMessageEvent) -> list[str]:
+        """从 OneBot raw_message 里提取 QQ 商城表情的可下载 URL。"""
+        return self._platform_detector.extract_store_emoji_urls(event)
+
+    async def _get_aiohttp_session(self) -> None:
+        """获取或创建共享的 aiohttp session（已迁移到 ImageDownloadService）。"""
+        return await self._image_download_service.get_session()
+
+    async def close_aiohttp_session(self) -> None:
+        """关闭共享的 aiohttp session（已迁移到 ImageDownloadService）。"""
+        await self._image_download_service.close()
+
+    @staticmethod
+    def _detect_download_file_type(content_type: str, content: bytes) -> tuple[str, bool]:
+        """检测下载文件类型（已迁移到 ImageDownloadService）。"""
+        return ImageDownloadService.detect_file_type(content_type, content)
+
+    async def _download_to_temp(
+        self, url: str, *, log_download: bool = False
+    ) -> tuple[str | None, bool]:
+        """从 URL 下载文件到临时文件（已迁移到 ImageDownloadService）。"""
+        return await self._image_download_service.download_to_temp(url, log_download=log_download)
+
+    async def _download_original_image(self, img: Image) -> tuple[str | None, bool]:
+        """下载原始图片文件（已迁移到 ImageDownloadService）。"""
+        return await self._image_download_service.download_original_image(img)
+
+    async def _download_url_to_temp(self, url: str) -> tuple[str | None, bool]:
+        """从 URL 下载文件到临时文件（已迁移到 ImageDownloadService）。"""
+        return await self._image_download_service.download_url_to_temp(url)
+
+    # ===== EventHandler 核心逻辑 =====
+    def _should_process_image(self) -> bool:
+        """根据偷图模式（概率/冷却）判断是否应该处理图片。
+
+        - probability 模式：每次收到图片按 steal_chance 概率决定
+        - cooldown 模式：两次偷取之间至少间隔 image_processing_cooldown 秒
+        """
+        steal_mode = self.plugin.plugin_config.steal_mode
+
+        if steal_mode == "cooldown":
+            return self._check_cooldown()
+        else:
+            return self._check_probability()
+
+    def _check_cooldown(self) -> bool:
+        """冷却模式：两次处理之间至少间隔 N 秒。"""
+        cooldown = self.plugin.plugin_config.image_processing_cooldown
+        try:
+            cooldown = int(cooldown)
+        except Exception:
+            cooldown = 10
+
+        current_time = time.time()
+        time_since_last = current_time - self._last_process_time
+
+        if time_since_last < cooldown:
+            logger.debug(f"冷却检查：跳过（冷却={cooldown}秒，距上次={time_since_last:.1f}秒）")
+            return False
+
+        self._last_process_time = current_time
+        logger.debug(f"冷却检查：通过（冷却={cooldown}秒，距上次={time_since_last:.1f}秒）")
+        return True
+
+    def mark_processing_started(self) -> None:
+        """后台 worker 开始实际处理时调用。
+
+        cooldown 模式必须覆盖真实处理开始时间，而不是仅覆盖入队时间；
+        否则慢 VLM 下消息仍会在冷却窗口后持续入队，worker 随后连续处理，
+        冷却间隔会失去意义。
+        """
+        try:
+            steal_mode = self.plugin.plugin_config.steal_mode
+        except Exception:
+            return
+        if steal_mode == "cooldown":
+            self._last_process_time = time.time()
+            logger.debug("冷却检查：后台处理开始，刷新冷却窗口")
+
+    def _check_probability(self) -> bool:
+        """概率模式：每次按 steal_chance 概率决定是否偷取。"""
+        steal_chance = self.plugin.plugin_config.steal_chance
+        try:
+            steal_chance = float(steal_chance)
+        except Exception:
+            steal_chance = 0.6
+
+        if steal_chance <= 0:
+            logger.debug("偷图概率为0，跳过偷取")
+            return False
+        if steal_chance >= 1.0:
+            logger.debug("偷图概率为1.0，直接通过")
+            return True
+        if random.random() >= steal_chance:
+            logger.debug(f"概率检查：未通过（概率={steal_chance}）")
+            return False
+
+        logger.debug(f"概率检查：通过（概率={steal_chance}）")
+        return True
+
+    def _select_items_for_removal(self, image_index: dict) -> list[tuple[str, int]]:
+        """从索引中选出需要移除的条目（按创建时间从旧到新排序后取最旧的）。
+
+        收藏表情包不参与自动清理。
+
+        Returns:
+            需要移除的 (file_path, created_at) 列表；若无需移除则返回空列表。
+        """
+        try:
+            max_reg = int(self.plugin.plugin_config.max_reg_num)
+        except (TypeError, ValueError):
+            max_reg = 500  # 默认值
+
+        if max_reg <= 0:
+            logger.warning(f"容量控制上限无效: max_reg_num={max_reg}，跳过")
+            return []
+
+        if len(image_index) <= max_reg:
+            return []
+
+        image_items: list[tuple[str, int]] = []
+        for file_path, image_info in image_index.items():
+            if isinstance(image_info, dict) and image_info.get("is_favorite"):
+                continue
+            created_at = int(image_info.get("created_at", 0)) if isinstance(image_info, dict) else 0
+            image_items.append((file_path, created_at))
+
+        if not image_items:
+            return []
+
+        image_items.sort(key=lambda x: x[1])
+        overflow = len(image_index) - max_reg
+        remove_count = min(max(0, overflow), len(image_items))
+        if overflow > len(image_items):
+            logger.warning(
+                f"[capacity] Need to remove {overflow} entries, but only "
+                f"{len(image_items)} non-favorite entries are eligible"
+            )
+        return image_items[:remove_count]
+
+    def _resolve_index_file_path(self, path_str: str, image_info: dict | None) -> str | None:
+        candidates: list[Path] = []
+        if path_str:
+            candidates.append(Path(path_str))
+
+        category = ""
+        if isinstance(image_info, dict):
+            category = str(image_info.get("category", "") or "").strip()
+
+        categories_dir = getattr(self.plugin, "categories_dir", None)
+        if category and categories_dir:
+            candidates.append(Path(categories_dir) / category / Path(path_str).name)
+
+        seen: set[str] = set()
+        for candidate in candidates:
+            key = str(candidate)
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                if candidate.is_file():
+                    return str(candidate)
+            except OSError:
+                continue
+        return None
+
+    def _normalize_capacity_index_paths(self, image_index: dict) -> tuple[int, int]:
+        rekeyed = 0
+        stale_removed = 0
+
+        for path_str, image_info in list(image_index.items()):
+            if not isinstance(path_str, str):
+                image_index.pop(path_str, None)
+                stale_removed += 1
+                continue
+
+            resolved = self._resolve_index_file_path(
+                path_str, image_info if isinstance(image_info, dict) else None
+            )
+            if resolved is None:
+                image_index.pop(path_str, None)
+                stale_removed += 1
+                continue
+
+            if resolved != path_str:
+                image_index.pop(path_str, None)
+                existing = image_index.get(resolved)
+                if not isinstance(existing, dict) or (
+                    isinstance(image_info, dict)
+                    and int(image_info.get("created_at", 0) or 0)
+                    < int(existing.get("created_at", 0) or 0)
+                ):
+                    image_index[resolved] = image_info
+                rekeyed += 1
+
+        return rekeyed, stale_removed
+
+    async def _enforce_capacity(self, image_index: dict) -> list[str]:
+        """容量控制，删除超出限制的最旧表情包（文件+索引一起清理）。
+
+        Args:
+            image_index: 索引字典
+
+        Returns:
+            list[str]: 成功删除的文件路径列表
+        """
+        files_actually_deleted: list[str] = []
+
+        try:
+            rekeyed, stale_removed = self._normalize_capacity_index_paths(image_index)
+            if rekeyed or stale_removed:
+                logger.info(
+                    f"[capacity] Normalized {rekeyed} index paths and removed "
+                    f"{stale_removed} stale records before enforcing capacity"
+                )
+
+            items_to_remove = self._select_items_for_removal(image_index)
+            if not items_to_remove:
+                return files_actually_deleted
+
+            logger.info(f"[容量控制-索引] 将删除 {len(items_to_remove)} 个最旧条目")
+
+            for remove_path, _ in items_to_remove:
+                if remove_path not in image_index:
+                    continue
+
+                # 收集该条目对应的所有物理文件路径
+                entry_files: list[str] = [remove_path]
+                if isinstance(image_index[remove_path], dict):
+                    category = image_index[remove_path].get("category", "")
+                    if category and self.plugin.base_dir:
+                        file_name = Path(remove_path).name
+                        category_file_path = str(
+                            Path(self.plugin.base_dir) / "categories" / category / file_name
+                        )
+                        # 避免重复添加（正常流程中 remove_path 就是 categories 下的路径）
+                        if category_file_path != remove_path:
+                            entry_files.append(category_file_path)
+
+                # 先尝试删除文件；只要至少一个文件被删除（或已不存在），就从索引中移除
+                file_gone = False
+                seen_paths: set[str] = set()
+                for file_path in entry_files:
+                    if file_path in seen_paths:
+                        continue
+                    seen_paths.add(file_path)
+
+                    if Path(file_path).exists():
+                        try:
+                            removed = await safe_remove_file(file_path)
+                            if removed:
+                                files_actually_deleted.append(file_path)
+                                file_gone = True
+                            else:
+                                logger.warning(f"[容量控制] 删除文件失败: {file_path}")
+                        except Exception as e:
+                            logger.warning(f"[容量控制] 删除文件异常 {file_path}: {e}")
+                    else:
+                        # Alternate candidates may be absent; only remove the index
+                        # after the primary indexed file is confirmed gone.
+                        logger.debug(f"[capacity] Candidate file is already missing: {file_path}")
+
+                if not Path(remove_path).exists():
+                    file_gone = True
+
+                # 只有文件确实被清理后才从索引中删除，避免产生新的"僵尸文件"
+                if file_gone:
+                    del image_index[remove_path]
+                else:
+                    logger.warning(f"[容量控制] 文件删除失败，保留索引条目: {remove_path}")
+
+        except Exception as e:
+            logger.error(f"同步容量控制失败: {e}")
+
+        return files_actually_deleted
+
+    def _get_force_capture_key(self, event) -> str:
+        """获取强制捕获的唯一键。
+
+        Args:
+            event: 消息事件对象
+
+        Returns:
+            str: 唯一键
+        """
+        return get_event_session_key(event)
+
+    def _cleanup_expired_capture_windows(self) -> int:
+        """清理所有过期的强制捕获窗口。
+
+        Returns:
+            int: 清理的过期窗口数量
+        """
+        now = time.time()
+        expired_keys = [
+            key
+            for key, entry in self._force_capture_windows.items()
+            if isinstance(entry, dict) and float(entry.get("until", 0)) < now
+        ]
+        for key in expired_keys:
+            self._force_capture_windows.pop(key, None)
+        return len(expired_keys)
+
+    def _get_force_capture_sender_id(self, event) -> str | None:
+        """获取发送者ID。"""
+        try:
+            sid = event.get_sender_id()
+            if sid:
+                return str(sid)
+        except Exception:
+            pass
+
+        # 单层兜底：从 message_obj.sender 取 user_id
+        message_obj = getattr(event, "message_obj", None)
+        sender = getattr(message_obj, "sender", None) if message_obj is not None else None
+        uid = getattr(sender, "user_id", None) if sender is not None else None
+        return str(uid) if uid else None
+
+    def begin_force_capture(self, event, seconds: int) -> None:
+        """开始强制捕获窗口。
+
+        Args:
+            event: 消息事件对象
+            seconds: 捕获窗口持续时间（秒）
+        """
+        key = self._get_force_capture_key(event)
+        sender_id = self._get_force_capture_sender_id(event)
+        until = time.time() + max(1, int(seconds))
+        with self._force_capture_lock:
+            self._force_capture_windows[key] = {"until": until, "sender_id": sender_id}
+
+    def get_force_capture_entry(self, event) -> dict[str, object] | None:
+        """获取强制捕获条目。
+
+        Args:
+            event: 消息事件对象
+
+        Returns:
+            dict | None: 捕获条目，如果不存在或已过期则返回None
+        """
+        # 先清理所有过期的捕获窗口
+        self._cleanup_expired_capture_windows()
+
+        key = self._get_force_capture_key(event)
+        with self._force_capture_lock:
+            entry = self._force_capture_windows.get(key)
+            if not entry:
+                return None
+
+            try:
+                until = float(entry.get("until", 0))
+            except Exception:
+                self._force_capture_windows.pop(key, None)
+                return None
+
+            if time.time() > until:
+                self._force_capture_windows.pop(key, None)
+                return None
+
+            expected_sender_id = entry.get("sender_id")
+            if expected_sender_id:
+                current_sender_id = self._get_force_capture_sender_id(event)
+                if current_sender_id and str(current_sender_id) != str(expected_sender_id):
+                    return None
+
+            return entry
+
+    def consume_force_capture(self, event) -> None:
+        """消费强制捕获条目。
+
+        Args:
+            event: 消息事件对象
+        """
+        key = self._get_force_capture_key(event)
+        with self._force_capture_lock:
+            self._force_capture_windows.pop(key, None)
+
+    @staticmethod
+    def _get_media_ref(img: Image) -> str:
+        """Extract an existing local path or HTTP URL from an image component.
+
+        Prefer an attribute that points at an existing local file. A stale
+        local path must not shadow a usable URL in another attribute.
+        """
+        candidates: list[str] = []
+        for attr in ("path", "file", "url"):
+            value = getattr(img, attr, "") or ""
+            if not value:
+                continue
+            ref = str(value)
+            candidates.append(ref)
+            if os.path.exists(ref):
+                return ref
+        for ref in candidates:
+            if ref.startswith(("http://", "https://")):
+                return ref
+        return ""
+
+    async def on_message(self, event: AstrMessageEvent):
+        """消息监听：偷取消息中的图片并分类存储。"""
+        if self._cleaned or self.plugin is None:
+            return
+        if not hasattr(event, "get_messages"):
+            return
+        plugin_instance = self.plugin
+        force_entry = None
+        try:
+            force_entry = plugin_instance.get_force_capture_entry(event)
+        except (AttributeError, KeyError):
+            force_entry = None
+        force_active = force_entry is not None
+        try:
+            if not force_active and not plugin_instance.is_steal_enabled_for_event(event):
+                return
+        except (AttributeError, TypeError, KeyError):
+            return
+        if not plugin_instance.steal_meme and not force_active:
+            return
+        # audit_required=True → 自动偷取进 pending 池（issue #89：默认）
+        # audit_required=False → 跳过审核，直接入库
+        cfg = getattr(plugin_instance, "plugin_config", None)
+        audit_required = bool(getattr(cfg, "audit_required", True)) if cfg else True
+        to_pending = audit_required
+        imgs: list[Image] = [comp for comp in event.get_messages() if isinstance(comp, Image)]
+        store_urls = self._extract_store_emoji_urls(event)
+        if not imgs and not store_urls:
+            return
+        if force_active:
+            # 强制收录是管理员主动命令，保持同步处理以保留明确的
+            # 成功/失败反馈，也保留 convert_to_file_path 兜底。
+            await self._handle_force_capture(event, plugin_instance, imgs, store_urls)
+            return
+        # 待审核池容量护栏：池满则暂停自动偷取（不下载、不处理、不删库内文件），
+        # 审核通过/删除使 pending 减少后下条消息自然恢复。
+        try:
+            pending_count = plugin_instance.db_service.count_pending()
+        except (AttributeError, TypeError):
+            pending_count = 0
+        capacity = getattr(plugin_instance, "steal_pool_capacity", 200)
+        if pending_count >= capacity:
+            logger.debug(
+                f"[steal] 待审核池已满 {pending_count}/{capacity}，暂停偷取，审核后自动恢复"
+            )
+            return
+        logger.debug(f"开始处理 {len(imgs)} 个表情")
+        raw_image_segments: list[dict] = []
+        raw_image_file_map: dict[str, dict] = {}
+        try:
+            raw_event = getattr(getattr(event, "message_obj", None), "raw_message", None)
+            logger.debug(f"raw_event type: {type(raw_event).__name__}, is_dict: {isinstance(raw_event, dict)}")
+            # raw_event 可能是 dict（aiocqhttp）或对象，需要兼容两种类型
+            raw_message = None
+            if isinstance(raw_event, dict):
+                raw_message = raw_event.get("message")
+            elif raw_event is not None:
+                raw_message = getattr(raw_event, "message", None)
+            logger.debug(f"raw_message type: {type(raw_message).__name__ if raw_message else 'None'}")
+            if isinstance(raw_message, list):
+                raw_image_segments = [
+                    seg
+                    for seg in raw_message
+                    if isinstance(seg, dict) and seg.get("type") == "image"
+                ]
+                for seg in raw_image_segments:
+                    data = seg.get("data", {}) or {}
+                    if not isinstance(data, dict):
+                        continue
+                    seg_file = self._normalize_str(data.get("file", ""))
+                    if seg_file and seg_file not in raw_image_file_map:
+                        raw_image_file_map[seg_file] = data
+                logger.debug(f"提取到 {len(raw_image_segments)} 个原始图片段, {len(raw_image_file_map)} 个文件映射")
+        except Exception as e:
+            logger.debug(f"提取原始图片段失败: {e}")
+            raw_image_segments = []
+            raw_image_file_map = {}
+        origin_target_str = ""
+        try:
+            cfg = getattr(plugin_instance, "plugin_config", None)
+            if cfg:
+                scope, target_id = cfg.get_event_target(event)
+                if scope and target_id:
+                    origin_target_str = f"{scope}:{target_id}"
+        except (AttributeError, KeyError) as e:
+            logger.debug(f"提取来源群信息失败: {e}")
+        merged_idx: dict[str, Any] = {}
+
+        def merge_result_idx(result_idx: object) -> None:
+            if isinstance(result_idx, dict):
+                merged_idx.update(result_idx)
+
+        imgs_to_process: list[tuple[int, Image, dict]] = []
+        for i, img in enumerate(imgs):
+            try:
+                is_platform_emoji = self._check_platform_emoji_metadata(
+                    img,
+                    event,
+                    img_index=i,
+                    image_segments=raw_image_segments,
+                    image_file_map=raw_image_file_map,
+                )
+                if not is_platform_emoji:
+                    sub_type_value = getattr(img, "subType", "unknown")
+                    logger.debug(f"跳过非表情包图片 (subType={sub_type_value})")
+                    continue
+                extra_meta = None
+                try:
+                    seg = raw_image_segments[i] if 0 <= i < len(raw_image_segments) else None
+                    data = seg.get("data", {}) if isinstance(seg, dict) else {}
+                    if isinstance(data, dict) and (
+                        data.get("emoji_id") or data.get("emoji_package_id")
+                    ):
+                        extra_meta = {
+                            "source": "qq_store",
+                            "qq_emoji_id": str(data.get("emoji_id") or ""),
+                            "qq_emoji_package_id": str(data.get("emoji_package_id") or ""),
+                            "origin_url": self._normalize_str(data.get("url", "")),
+                            "qq_key": self._normalize_str(data.get("key", "")),
+                        }
+                except Exception:
+                    extra_meta = None
+                if origin_target_str:
+                    if extra_meta is None:
+                        extra_meta = {}
+                    extra_meta["origin_target"] = origin_target_str
+                imgs_to_process.append((i, img, extra_meta or {}))
+            except Exception as e:
+                logger.error(f"收集图片信息失败: {e}")
+
+        # 冷却只针对确认过的表情包生效。普通图片不能消耗冷却窗口，
+        # 否则紧随其后的真实表情包会被直接跳过。
+        if (imgs_to_process or store_urls) and not self._should_process_image():
+            return
+
+        # 只有通过概率/冷却判断后，才记录即将执行的自动偷取，避免让检测日志
+        # 造成“每个检测到的表情包都会被偷”的误解。
+        if imgs_to_process or store_urls:
+            logger.info("检测到表情包，准备偷走它！")
+
+        if self._background_queue is not None:
+            descriptors: list[dict[str, Any]] = []
+            for _i, img, extra_meta in imgs_to_process:
+                ref = self._get_media_ref(img)
+                if ref:
+                    descriptors.append(
+                        {
+                            "media_ref": ref,
+                            "source": "automatic",
+                            "to_pending": to_pending,
+                            "extra_meta": extra_meta,
+                        }
+                    )
+            for url in store_urls[:3]:
+                extra_meta = {"source": "qq_store", "origin_url": self._normalize_str(url)}
+                if origin_target_str:
+                    extra_meta["origin_target"] = origin_target_str
+                descriptors.append(
+                    {
+                        "media_ref": url,
+                        "source": "automatic",
+                        "to_pending": to_pending,
+                        "extra_meta": extra_meta,
+                    }
+                )
+            if descriptors:
+                await self._background_queue.submit_capture_async(descriptors)
+            return
+
+        if imgs_to_process:
+            logger.debug(f"开始并行下载 {len(imgs_to_process)} 张图片")
+            download_results = await asyncio.gather(
+                *[self._download_original_image(item[1]) for item in imgs_to_process],
+                return_exceptions=True,
+            )
+            process_tasks = []
+            for (i, img, extra_meta), result in zip(imgs_to_process, download_results):
+                if isinstance(result, Exception):
+                    logger.error(f"下载图片异常: {result}")
+                    continue
+                # _download_original_image 固定返回二元组 (temp_path, is_gif)
+                temp_path, _is_gif = result
+                if not temp_path or not Path(temp_path).exists():
+                    logger.warning(f"临时文件不存在: {temp_path}")
+                    continue
+                process_tasks.append(
+                    plugin_instance._process_image(
+                        event,
+                        temp_path,
+                        is_temp=True,
+                        is_platform_emoji=True,
+                        extra_meta=extra_meta,
+                        to_pending=to_pending,
+                    )
+                )
+            if process_tasks:
+                logger.debug(f"开始并行处理 {len(process_tasks)} 张图片")
+                process_results = await asyncio.gather(*process_tasks, return_exceptions=True)
+                for result in process_results:
+                    if isinstance(result, Exception):
+                        logger.error(f"处理图片异常: {result}")
+                        continue
+                    # _process_image 固定返回 (bool, dict|None)
+                    success, idx = result
+                    if success and isinstance(idx, dict):
+                        merge_result_idx(idx)
+        if store_urls:
+            logger.debug(f"开始并行下载 {min(len(store_urls), 3)} 个商城表情")
+
+            async def download_store_url(url: str) -> tuple[str | None, str]:
+                try:
+                    temp_path, _ = await self._download_url_to_temp(url)
+                    return temp_path, url
+                except Exception as e:
+                    logger.error(f"下载商城表情失败: {e}")
+                    return None, url
+
+            store_download_results = await asyncio.gather(
+                *[download_store_url(url) for url in store_urls[:3]], return_exceptions=True
+            )
+            store_process_tasks = []
+            for result in store_download_results:
+                if isinstance(result, Exception):
+                    continue
+                temp_path, url = result
+                if not temp_path or not Path(temp_path).exists():
+                    continue
+                extra_meta = {"source": "qq_store", "origin_url": self._normalize_str(url)}
+                if origin_target_str:
+                    extra_meta["origin_target"] = origin_target_str
+                store_process_tasks.append(
+                    plugin_instance._process_image(
+                        event,
+                        temp_path,
+                        is_temp=True,
+                        is_platform_emoji=True,
+                        extra_meta=extra_meta,
+                        to_pending=to_pending,
+                    )
+                )
+            if store_process_tasks:
+                store_results = await asyncio.gather(*store_process_tasks, return_exceptions=True)
+                for result in store_results:
+                    if isinstance(result, Exception):
+                        continue
+                    success, idx = result
+                    if success and isinstance(idx, dict):
+                        merge_result_idx(idx)
+        if merged_idx:
+            await plugin_instance.index_manager.save_index(merged_idx)
+
+    async def _handle_force_capture(
+        self,
+        event: AstrMessageEvent,
+        plugin_instance,
+        imgs: list,
+        store_urls: list[str],
+    ) -> None:
+        """处理强制捕获模式：下载并处理单张图片后直接返回。"""
+        try:
+            temp_path: str | None = None
+            is_gif = False
+
+            if imgs:
+                img = imgs[0]
+                result = await self._download_original_image(img)
+                # _download_original_image 固定返回二元组 (temp_path, is_gif)
+                temp_path, is_gif = result
+                if not temp_path:
+                    temp_path = await img.convert_to_file_path()
+            elif store_urls:
+                result = await self._download_url_to_temp(store_urls[0])
+                # _download_url_to_temp 固定返回二元组 (temp_path, is_gif)
+                temp_path, is_gif = result
+
+            if not temp_path or not Path(temp_path).exists():
+                await event.send(MessageChain([Plain(text="❌ 收录失败：图片临时文件不存在")]))
+            else:
+                success, idx = await plugin_instance._process_image(
+                    event, temp_path, is_temp=True, is_platform_emoji=True
+                )
+                if success and isinstance(idx, dict):
+                    await plugin_instance.index_manager.save_index(idx)
+                    await event.send(MessageChain([Plain(text="✅ 已收录并自动分类入库")]))
+                else:
+                    await event.send(
+                        MessageChain(
+                            [
+                                Plain(
+                                    text="❌ 未收录（可能被判定为非表情包/审核不通过/重复或处理失败）"
+                                )
+                            ]
+                        )
+                    )
+        except Exception as e:
+            await event.send(MessageChain([Plain(text=f"❌ 收录失败：{e}")]))
+        finally:
+            try:
+                plugin_instance.consume_force_capture(event)
+            except Exception:
+                pass
+
+    async def _clean_raw_directory(self) -> int:
+        """清理 raw 目录中的所有临时文件。"""
+        deleted = 0
+        try:
+            raw_dir = getattr(self.plugin, "raw_dir", None)
+            if raw_dir and raw_dir.exists():
+                for f in raw_dir.iterdir():
+                    try:
+                        if f.is_file():
+                            f.unlink()
+                            deleted += 1
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.warning(f"清理 raw 目录失败: {e}")
+        if deleted:
+            logger.debug(f"raw 目录清理: 删除了 {deleted} 个文件")
+        return deleted
+
+    async def cleanup_async(self) -> None:
+        """异步清理资源。"""
+        await self.stop_background_workers()
+        await self.close_aiohttp_session()
+
+    def cleanup(self):
+        """清理资源。"""
+        if self._cleaned:
+            return
+        self._cleaned = True
+        # 清理强制捕获窗口
+        if hasattr(self, "_force_capture_windows"):
+            self._force_capture_windows.clear()
+        # 清理插件引用
+        self.plugin = None
+        logger.debug("EventHandler 资源已清理")

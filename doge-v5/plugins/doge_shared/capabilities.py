@@ -323,6 +323,7 @@ def agent_capability_prompt() -> str:
         "doge_capability may return deferred media asset IDs; call doge_present only for images that materially improve the answer.",
         "Current session module switches take precedence. Legacy is historical and is not callable by default.",
         "Media vocabulary: meme=/meme fixed-template generation (use doge_meme); emoji/sticker=collected QQ image library (use search_emoji/send_emoji). Their switches are independent.",
+        "Use runtime-resolvable inputs before asking users: current/reply media, sender/mentioned QQ avatars, referenced history, or matching domain tools.",
         "",
         "Top-level map:",
     ]
