@@ -143,8 +143,8 @@
     },
     {
       "name": "doge_memes",
-      "status": "planned",
-      "default": false
+      "status": "formal",
+      "default": true
     },
     {
       "name": "doge_music",
@@ -153,8 +153,8 @@
     },
     {
       "name": "doge_minecraft",
-      "status": "planned",
-      "default": false
+      "status": "formal",
+      "default": true
     },
     {
       "name": "doge_ai",

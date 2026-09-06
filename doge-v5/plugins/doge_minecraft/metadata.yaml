@@ -1,0 +1,5 @@
+name: doge_minecraft
+version: 1.0.0
+desc: v4 Minecraft Java 服务器查询、每会话服务器管理与状态卡片
+author: runnel, QiChen
+repo: https://github.com/ChouYuanjue/doge-repo

@@ -1,0 +1,1 @@
+# Generation engine is pinned as external AstrBot plugin astrbot_plugin_meme_generator.

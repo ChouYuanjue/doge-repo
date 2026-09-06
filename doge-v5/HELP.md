@@ -23,8 +23,8 @@ GROUPS
              西夏文、汉字历史音系、RRPL 与构造语言。
   play        38  游戏 / 群聊实验
              小游戏、解谜、概念炼金、荒诞竞技场与可按群开启的社交增强。
-  media       17  媒体 / 小工具
-             图片识别、Pixiv 插画搜索、网易云点歌、幻影坦克和少量不值得单独成域的小工具。
+  media       32  媒体 / 小工具
+             图片识别、Pixiv、meme 模板、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。
   admin       15  管理
              AstrBot 框架级会话与管理指令，统一收在 /admin 下。
   legacy      81  Legacy / 历史博物馆（默认不加载）
@@ -40,9 +40,9 @@ QUICK START
   /help legacy          历史功能状态
 
 SCALE
-  顶层指令       34
-  正式叶子功能   252
-  正式调用形式   529  （含 277 个兼容别名）
+  顶层指令       36
+  正式叶子功能   267
+  正式调用形式   555  （含 288 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -1238,20 +1238,22 @@ BACK
 
 ## 媒体 / 小工具 (`media`)
 
-图片识别、Pixiv 插画搜索、网易云点歌、幻影坦克和少量不值得单独成域的小工具。
+图片识别、Pixiv、meme 模板、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。
 
 ### `/media`
 
 ```text
 GROUP  media
 媒体 / 小工具
-图片识别、Pixiv 插画搜索、网易云点歌、幻影坦克和少量不值得单独成域的小工具。
+图片识别、Pixiv、meme 模板、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。
 
 COMMANDS
   /media         4  视觉小实验：AnimeTrace 图片识别与本地幻影坦克。
   /pixiv         4  Pixiv 插画搜索：标签搜索优先使用 Pixiv 匿名长期热门种子，再由相关推荐扩展高质量候选，近期热门与最新流依次回退；原图 CDN 下载，Lolicon 负责随机/画师与故障回退；固定关闭 R18、过滤 AI 生成作品。
   /music         4  网易云音乐搜索与 QQ 原生音乐卡片点歌；先搜索再按序号选择，不下载整首歌、不转码。
   /util          5  有用但不值得单独成域的小工具：codec、天气、APOD、Bing 等。
+  /meme          8  v4 meme 正式入口：复用生产 meme-generator 的 300 个模板、图片/引用/@头像参数收集和模板管理。
+  /mc            7  Minecraft Java 服务器真实状态查询、每会话服务器管理与本地状态卡片；沿用 v4 mcstatus 路线。
 
 NEXT
   /help media
@@ -1366,6 +1368,70 @@ SUBCOMMANDS
 
 NEXT
   /help util encode
+
+BACK
+  /help
+```
+
+### `/meme`
+
+```text
+COMMAND  /meme
+v4 meme 正式入口：复用生产 meme-generator 的 300 个模板、图片/引用/@头像参数收集和模板管理。
+
+DIRECT
+  /meme <模板关键词> [文字参数]
+    用 v4 同路线成熟 meme-generator 生成模板图；支持当前/引用图片、@用户头像与文字参数。
+
+SUBCOMMANDS
+  list             渲染可用 meme 模板列表；直接复用上游模板菜单。
+    /meme list [页码]
+  detail           查看模板别名、所需图片/文字、标签与预览。
+    /meme detail <模板关键词>
+  off              禁用一个 meme 模板；仅 Bot 管理员。
+    /meme off <模板关键词>
+  on               重新启用一个 meme 模板；仅 Bot 管理员。
+    /meme on <模板关键词>
+  blist            查看当前禁用模板；仅 Bot 管理员。
+    /meme blist
+  status           查看生产 meme-generator 版本、模板数、冷却与开关状态。
+    /meme status
+  resources        查看 meme-generator 模板资源初始化/下载状态。
+    /meme resources
+
+NEXT
+  /help meme list
+
+BACK
+  /help
+```
+
+### `/mc`
+
+```text
+COMMAND  /mc
+Minecraft Java 服务器真实状态查询、每会话服务器管理与本地状态卡片；沿用 v4 mcstatus 路线。
+
+DIRECT
+  /mc
+    查询当前会话保存的全部 Minecraft Java 服务器真实状态并渲染卡片。
+
+SUBCOMMANDS
+  add              添加 Minecraft Java 服务器；默认先用 mcstatus 真实预查询，force 可保存暂时离线地址。
+    /mc add <名称> <地址> [force]
+  get              按名称或 ID 查看保存的 Minecraft 服务器地址。
+    /mc get <名称|ID>
+  del              按名称或 ID 删除保存的 Minecraft 服务器。
+    /mc del <名称|ID>
+  up               更新服务器名称/地址；新地址默认先真实预查询，末尾 force 可跳过。
+    /mc up <名称|ID> <新名称|-> [新地址] [force]
+  list             列出当前会话保存的 Minecraft 服务器名称、ID 与地址。
+    /mc list
+  cleanup          清理连续 10 天没有成功查询的服务器记录；迁移旧 v4 数据不会被立即误删。
+    /mc cleanup
+
+NEXT
+  /help mc add
 
 BACK
   /help

@@ -13,6 +13,12 @@ DEFAULT_PERSONA_ID = "doge"
 CORE_CONFIG_NAME = "doge_core_config.json"
 MANIFEST_PATH = ROOT / "plugin_manifest.json"
 PLUGIN_SOURCE_DIR = ROOT / "plugins"
+EXTERNAL_PLUGIN_SOURCE_DIR = ROOT / "external_plugins"
+EXTERNAL_DEFAULTS = {
+    "astrbot_plugin_group_chat_plus",
+    "astrbot_plugin_meme_generator",
+    "astrbot_plugin_stealer",
+}
 
 
 def load_json_bom(path: Path) -> dict:
@@ -65,8 +71,38 @@ def sync_default_plugin_links(runtime: Path) -> list[str]:
         linked.append(name)
     return linked
 
+
+def sync_external_plugin_links(runtime: Path) -> list[str]:
+    """Link pinned external engines required by default Doge social/media facades.
+
+    These are Git submodules under ``external_plugins``.  As with Doge plugins,
+    existing real runtime directories are never overwritten.
+    """
+    runtime_plugins = runtime / "data" / "plugins"
+    runtime_plugins.mkdir(parents=True, exist_ok=True)
+    linked: list[str] = []
+    for name in sorted(EXTERNAL_DEFAULTS):
+        source = (EXTERNAL_PLUGIN_SOURCE_DIR / name).resolve()
+        if not source.is_dir():
+            raise FileNotFoundError(f"Pinned external plugin source missing: {name}")
+        target = runtime_plugins / name
+        if target.is_symlink():
+            try:
+                if target.resolve() == source:
+                    continue
+            except OSError:
+                pass
+            target.unlink()
+        elif target.exists():
+            continue
+        target.symlink_to(source, target_is_directory=True)
+        linked.append(name)
+    return linked
+
+
 def install(runtime: Path, *, backup: bool = True) -> None:
     linked_plugins = sync_default_plugin_links(runtime)
+    linked_external = sync_external_plugin_links(runtime)
     personas = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(PERSONA_DIR.glob("*.json"))]
     if not personas:
         raise FileNotFoundError("Doge personas not found")
@@ -193,6 +229,7 @@ def install(runtime: Path, *, backup: bool = True) -> None:
         conn.commit()
 
     print("default_plugins_linked=" + str(len(linked_plugins)))
+    print("external_plugins_linked=" + str(len(linked_external)))
     print("personas=" + ",".join(item["persona_id"] for item in personas))
     print("default_personality=" + cfg["provider_settings"]["default_personality"])
     print("disable_builtin_commands=" + str(cfg["disable_builtin_commands"]).lower())

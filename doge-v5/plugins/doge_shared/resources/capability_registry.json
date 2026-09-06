@@ -83,12 +83,14 @@
     {
       "id": "media",
       "title": "媒体 / 小工具",
-      "summary": "图片识别、Pixiv 插画搜索、网易云点歌、幻影坦克和少量不值得单独成域的小工具。",
+      "summary": "图片识别、Pixiv、meme 模板、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。",
       "commands": [
         "media",
         "pixiv",
         "music",
-        "util"
+        "util",
+        "meme",
+        "mc"
       ]
     },
     {
@@ -235,6 +237,14 @@
     },
     "music": {
       "summary": "网易云音乐搜索与 QQ 原生音乐卡片点歌；先搜索再按序号选择，不下载整首歌、不转码。",
+      "category": "media"
+    },
+    "meme": {
+      "summary": "v4 meme 正式入口：复用生产 meme-generator 的 300 个模板、图片/引用/@头像参数收集和模板管理。",
+      "category": "media"
+    },
+    "mc": {
+      "summary": "Minecraft Java 服务器真实状态查询、每会话服务器管理与本地状态卡片；沿用 v4 mcstatus 路线。",
       "category": "media"
     }
   },
@@ -3959,6 +3969,169 @@
       "aliases": [],
       "args": "none",
       "kind": "command"
+    },
+    {
+      "id": "meme.generate",
+      "path": "meme",
+      "summary": "用 v4 同路线成熟 meme-generator 生成模板图；支持当前/引用图片、@用户头像与文字参数。",
+      "usage": "/meme <模板关键词> [文字参数]",
+      "aliases": [
+        "meme make",
+        "meme gen"
+      ],
+      "args": "required",
+      "kind": "command",
+      "inputs": [
+        {
+          "name": "<图片/引用/@用户>",
+          "description": "按模板需要选填；直接交给上游参数收集器。",
+          "required": false
+        }
+      ]
+    },
+    {
+      "id": "meme.list",
+      "path": "meme list",
+      "summary": "渲染可用 meme 模板列表；直接复用上游模板菜单。",
+      "usage": "/meme list [页码]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "meme.detail",
+      "path": "meme detail",
+      "summary": "查看模板别名、所需图片/文字、标签与预览。",
+      "usage": "/meme detail <模板关键词>",
+      "aliases": [
+        "meme info"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "meme.off",
+      "path": "meme off",
+      "summary": "禁用一个 meme 模板；仅 Bot 管理员。",
+      "usage": "/meme off <模板关键词>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "meme.on",
+      "path": "meme on",
+      "summary": "重新启用一个 meme 模板；仅 Bot 管理员。",
+      "usage": "/meme on <模板关键词>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "meme.blist",
+      "path": "meme blist",
+      "summary": "查看当前禁用模板；仅 Bot 管理员。",
+      "usage": "/meme blist",
+      "aliases": [
+        "meme disabled"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "meme.status",
+      "path": "meme status",
+      "summary": "查看生产 meme-generator 版本、模板数、冷却与开关状态。",
+      "usage": "/meme status",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "meme.resources",
+      "path": "meme resources",
+      "summary": "查看 meme-generator 模板资源初始化/下载状态。",
+      "usage": "/meme resources",
+      "aliases": [
+        "meme resource"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "minecraft.query",
+      "path": "mc",
+      "summary": "查询当前会话保存的全部 Minecraft Java 服务器真实状态并渲染卡片。",
+      "usage": "/mc",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "minecraft.add",
+      "path": "mc add",
+      "summary": "添加 Minecraft Java 服务器；默认先用 mcstatus 真实预查询，force 可保存暂时离线地址。",
+      "usage": "/mc add <名称> <地址> [force]",
+      "aliases": [
+        "mc mcadd"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "minecraft.get",
+      "path": "mc get",
+      "summary": "按名称或 ID 查看保存的 Minecraft 服务器地址。",
+      "usage": "/mc get <名称|ID>",
+      "aliases": [
+        "mc mcget"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "minecraft.delete",
+      "path": "mc del",
+      "summary": "按名称或 ID 删除保存的 Minecraft 服务器。",
+      "usage": "/mc del <名称|ID>",
+      "aliases": [
+        "mc mcdel"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "minecraft.update",
+      "path": "mc up",
+      "summary": "更新服务器名称/地址；新地址默认先真实预查询，末尾 force 可跳过。",
+      "usage": "/mc up <名称|ID> <新名称|-> [新地址] [force]",
+      "aliases": [
+        "mc mcup"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "minecraft.list",
+      "path": "mc list",
+      "summary": "列出当前会话保存的 Minecraft 服务器名称、ID 与地址。",
+      "usage": "/mc list",
+      "aliases": [
+        "mc mclist"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "minecraft.cleanup",
+      "path": "mc cleanup",
+      "summary": "清理连续 10 天没有成功查询的服务器记录；迁移旧 v4 数据不会被立即误删。",
+      "usage": "/mc cleanup",
+      "aliases": [
+        "mc mccleanup"
+      ],
+      "args": "none",
+      "kind": "command"
     }
   ],
   "legacy": {
@@ -4131,8 +4304,8 @@
       },
       "meme": {
         "title": "v3/v4 表情包与模板管理",
-        "state": "archived",
-        "note": "旧模板系统与资源仍有参考价值，但当前正式媒体模块尚未完成；先完整保留历史语义。"
+        "state": "restored",
+        "note": "历史语义已由正式 /meme 模块恢复；此处仅保留版本沿革。"
       },
       "mirage": {
         "title": "v3/v4 幻影坦克图片",
@@ -4166,8 +4339,8 @@
       },
       "mc": {
         "title": "v4 Minecraft 查询/服务器管理",
-        "state": "archived",
-        "note": "旧 mclist/mcget/mcadd/mcdel/mcup 等语义留档；只有在确定真实使用场景后才恢复独立模块。"
+        "state": "restored",
+        "note": "历史语义已由正式 /mc 模块恢复；此处仅保留版本沿革。"
       },
       "law": {
         "title": "v2/v3 法律片段/今日刑法",
@@ -4882,7 +5055,7 @@
         "args": "optional",
         "kind": "command",
         "legacy": true,
-        "state": "archived"
+        "state": "restored"
       },
       {
         "id": "legacy.mirage",
@@ -4959,7 +5132,7 @@
         "args": "optional",
         "kind": "command",
         "legacy": true,
-        "state": "archived"
+        "state": "restored"
       },
       {
         "id": "legacy.mc.mcget",
@@ -4970,7 +5143,7 @@
         "args": "optional",
         "kind": "command",
         "legacy": true,
-        "state": "archived"
+        "state": "restored"
       },
       {
         "id": "legacy.mc.mcadd",
@@ -4981,7 +5154,7 @@
         "args": "optional",
         "kind": "command",
         "legacy": true,
-        "state": "archived"
+        "state": "restored"
       },
       {
         "id": "legacy.mc.mcdel",
@@ -4992,7 +5165,7 @@
         "args": "optional",
         "kind": "command",
         "legacy": true,
-        "state": "archived"
+        "state": "restored"
       },
       {
         "id": "legacy.mc.mcup",
@@ -5003,7 +5176,7 @@
         "args": "optional",
         "kind": "command",
         "legacy": true,
-        "state": "archived"
+        "state": "restored"
       },
       {
         "id": "legacy.law",

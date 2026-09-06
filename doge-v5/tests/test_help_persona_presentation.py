@@ -35,13 +35,13 @@ class CapabilityRegistryTests(unittest.TestCase):
             "help", "ver", "status", "statics", "admin",
             "math", "util", "paper", "bio", "chem", "mat", "astro", "trial",
             "lab", "fourier", "tex", "typst", "md", "snippet", "game", "fuse", "arena", "social",
-            "lang", "media", "run", "lookup", "chaoli", "pixiv", "music", "diagram", "ai", "cs", "eng",
+            "lang", "media", "run", "lookup", "chaoli", "pixiv", "meme", "music", "mc", "diagram", "ai", "cs", "eng",
         }
         self.assertEqual(commands, expected)
         listed = {c for cat in r["categories"] for c in cat["commands"]}
         self.assertEqual(listed, expected)
         c = counts()
-        self.assertEqual(c["top_level"], 34)
+        self.assertEqual(c["top_level"], 36)
         self.assertEqual(c["functions"], len(r["operations"]))
         self.assertEqual(c["forms"], c["functions"] + c["aliases"])
         self.assertEqual(c["aliases"], sum(len(op.get("aliases", [])) for op in r["operations"]))
@@ -258,7 +258,13 @@ class PersonaTests(unittest.TestCase):
             self.assertTrue((data / "plugins" / "doge_pixiv").is_symlink())
             self.assertEqual((data / "plugins" / "doge_pixiv").resolve(), (PLUGINS / "doge_pixiv").resolve())
             self.assertTrue((data / "plugins" / "doge_music").is_symlink())
+            self.assertTrue((data / "plugins" / "doge_memes").is_symlink())
+            self.assertTrue((data / "plugins" / "doge_minecraft").is_symlink())
             self.assertTrue((data / "plugins" / "doge_shared").is_symlink())
+            self.assertTrue((data / "plugins" / "astrbot_plugin_meme_generator").is_symlink())
+            self.assertEqual((data / "plugins" / "astrbot_plugin_meme_generator").resolve(), (ROOT / "external_plugins" / "astrbot_plugin_meme_generator").resolve())
+            self.assertTrue((data / "plugins" / "astrbot_plugin_group_chat_plus").is_symlink())
+            self.assertTrue((data / "plugins" / "astrbot_plugin_stealer").is_symlink())
             out = json.loads((data / "cmd_config.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(out["provider_settings"]["default_personality"], "doge")
             self.assertEqual(out["provider_settings"]["default_provider_id"], "keep-me")
