@@ -34,7 +34,9 @@ PIXIV_HEADERS = {
 WEB_SEARCH_PAGE_SIZE = 60
 WEB_PAGE_WINDOW = 8
 WEB_DETAIL_CONCURRENCY = 4
-WEB_DETAIL_CANDIDATES = 10
+WEB_DETAIL_CANDIDATES = 14
+WEB_RECOMMEND_SEEDS = 3
+WEB_RECOMMEND_LIMIT = 60
 MAX_ORIGINAL_BYTES = 20 * 1024 * 1024
 MAX_REGULAR_BYTES = 12 * 1024 * 1024
 
@@ -290,6 +292,9 @@ class PixivWebClient:
                 for x in tags if isinstance(x, dict)
             ],
             "type": "illust",
+            "bookmark_count": cls._as_int(item.get("bookmarkCount")),
+            "like_count": cls._as_int(item.get("likeCount")),
+            "view_count": cls._as_int(item.get("viewCount")),
             "meta_single_page": {
                 "original_image_url": str(urls.get("original") or ""),
             },
@@ -301,10 +306,7 @@ class PixivWebClient:
             "_source": "pixiv-web",
         }
 
-    async def search(self, query: str, *, page: int = 1) -> tuple[list[dict[str, Any]], int]:
-        text = str(query or "").strip()
-        if not text:
-            return [], 0
+    async def _search_body(self, text: str, *, page: int, s_mode: str) -> dict[str, Any]:
         encoded = quote(text, safe="")
         body = await self._json(
             f"/ajax/search/artworks/{encoded}",
@@ -313,7 +315,7 @@ class PixivWebClient:
                 "order": "date_d",
                 "mode": "all",
                 "p": str(max(1, int(page))),
-                "s_mode": "s_tag",
+                "s_mode": s_mode,
                 "type": "all",
                 "lang": "ja",
             },
@@ -321,10 +323,68 @@ class PixivWebClient:
         )
         if not isinstance(body, dict):
             raise PixivError("Pixiv 搜索返回格式无效")
+        return body
+
+    async def search_bundle(
+        self, query: str, *, page: int = 1
+    ) -> tuple[list[dict[str, Any]], int, list[dict[str, Any]]]:
+        """Return ordinary search rows plus Pixiv's anonymous popular teaser.
+
+        Exact tag matching is attempted first. If Pixiv has no exact-tag rows,
+        fall back to partial tag matching so free-form/niche queries still work.
+        """
+        text = str(query or "").strip()
+        if not text:
+            return [], 0, []
+        body = await self._search_body(text, page=page, s_mode="s_tag_full")
         illust = body.get("illustManga") or {}
         rows = illust.get("data") or [] if isinstance(illust, dict) else []
         total = self._as_int(illust.get("total") if isinstance(illust, dict) else 0)
-        return [self._normalize_search(x) for x in rows if isinstance(x, dict)], total
+        if not rows and total <= 0:
+            body = await self._search_body(text, page=page, s_mode="s_tag")
+            illust = body.get("illustManga") or {}
+            rows = illust.get("data") or [] if isinstance(illust, dict) else []
+            total = self._as_int(illust.get("total") if isinstance(illust, dict) else 0)
+
+        popular_obj = body.get("popular") or {}
+        popular: list[dict[str, Any]] = []
+        if isinstance(popular_obj, dict):
+            for name in ("permanent", "recent"):
+                values = popular_obj.get(name) or []
+                if not isinstance(values, list):
+                    continue
+                for raw in values:
+                    if not isinstance(raw, dict):
+                        continue
+                    item = self._normalize_search(raw)
+                    item["_source"] = "pixiv-web-popular"
+                    item["_popular_kind"] = name
+                    popular.append(item)
+
+        normal = [self._normalize_search(x) for x in rows if isinstance(x, dict)]
+        return normal, total, popular
+
+    async def search(self, query: str, *, page: int = 1) -> tuple[list[dict[str, Any]], int]:
+        rows, total, _popular = await self.search_bundle(query, page=page)
+        return rows, total
+
+    async def recommend(self, pid: str, *, limit: int = WEB_RECOMMEND_LIMIT) -> list[dict[str, Any]]:
+        value = str(pid or "").strip()
+        if not value.isdigit():
+            return []
+        body = await self._json(
+            f"/ajax/illust/{value}/recommend/init",
+            params={"limit": str(max(1, min(int(limit), 100))), "lang": "ja"},
+            referer=f"{PIXIV_WEB_BASE}/artworks/{value}",
+            timeout=10.0,
+        )
+        if not isinstance(body, dict):
+            return []
+        rows = body.get("illusts") or []
+        result = [self._normalize_search(x) for x in rows if isinstance(x, dict)]
+        for item in result:
+            item["_source"] = "pixiv-web-recommend"
+        return result
 
     async def detail(self, pid: str) -> dict[str, Any]:
         value = str(pid or "").strip()
@@ -428,6 +488,34 @@ class PixivService:
             rows.append(item)
         return rows
 
+    @staticmethod
+    def _tag_key(value: object) -> str:
+        text = str(value or "").casefold()
+        return re.sub(r"[\s_\-]+", "", text)
+
+    @classmethod
+    def _matches_query_tag(cls, item: dict, query: str) -> bool:
+        key = cls._tag_key(query)
+        if not key:
+            return False
+        for tag in item.get("tags") or []:
+            value = tag.get("name") if isinstance(tag, dict) else tag
+            if cls._tag_key(value) == key:
+                return True
+        return False
+
+    @staticmethod
+    def _dedupe_candidates(candidates: list[dict]) -> list[dict]:
+        rows: list[dict] = []
+        seen: set[str] = set()
+        for item in candidates:
+            ident = str(item.get("id") or "")
+            if not ident or ident in seen:
+                continue
+            seen.add(ident)
+            rows.append(item)
+        return rows
+
     async def _download_lolicon(self, candidates: list[dict], *, count: int, scope: str) -> list[PixivImage]:
         candidates = self._filter(candidates)
         if not candidates:
@@ -483,6 +571,7 @@ class PixivService:
                 return None
             if not str((detail.get("meta_single_page") or {}).get("original_image_url") or ""):
                 return None
+            detail["_selection_source"] = str(item.get("_source") or "pixiv-web-search")
             return detail
 
         rows = await asyncio.gather(*(one(x) for x in candidates))
@@ -508,23 +597,54 @@ class PixivService:
     async def _search_web(self, query: str, *, count: int, scope: str) -> list[PixivImage]:
         key = f"{scope}|search:{query.casefold()}"
         page = self.seen.next_page(key, WEB_PAGE_WINDOW)
-        candidates, total = await self.web.search(query, page=page)
+        candidates, total, popular = await self.web.search_bundle(query, page=page)
         if not candidates and page != 1:
             self.seen.reset_page(key, 1)
             page = 1
-            candidates, total = await self.web.search(query, page=1)
-        if not candidates:
+            candidates, total, popular = await self.web.search_bundle(query, page=1)
+        if not candidates and not popular:
             raise PixivError("Pixiv 官方搜索没有返回候选")
 
-        # If a query has fewer pages than our diversity window, fold the cursor
-        # back into its real page count while preserving unseen-PID selection.
         max_pages = max(1, min(WEB_PAGE_WINDOW, (max(total, 1) + WEB_SEARCH_PAGE_SIZE - 1) // WEB_SEARCH_PAGE_SIZE))
-        if page > max_pages:
+        if candidates and page > max_pages:
             page = (page - 1) % max_pages + 1
             self.seen.reset_page(key, page)
-            candidates, total = await self.web.search(query, page=page)
+            candidates, total, popular = await self.web.search_bundle(query, page=page)
 
-        ordered = self.seen.ordered(key, [x for x in candidates if self._hard_allowed(x)])
+        popular = self._dedupe_candidates([x for x in popular if self._hard_allowed(x)])
+        permanent = [x for x in popular if str(x.get("_popular_kind") or "permanent") == "permanent"]
+        recent = [x for x in popular if str(x.get("_popular_kind") or "") == "recent"]
+        latest = self._dedupe_candidates([x for x in candidates if self._hard_allowed(x)])
+
+        # Permanent popular works are Pixiv's strongest anonymous quality prior.
+        # Once those are nearly consumed, expand them through Pixiv's own
+        # recommender. Recent-popular works remain a freshness tier below those
+        # relevant recommendations, but still above the raw newest-first stream.
+        seen_ids = set(self.seen.data.get(key, []))
+        unseen_permanent = [x for x in permanent if str(x.get("id") or "") not in seen_ids]
+        recommended: list[dict] = []
+        if popular and len(unseen_permanent) < count:
+            seed_key = key + "|recommend-seeds"
+            seed_source = permanent or popular
+            seed_order = self.seen.ordered(seed_key, seed_source)
+            seeds = seed_order[:WEB_RECOMMEND_SEEDS]
+            self.seen.remember(seed_key, seeds)
+            groups = await asyncio.gather(
+                *(self.web.recommend(str(x.get("pid") or ""), limit=WEB_RECOMMEND_LIMIT) for x in seeds),
+                return_exceptions=True,
+            )
+            for group in groups:
+                if isinstance(group, Exception):
+                    continue
+                for item in group:
+                    if self._hard_allowed(item) and self._matches_query_tag(item, query):
+                        recommended.append(item)
+            recommended = self._dedupe_candidates(recommended)
+
+        # Tier order: long-term popular → relevant recommendations → recent
+        # popular → raw latest. SeenStore still moves unseen PIDs ahead of repeats.
+        pool = self._dedupe_candidates([*permanent, *recommended, *recent, *latest])
+        ordered = self.seen.ordered(key, pool)
         enriched = await self._enrich_web_candidates(ordered[:WEB_DETAIL_CANDIDATES])
         if not enriched:
             raise PixivError("Pixiv 官方搜索候选在过滤后为空")
@@ -581,12 +701,13 @@ class PixivService:
     async def status(self) -> str:
         if self.web.available:
             try:
-                candidates, total = await self.web.search("初音ミク", page=1)
+                candidates, total, popular = await self.web.search_bundle("初音ミク", page=1)
                 safe = sum(1 for x in candidates if self._hard_allowed(x))
+                popular_safe = sum(1 for x in popular if self._hard_allowed(x))
                 return (
                     "Pixiv primary OK · official Web AJAX via isolated proxy · "
-                    f"page_candidates={len(candidates)} safe={safe} total={total} · "
-                    "original CDN first · Lolicon fallback · R18=off · AI=filtered"
+                    f"popular_seeds={popular_safe} page_candidates={len(candidates)} safe={safe} total={total} · "
+                    "permanent→recommend→recent→fresh · original CDN first · Lolicon fallback · R18=off · AI=filtered"
                 )
             except Exception as exc:
                 web_error = type(exc).__name__

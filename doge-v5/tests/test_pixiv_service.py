@@ -100,30 +100,34 @@ class PixivServiceTests(unittest.TestCase):
         self.assertEqual(safe["meta_single_page"]["original_image_url"], "https://i.pximg.net/a.png")
 
     def test_web_search_rotates_pages_and_downloads_original_first(self):
-        from doge_pixiv.service import PixivError
-
         class FakeWeb:
             available = True
             def __init__(self, root):
                 self.root = Path(root)
                 self.pages = []
                 self.downloads = []
-            async def search(self, query, *, page=1):
+            async def search_bundle(self, query, *, page=1):
                 self.pages.append(page)
                 pid = str(page * 100 + 1)
                 return ([{
                     "id": pid + ":0", "pid": pid, "page": 0,
                     "title": f"work-{pid}", "user": {"id": "7", "name": "artist"},
                     "x_restrict": 0, "ai_type": 1, "width": 3000, "height": 2000,
+                    "tags": [{"name": query}],
                     "meta_single_page": {"original_image_url": ""}, "image_urls": {},
-                }], 1000)
+                    "_source": "pixiv-web-search",
+                }], 1000, [])
+            async def recommend(self, pid, *, limit=60):
+                return []
             async def detail(self, pid):
                 return {
                     "id": pid + ":0", "pid": pid, "page": 0,
                     "title": f"work-{pid}", "user": {"id": "7", "name": "artist"},
                     "x_restrict": 0, "ai_type": 1, "width": 3000, "height": 2000,
+                    "tags": [{"name": "patchouli"}],
                     "meta_single_page": {"original_image_url": f"https://i.pximg.net/{pid}-original.png"},
                     "image_urls": {"large": f"https://i.pximg.net/{pid}-regular.jpg"},
+                    "_source": "pixiv-web",
                 }
             async def download_image(self, url, *, pid, max_bytes, timeout=18.0):
                 self.downloads.append(url)
@@ -131,18 +135,137 @@ class PixivServiceTests(unittest.TestCase):
                 path.write_bytes(b"image")
                 return str(path), path.stat().st_size
 
-        with tempfile.TemporaryDirectory() as td:
+        async def scenario(td):
             service = PixivService(td)
             fake = FakeWeb(td)
             service.web = fake
-            first = __import__('asyncio').run(service.search("patchouli", count=1, scope="group:1"))
-            second = __import__('asyncio').run(service.search("patchouli", count=1, scope="group:1"))
+            first = await service.search("patchouli", count=1, scope="group:1")
+            second = await service.search("patchouli", count=1, scope="group:1")
+            return fake, first, second
+
+        with tempfile.TemporaryDirectory() as td:
+            fake, first, second = __import__('asyncio').run(scenario(td))
             self.assertEqual(fake.pages, [1, 2])
             self.assertEqual([first[0].pid, second[0].pid], ["101", "201"])
             self.assertTrue(fake.downloads[0].endswith("101-original.png"))
             self.assertTrue(fake.downloads[1].endswith("201-original.png"))
             self.assertEqual(first[0].quality, "original")
             self.assertEqual(second[0].quality, "original")
+
+    def test_quality_tiers_use_popular_then_recommendations_before_fresh(self):
+        class FakeWeb:
+            available = True
+            def __init__(self, root):
+                self.root = Path(root)
+                self.recommend_calls = []
+            @staticmethod
+            def row(pid, source, tag="若葉睦", ai=1, restrict=0):
+                return {
+                    "id": f"{pid}:0", "pid": str(pid), "page": 0,
+                    "title": str(pid), "user": {"id": "7", "name": "artist"},
+                    "x_restrict": restrict, "ai_type": ai, "width": 1200, "height": 1200,
+                    "tags": [{"name": tag}],
+                    "meta_single_page": {"original_image_url": ""}, "image_urls": {},
+                    "_source": source,
+                }
+            async def search_bundle(self, query, *, page=1):
+                latest = [self.row("900", "pixiv-web-search")]
+                popular = [
+                    self.row("101", "pixiv-web-popular"),
+                    self.row("102", "pixiv-web-popular"),
+                ]
+                return latest, 1000, popular
+            async def recommend(self, pid, *, limit=60):
+                self.recommend_calls.append(str(pid))
+                return [
+                    self.row("201", "pixiv-web-recommend"),
+                    self.row("202", "pixiv-web-recommend", tag="别的角色"),
+                    self.row("203", "pixiv-web-recommend", ai=2),
+                    self.row("204", "pixiv-web-recommend", restrict=1),
+                ]
+            async def detail(self, pid):
+                src = "pixiv-web-recommend" if str(pid).startswith("2") else (
+                    "pixiv-web-popular" if str(pid).startswith("1") else "pixiv-web-search"
+                )
+                row = self.row(pid, src)
+                row["meta_single_page"] = {"original_image_url": f"https://i.pximg.net/{pid}.png"}
+                row["image_urls"] = {"large": f"https://i.pximg.net/{pid}.jpg"}
+                return row
+            async def download_image(self, url, *, pid, max_bytes, timeout=18.0):
+                path = self.root / f"{pid}.png"
+                path.write_bytes(b"image")
+                return str(path), path.stat().st_size
+
+        async def scenario(td):
+            service = PixivService(td)
+            fake = FakeWeb(td)
+            service.web = fake
+            a = await service.search("若葉睦", count=1, scope="g")
+            b = await service.search("若葉睦", count=1, scope="g")
+            c = await service.search("若葉睦", count=1, scope="g")
+            return fake, a, b, c
+
+        with tempfile.TemporaryDirectory() as td:
+            fake, a, b, c = __import__('asyncio').run(scenario(td))
+            self.assertEqual([a[0].pid, b[0].pid, c[0].pid], ["101", "102", "201"])
+            self.assertEqual(a[0].item.get("_selection_source"), "pixiv-web-popular")
+            self.assertEqual(b[0].item.get("_selection_source"), "pixiv-web-popular")
+            self.assertEqual(c[0].item.get("_selection_source"), "pixiv-web-recommend")
+            self.assertTrue(fake.recommend_calls)
+            self.assertNotIn(c[0].pid, {"202", "203", "204", "900"})
+
+    def test_no_popular_seed_uses_fresh_search_without_recommender(self):
+        class FakeWeb:
+            available = True
+            def __init__(self, root):
+                self.root = Path(root)
+                self.recommend_calls = 0
+            async def search_bundle(self, query, *, page=1):
+                return ([{
+                    "id": "9:0", "pid": "9", "page": 0,
+                    "title": "niche", "user": {"id": "1", "name": "a"},
+                    "x_restrict": 0, "ai_type": 1, "width": 900, "height": 900,
+                    "tags": [{"name": query}],
+                    "meta_single_page": {"original_image_url": ""}, "image_urls": {},
+                    "_source": "pixiv-web-search",
+                }], 1, [])
+            async def recommend(self, pid, *, limit=60):
+                self.recommend_calls += 1
+                return []
+            async def detail(self, pid):
+                return {
+                    "id": "9:0", "pid": "9", "page": 0, "title": "niche",
+                    "user": {"id": "1", "name": "a"}, "x_restrict": 0, "ai_type": 1,
+                    "width": 900, "height": 900, "tags": [{"name": "双魚座"}],
+                    "meta_single_page": {"original_image_url": "https://i.pximg.net/9.png"},
+                    "image_urls": {"large": "https://i.pximg.net/9.jpg"},
+                    "_source": "pixiv-web",
+                }
+            async def download_image(self, url, *, pid, max_bytes, timeout=18.0):
+                path = self.root / "9.png"; path.write_bytes(b"image")
+                return str(path), path.stat().st_size
+
+        async def scenario(td):
+            service = PixivService(td); fake = FakeWeb(td); service.web = fake
+            result = await service.search("双魚座", count=1, scope="g")
+            return fake, result
+
+        with tempfile.TemporaryDirectory() as td:
+            fake, result = __import__('asyncio').run(scenario(td))
+            self.assertEqual(result[0].pid, "9")
+            self.assertEqual(fake.recommend_calls, 0)
+            self.assertEqual(result[0].item.get("_selection_source"), "pixiv-web-search")
+
+    def test_recommendation_tag_match_is_exact_after_normalization(self):
+        self.assertTrue(PixivService._matches_query_tag(
+            {"tags": [{"name": "Ave_Mujica"}, {"name": "若葉睦"}]}, "若葉睦"
+        ))
+        self.assertTrue(PixivService._matches_query_tag(
+            {"tags": [{"name": "Ave_Mujica"}]}, "Ave Mujica"
+        ))
+        self.assertFalse(PixivService._matches_query_tag(
+            {"tags": [{"name": "パチュリー"}]}, "パチュリー・ノーレッジ"
+        ))
 
     def test_web_original_failure_falls_back_to_regular(self):
         from doge_pixiv.service import PixivError

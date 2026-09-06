@@ -230,7 +230,7 @@
       "category": "research"
     },
     "pixiv": {
-      "summary": "Pixiv 插画搜索：标签搜索优先使用 Pixiv 官方 Web 候选池与原图 CDN，Lolicon 负责随机/画师与故障回退；固定关闭 R18、过滤 AI 生成作品。",
+      "summary": "Pixiv 插画搜索：标签搜索优先使用 Pixiv 匿名长期热门种子，再由相关推荐扩展高质量候选，近期热门与最新流依次回退；原图 CDN 下载，Lolicon 负责随机/画师与故障回退；固定关闭 R18、过滤 AI 生成作品。",
       "category": "media"
     },
     "music": {
@@ -3884,7 +3884,7 @@
     {
       "id": "pixiv.search",
       "path": "pixiv",
-      "summary": "按标签/关键词搜索 Pixiv 插画；官方候选池按会话/关键词翻页去重，原图优先；群聊最多 3 张，私聊最多 5 张；固定 R18=off、AI filtered。",
+      "summary": "按标签/关键词搜索 Pixiv 插画；长期热门优先，相关推荐严格保留原标签，近期热门与最新流依次回退，并按会话去重；原图优先；群聊最多 3 张，私聊最多 5 张；固定 R18=off、AI filtered。",
       "usage": "/pixiv <标签> [数量]",
       "aliases": [],
       "args": "required",
