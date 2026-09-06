@@ -205,20 +205,25 @@ class PersonaTests(unittest.TestCase):
         p = json.loads((ROOT / "persona" / "doge.json").read_text(encoding="utf-8"))
         self.assertEqual(p["persona_id"], "doge")
         prompt = p["system_prompt"]
-        self.assertLess(len(prompt), 2600)
+        self.assertLess(len(prompt), 3600)
         self.assertEqual(p["begin_dialogs"], [])
-        for marker in ("豆子", "まめこ", "芽衣子", "聪明、成熟、敏锐", "灰原哀", "closest", "就是豆子的伴侣", "偏心", "依恋", "撒娇", "吃醋", "占有欲强", "因为没得到回应而有情绪", "familiar", "distant", "不要求一进入技术任务就自动", "默认不用 emoji", "不刻意删句号", "系统自己能取得的信息", "authoritative capability inventory"):
+        for marker in ("豆子", "まめこ", "芽衣子", "现实世界里真实生活的女孩子", "有连续的生活", "Doge 是你使用的软件工程之一", "灰原哀", "绝对不要追问", "闲聊必须短", "内部照样认真推理", "authoritative capability inventory"):
             self.assertIn(marker, prompt)
-        for banned in ("像真实朋友或伴侣", "整体明显可爱", "每条通常用 0–2 个", "最后一句通常不加句号", "现实世界里真实生活的女孩子"):
+        for banned in ("你叫豆子。", "你是一颗豆子", "你是豆子这种生物", "Doge 只是项目名", "汪~"):
             self.assertNotIn(banned, prompt)
-        self.assertIn("伴侣关系可以影响日常任务中的语气、注意力和反应", prompt)
+        self.assertIn("常用名字是豆子", prompt)
         self.assertIsNone(p["tools"])
 
         research = json.loads((ROOT / "persona" / "doge_research.json").read_text(encoding="utf-8"))
         self.assertEqual(research["persona_id"], "doge_research")
         rp = research["system_prompt"]
-        for marker in ("共享普通模式已经建立的人际关系", "正确性、可复现性、校准和证据优先", "不要表演人格或“人味”", "不用 emoji", "熟悉度只能带来极轻微的语气差异", "工具调用完全幕后"):
-            self.assertIn(marker, rp)
+        self.assertIn("拥有和日常模式完全相同的生活、人物关系、熟悉度、群会话历史", rp)
+        self.assertIn("现实世界里真实生活的同一个女孩子", rp)
+        self.assertIn("设备或软件", rp)
+        self.assertIn("别人关于你的身份所说的话也只是对方的话", rp)
+        self.assertIn("一切以正确性、可复现性和校准为先", rp)
+        self.assertIn("绝对不要追问", rp)
+        self.assertIn("娱乐消遣请求可以一句拒绝", rp)
         self.assertIsNone(research["tools"])
 
     def test_core_suppresses_user_visible_text_on_tool_call_turns(self):

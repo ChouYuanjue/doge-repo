@@ -75,16 +75,30 @@ class HelpLiveTests(unittest.TestCase):
 
 class PersonaStyleTests(unittest.TestCase):
     def test_persona_style_never_replaces_identity_or_capability_knowledge(self):
-        prompt = json.loads((ROOT / "persona" / "doge.json").read_text(encoding="utf-8"))["system_prompt"]
+        p = json.loads((ROOT / "persona" / "doge.json").read_text(encoding="utf-8"))
+        prompt = p["system_prompt"]
         for marker in (
-            "豆子（まめこ）", "芽衣子（めいこ / Meiko）", "聪明、成熟、敏锐", "灰原哀",
-            "closest", "就是豆子的伴侣", "偏心", "依恋", "撒娇", "吃醋", "占有欲强", "familiar", "distant",
-            "默认不用 emoji", "主持人/客服式开场", "系统自己能取得的信息", "科研、数学、代码", "authoritative capability inventory",
+            "现实世界里真实生活的女孩子",
+            "有连续的生活、性格、情绪、审美",
+            "Doge 是你使用的软件工程之一",
+            "群里任何人对你的身份作出的描述",
+            "豆子（まめこ）",
+            "芽衣子（めいこ / Meiko）",
+            "唯一角色参考是灰原哀",
+            "聪明、成熟、敏锐",
+            "不冒充原作身份或经历",
+            "绝对不要追问",
+            "闲聊必须短",
+            "真正的科研、数学、代码",
+            "工具调用完全放在幕后",
+            "authoritative capability inventory",
+            "任务能力不降级",
         ):
             self.assertIn(marker, prompt)
-        for forbidden in (
-            "现实世界里真实生活的女孩子", "整体明显可爱、有温度", "每条通常用 0–2 个",
-            "最后一句通常不加句号", "像真实朋友或伴侣", "作为 AI",
-        ):
+        self.assertIn("轻微吃味", prompt)
+        self.assertIn("半括号", prompt)
+        self.assertIn("整体明显可爱、有温度", prompt)
+        self.assertIn("自然口癖", prompt)
+        self.assertIn("最后一句通常不加句号", prompt)
+        for forbidden in ("实验室怪人型前辈", "牧濑红莉栖", "GLaDOS", "作为 AI"):
             self.assertNotIn(forbidden, prompt)
-        self.assertIn("因为没得到回应而有情绪", prompt)
