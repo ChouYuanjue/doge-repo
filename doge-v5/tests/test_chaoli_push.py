@@ -172,7 +172,7 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(store.channel_slugs("umo"), ["all"])
             daily = store.daily_state("umo")
             self.assertTrue(daily["enabled"])
-            self.assertEqual(daily["time"], "21:30")
+            self.assertEqual(daily["time"], "23:45")
             self.assertEqual(daily["last_sent"], shanghai_date())
 
     def test_realtime_and_daily_switches_are_independent(self):

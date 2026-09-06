@@ -45,7 +45,7 @@ HELP = """Doge Chaoli /chaoli
   /chaoli push status                   查看本群订阅
   /chaoli push test [板块]              预览实时推送样式，不改变水位（群主/管理员）
   /chaoli daily                         立即查看今日活跃；优先坛主推荐 JSON，失败使用按日活跃池
-  /chaoli daily on [HH:MM]              开启本群日报，默认 21:30（群主/管理员）
+  /chaoli daily on [HH:MM]              开启本群日报，默认 23:45（Doge 管理员/群主/群管理员）
   /chaoli daily off|status|test          日报管理/预览；和实时 push 独立
   /chaoli status                        检查 Chaoli 专用代理链
 日报主源为坛主推荐的 #今日活跃 JSON，始终走 Chaoli 专用代理；自动日报失败时使用实时推送维护的按日池。
@@ -53,7 +53,7 @@ HELP = """Doge Chaoli /chaoli
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.28")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.29")
 class DogeChaoli(Star):
     PUSH_LIMIT = 30
     PUSH_INTERVAL = max(60, min(int(os.getenv("DOGE_CHAOLI_PUSH_INTERVAL", "120") or 120), 600))
@@ -111,7 +111,7 @@ class DogeChaoli(Star):
             return f"本群超理自动推送：{labels}。新帖和旧帖新回复分开标记；检查间隔约 {self.PUSH_INTERVAL} 秒。"
 
         if not await is_group_admin(event):
-            raise ValueError("只有本群群主或管理员可以修改或测试超理推送")
+            raise ValueError("只有 Doge 管理员、本群群主或群管理员可以修改或测试超理推送")
 
         if sub in {"on", "add", "enable"}:
             slug = ChaoliService._channel_slug(arg or "all")
@@ -149,7 +149,7 @@ class DogeChaoli(Star):
     def _normalize_daily_time(value: str | None) -> str:
         raw = str(value or DAILY_DEFAULT_TIME).strip()
         if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", raw):
-            raise ValueError("日报时间必须是 HH:MM，例如 21:30")
+            raise ValueError("日报时间必须是 HH:MM，例如 23:45")
         return raw
 
     async def _daily_command(self, event: AstrMessageEvent, raw: str) -> str:
@@ -167,7 +167,7 @@ class DogeChaoli(Star):
                 state = self.push_store.daily_state(umo)
             return f"本群超理日报：{'ON' if state['enabled'] else 'OFF'} · 时间 {state['time']} · 最近发送 {state['last_sent'] or '无'}。实时 push 与日报互不影响。"
         if not await is_group_admin(event):
-            raise ValueError("只有本群群主或管理员可以修改或测试超理日报")
+            raise ValueError("只有 Doge 管理员、本群群主或群管理员可以修改或测试超理日报")
         if sub in {"on", "enable"}:
             time_text = self._normalize_daily_time(parts[1] if len(parts) > 1 else DAILY_DEFAULT_TIME)
             async with self._push_lock:
