@@ -84,8 +84,8 @@
     },
     "doge_social": {
       "kind": "pinned-upstream-social-engines",
-      "source": "pinned AstrBot meme-generator, tagged meme library, and group-chat air-reading plugins",
-      "fallback": "fail closed by group allow-list; explicit engine error instead of simulated output"
+      "source": "pinned tagged QQ emoji/sticker library and group-chat air-reading plugins; Doge exposes the collected-image library as emoji/sticker only, while fixed-template meme generation is owned separately by doge_memes",
+      "fallback": "fail closed by group allow-list for emoji/sticker automation; /social emoji state never changes /meme template availability"
     },
     "doge_linguistics": {
       "kind": "grounded+provenance-labeled",
@@ -138,9 +138,9 @@
       "fallback": "fail closed when NetEase search is unavailable or returns no bound song ID; search results are presented for explicit user selection, and no LLM guessing, synthetic song metadata, third-party playback API, lyrics image, or hot-comment substitution is used"
     },
     "doge_memes": {
-      "kind": "pinned-upstream-renderer",
-      "source": "production astrbot_plugin_meme_generator 2.3.1, descended from the same meme-generator/Rust template route used by v4; current/quoted images, @ avatars and text are collected by the upstream engine",
-      "fallback": "explicit template/resource/cooldown error; no synthetic template or fake generated image"
+      "kind": "pinned-upstream-template-renderer",
+      "source": "pinned astrbot_plugin_meme_generator / meme_generator template corpus and its image/reply/@avatar parameter collector",
+      "fallback": "explicit template/resource/error result; never substitute the collected QQ emoji/sticker library when a template meme is requested"
     },
     "doge_minecraft": {
       "kind": "external-grounded+local-renderer",

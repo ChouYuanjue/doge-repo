@@ -322,6 +322,7 @@ def agent_capability_prompt() -> str:
         "For a specific function or exact syntax, call doge_capability_search once in the user's language, then call doge_capability using the returned documented command. Search again only if candidates are ambiguous; do not duplicate the same search bilingually. Prefer a dedicated domain tool when it already matches the task.",
         "doge_capability may return deferred media asset IDs; call doge_present only for images that materially improve the answer.",
         "Current session module switches take precedence. Legacy is historical and is not callable by default.",
+        "Media vocabulary: meme=/meme fixed-template generation (use doge_meme); emoji/sticker=collected QQ image library (use search_emoji/send_emoji). Their switches are independent.",
         "",
         "Top-level map:",
     ]

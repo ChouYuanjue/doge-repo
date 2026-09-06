@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 from typing import Any
 
-import astrbot.api.message_components as Comp
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
+from data.plugins.doge_shared.agent_tools import DogeEmojiSearchTool, DogeEmojiSendTool, DogeEmojiStealTool, register_domain_tools
 from data.plugins.doge_shared.module_control import is_group_admin
 from data.plugins.doge_shared.presentation import text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
@@ -14,11 +13,18 @@ from data.plugins.doge_shared.raw_command import command_payload, split_head
 _SENTINEL = "__doge_no_group__"
 
 
-@register("doge_social", "runnel", "Doge 群聊社交增强控制面", "5.10.9")
+@register("doge_social", "runnel", "Doge 群聊社交增强：读空气与大表情/贴纸库", "5.10.10")
 class DogeSocial(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         self.context = context
+        register_domain_tools(
+            context,
+            "doge_social",
+            DogeEmojiSearchTool(),
+            DogeEmojiSendTool(),
+            DogeEmojiStealTool(),
+        )
 
     def _external(self, name: str) -> tuple[Any, Any]:
         meta = self.context.get_registered_star(name)
@@ -34,6 +40,11 @@ class DogeSocial(Star):
         if not event.is_admin() and not await is_group_admin(event):
             raise PermissionError("只有 Doge 管理员、群主或群管理员可以修改当前群")
         return gid
+
+    @staticmethod
+    def _require_bot_admin(event: AstrMessageEvent) -> None:
+        if not event.is_admin():
+            raise PermissionError("这个大表情/贴纸库管理动作只允许 Bot 管理员执行")
 
     @staticmethod
     def _real_groups(values: Any) -> list[str]:
@@ -118,61 +129,6 @@ class DogeSocial(Star):
         engine.update_config(updates)
         return sorted(send)
 
-    @contextmanager
-    def _meme_event(self, event: AstrMessageEvent, payload: str):
-        old_message = event.message_str
-        plains = [seg for seg in event.get_messages() if isinstance(seg, Comp.Plain)]
-        old_plain = [seg.text for seg in plains]
-        event.message_str = payload
-        if plains:
-            plains[0].text = payload
-            for seg in plains[1:]:
-                seg.text = ""
-        try:
-            yield
-        finally:
-            event.message_str = old_message
-            for seg, text in zip(plains, old_plain):
-                seg.text = text
-
-    async def _meme_make(self, event: AstrMessageEvent, payload: str):
-        _, engine = self._external("astrbot_plugin_meme_generator")
-        if not payload.strip():
-            raise ValueError("用法：/social meme make <模板关键词> [文字参数]")
-        raw = payload.strip()
-        prefix = str(getattr(getattr(engine, "meme_config", None), "trigger_prefix", "") or "")
-        if prefix:
-            first, sep, tail = raw.partition(" ")
-            raw = f"{prefix}{first}{sep}{tail}"
-        with self._meme_event(event, raw):
-            data = await engine.meme_manager.generate_meme(event)
-        if not data:
-            raise ValueError("没有匹配到模板，或当前还在冷却/资源初始化")
-        return event.chain_result([Comp.Image.fromBytes(data)])
-
-    async def _meme_list(self, query: str = "") -> str:
-        _, engine = self._external("astrbot_plugin_meme_generator")
-        keys = await engine.meme_manager.template_manager.get_all_keywords()
-        q = query.strip().lower()
-        if q:
-            keys = [k for k in keys if q in str(k).lower()]
-        shown = keys[:120]
-        suffix = f"\n……另有 {len(keys)-len(shown)} 个" if len(keys) > len(shown) else ""
-        return "Meme 模板关键词\n" + " · ".join(map(str, shown)) + suffix
-
-    async def _meme_info(self, keyword: str) -> str:
-        _, engine = self._external("astrbot_plugin_meme_generator")
-        info = await engine.meme_manager.get_template_info(keyword.strip())
-        if not info:
-            raise ValueError("没有这个 meme 模板")
-        return (
-            f"{info['name']}\n"
-            f"关键词：{' / '.join(map(str, info.get('keywords') or []))}\n"
-            f"图片：{info['min_images']}–{info['max_images']} 张；"
-            f"文字：{info['min_texts']}–{info['max_texts']} 段\n"
-            f"标签：{' / '.join(map(str, info.get('tags') or [])) or '—'}"
-        )
-
     @filter.command("social")
     async def social(self, event: AstrMessageEvent):
         try:
@@ -185,10 +141,8 @@ class DogeSocial(Star):
             if domain in {"help", "?"}:
                 yield text_result(event,
                     "/social air on|off|status    当前群读空气 + 合适时机主动发言\n"
-                    "/social emoji on|off|status  当前群自动收集/选择大表情包\n"
-                    "/social meme list [过滤词]\n"
-                    "/social meme info <模板>\n"
-                    "/social meme make <模板> [文字]  （支持当前/引用图片与 @ 人）",
+                    "/social emoji on|off|status  当前群自动收集/选择大表情与贴纸\n"
+                    "模板 meme 使用独立的 /meme；两个功能互不影响。",
                     markdown=False)
                 return
 
@@ -208,28 +162,106 @@ class DogeSocial(Star):
 
             if domain in {"emoji", "sticker"}:
                 gid = str(event.get_group_id() or "")
+                _, engine = self._external("astrbot_plugin_stealer")
+                handler = engine.command_handler
+
+                if action in {"help", "?"}:
+                    yield text_result(event,
+                        "/social emoji on|off|status    当前群大表情/贴纸库开关\n"
+                        "/social emoji list [分类] [数量] [页码]\n"
+                        "/social emoji collect on|off   全局自动收集（Bot 管理员）\n"
+                        "/social emoji auto on|off      全局自动发送（Bot 管理员）\n"
+                        "/social emoji capture          30 秒强制收图窗口（Bot 管理员）\n"
+                        "/social emoji analysis on|off  情绪分析（Bot 管理员）\n"
+                        "/social emoji emotion-stats\n"
+                        "/social emoji tag-stats [N]\n"
+                        "/social emoji delete|blacklist <编号|文件名>\n"
+                        "/social emoji scope <编号|文件名> <public|local>\n"
+                        "/social emoji group <scope> <wl|bl> <add|del|clear|show> [target] [id]\n"
+                        "/social emoji clean|capacity|rebuild-index\n"
+                        "固定模板 meme 使用独立 /meme；不受这些开关影响。", markdown=False)
+                    return
+
                 if action in {"on", "off"}:
                     gid = await self._require_group_manager(event)
                     groups = self._set_emoji_group(gid, action == "on")
-                    yield text_result(event, f"当前群自动大表情：{'ON' if action=='on' else 'OFF'}\n启用群：{len(groups)}；会按标签/语义和回复情绪挑选。", markdown=False)
+                    yield text_result(event, f"当前群自动大表情/贴纸：{'ON' if action=='on' else 'OFF'}\n启用群：{len(groups)}；会按标签/语义和回复情绪挑选。模板 /meme 不受此开关影响。", markdown=False)
                     return
-                _, engine = self._external("astrbot_plugin_stealer")
-                cfg = engine.plugin_config
-                groups = sorted(str(x).removeprefix("group:") for x in cfg.send_target_whitelist if str(x).startswith("group:") and _SENTINEL not in str(x))
-                total = engine.db_service.count_total() if getattr(engine, "db_service", None) else 0
-                yield text_result(event, f"当前群自动大表情：{'ON' if gid in groups else 'OFF'}\n已分类大表情：{total}\n启用群：{len(groups)}", markdown=False)
-                return
 
-            if domain == "meme":
-                if action in {"list", "ls"}:
-                    yield text_result(event, await self._meme_list(rest), markdown=False); return
-                if action in {"info", "detail"}:
-                    if not rest: raise ValueError("用法：/social meme info <模板关键词>")
-                    yield text_result(event, await self._meme_info(rest), markdown=False); return
-                if action in {"make", "gen", "generate"}:
-                    yield await self._meme_make(event, rest); return
-                raise ValueError("用法：/social meme list|info|make ...")
+                if action == "status":
+                    groups = sorted(str(x).removeprefix("group:") for x in engine.plugin_config.send_target_whitelist if str(x).startswith("group:") and _SENTINEL not in str(x))
+                    total = engine.db_service.count_total() if getattr(engine, "db_service", None) else 0
+                    yield text_result(event, f"当前群自动大表情/贴纸：{'ON' if gid in groups else 'OFF'}\n已分类大表情/贴纸：{total}\n启用群：{len(groups)}\n模板 /meme：独立可用，不受这里的开关影响。", markdown=False)
+                    return
 
-            raise ValueError("用法：/social air|emoji|meme ...")
+                args = rest.split() if rest else []
+                if action == "list":
+                    category = args[0] if len(args) > 0 else ""
+                    limit = args[1] if len(args) > 1 else "10"
+                    page = args[2] if len(args) > 2 else "1"
+                    async for item in handler.list_images(event, category, limit, page): yield item
+                    return
+                if action in {"emotion-stats", "emotion_stats"}:
+                    async for item in handler.emotion_analysis_stats(event): yield item
+                    return
+
+                # Remaining operations preserve the upstream Bot-admin boundary.
+                self._require_bot_admin(event)
+                if action == "collect":
+                    if not args or args[0] not in {"on", "off"}: raise ValueError("用法：/social emoji collect on|off")
+                    it = handler.meme_on(event) if args[0] == "on" else handler.meme_off(event)
+                    async for item in it: yield item
+                    return
+                if action == "auto":
+                    if not args or args[0] not in {"on", "off"}: raise ValueError("用法：/social emoji auto on|off")
+                    it = handler.auto_on(event) if args[0] == "on" else handler.auto_off(event)
+                    async for item in it: yield item
+                    return
+                if action in {"capture", "偷"}:
+                    async for item in handler.capture(event): yield item
+                    return
+                if action in {"analysis", "natural-analysis", "natural_analysis"}:
+                    mode = args[0] if args else ""
+                    async for item in handler.toggle_natural_analysis(event, mode): yield item
+                    return
+                if action in {"clear-analysis-cache", "clear_emotion_cache"}:
+                    async for item in handler.clear_emotion_cache(event): yield item
+                    return
+                if action in {"tag-stats", "tag_stats"}:
+                    # Upstream 2.8.x accidentally appended raw-cache cleanup code to
+                    # tag_stats and left command_handler.clean undefined. Consume only
+                    # the intended first statistics result, then close the generator.
+                    gen = handler.tag_stats(event, args[0] if args else "")
+                    try:
+                        yield await gen.__anext__()
+                    finally:
+                        await gen.aclose()
+                    return
+                if action == "clean":
+                    deleted = await handler._force_clean_raw_directory()
+                    yield text_result(event, f"raw 临时缓存清理完成，共删除 {deleted} 张；已分类大表情/贴纸不受影响。", markdown=False)
+                    return
+                if action == "capacity":
+                    async for item in handler.enforce_capacity(event): yield item
+                    return
+                if action in {"rebuild-index", "rebuild_index"}:
+                    async for item in handler.rebuild_index(event): yield item
+                    return
+                if action == "delete":
+                    async for item in handler.delete_image(event, args[0] if args else ""): yield item
+                    return
+                if action == "blacklist":
+                    async for item in handler.blacklist_image(event, args[0] if args else ""): yield item
+                    return
+                if action == "scope":
+                    async for item in handler.set_image_scope(event, args[0] if args else "", args[1] if len(args)>1 else ""): yield item
+                    return
+                if action == "group":
+                    padded=(args+["","","","",""])[:5]
+                    async for item in handler.group_filter(event, *padded): yield item
+                    return
+                raise ValueError("用法：/social emoji help")
+
+            raise ValueError("用法：/social air|emoji ...；模板 meme 请用 /meme")
         except Exception as exc:
             yield text_result(event, f"ERROR  /social\n  {exc}\n\n  /social help", markdown=False)

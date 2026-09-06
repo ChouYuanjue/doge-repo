@@ -83,7 +83,7 @@
     {
       "id": "media",
       "title": "媒体 / 小工具",
-      "summary": "图片识别、Pixiv、meme 模板、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。",
+      "summary": "图片识别、Pixiv、固定模板 meme、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。",
       "commands": [
         "media",
         "pixiv",
@@ -224,7 +224,7 @@
       "summary": "图片/SVG/文本轮廓的傅里叶旋转向量动画；延续 v4 Fourier，不是普通 FFT 频谱图。"
     },
     "social": {
-      "summary": "群聊社交增强：读空气主动发言、语义大表情和模板 meme；自动能力默认按群关闭。",
+      "summary": "群聊社交增强：读空气主动发言，以及按群控制的 QQ 大表情/贴纸收集、检索和自动发送；与模板 /meme 独立。",
       "category": "play"
     },
     "chaoli": {
@@ -240,7 +240,7 @@
       "category": "media"
     },
     "meme": {
-      "summary": "v4 meme 正式入口：复用生产 meme-generator 的 300 个模板、图片/引用/@头像参数收集和模板管理。",
+      "summary": "模板 meme 生成：复用生产 meme-generator 的 300 个固定模板、图片/引用/@头像参数收集和模板管理；不受 /social emoji 开关影响。",
       "category": "media"
     },
     "mc": {
@@ -3717,37 +3717,148 @@
     {
       "id": "social.emoji",
       "path": "social emoji",
-      "summary": "按群控制自动收集、标签检索并发送大表情包。",
-      "usage": "/social emoji [{on|off|status}]",
+      "summary": "按群控制已收集 QQ 大表情/贴纸库的自动收集、标签检索与发送；此开关不影响独立的模板 /meme 生成器。",
+      "usage": "/social emoji [{on|off|status|help}]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command",
+      "agent_notes": "emoji/sticker 指群聊素材库，不是 meme-generator 固定模板。自然语言检索/发送使用 search_emoji/send_emoji；模板 meme 使用 doge_meme。"
+    },
+    {
+      "id": "social.emoji.list",
+      "path": "social emoji list",
+      "summary": "列出已收集的 QQ 大表情/贴纸素材，可按分类分页。",
+      "usage": "/social emoji list [分类] [数量] [页码]",
       "aliases": [],
       "args": "optional",
       "kind": "command"
     },
     {
-      "id": "social.meme.list",
-      "path": "social meme list",
-      "summary": "列出 v4 同路线 meme-generator 模板关键词。",
-      "usage": "/social meme list [过滤词]",
-      "aliases": [],
-      "args": "optional",
-      "kind": "command"
-    },
-    {
-      "id": "social.meme.info",
-      "path": "social meme info",
-      "summary": "查看 meme 模板所需图片、文字与标签。",
-      "usage": "/social meme info <模板关键词>",
+      "id": "social.emoji.collect",
+      "path": "social emoji collect",
+      "summary": "全局开启或关闭新大表情/贴纸的自动收集；仅 Bot 管理员。",
+      "usage": "/social emoji collect {on|off}",
       "aliases": [],
       "args": "required",
       "kind": "command"
     },
     {
-      "id": "social.meme.make",
-      "path": "social meme make",
-      "summary": "用成熟 meme-generator 引擎生成模板图；支持当前/引用图片、@用户与头像参数。",
-      "usage": "/social meme make <模板关键词> [文字参数]",
+      "id": "social.emoji.auto",
+      "path": "social emoji auto",
+      "summary": "全局开启或关闭按情绪自动发送已收集的大表情/贴纸；仅 Bot 管理员。",
+      "usage": "/social emoji auto {on|off}",
       "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji.capture",
+      "path": "social emoji capture",
+      "summary": "开启 30 秒强制收图窗口，把随后图片交给现有 VLM 分类并入大表情/贴纸库；仅 Bot 管理员。",
+      "usage": "/social emoji capture",
+      "aliases": [
+        "social emoji 偷"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji.analysis",
+      "path": "social emoji analysis",
+      "summary": "切换大表情/贴纸智能检索使用的自然语言情绪分析；仅 Bot 管理员。",
+      "usage": "/social emoji analysis {on|off}",
+      "aliases": [
+        "social emoji natural-analysis",
+        "social emoji natural_analysis"
+      ],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji.emotion_stats",
+      "path": "social emoji emotion-stats",
+      "summary": "查看大表情/贴纸情绪分析统计和当前模式。",
+      "usage": "/social emoji emotion-stats",
+      "aliases": [
+        "social emoji emotion_stats"
+      ],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji.tag_stats",
+      "path": "social emoji tag-stats",
+      "summary": "查看素材标签/场景统计与无标签条目；安全绕过上游 2.8.x tag_stats 尾部误接 raw 清理代码。",
+      "usage": "/social emoji tag-stats [N]",
+      "aliases": [
+        "social emoji tag_stats"
+      ],
       "args": "optional",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji.delete",
+      "path": "social emoji delete",
+      "summary": "删除指定已收集大表情/贴纸；仅 Bot 管理员。",
+      "usage": "/social emoji delete <编号|文件名>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji.blacklist",
+      "path": "social emoji blacklist",
+      "summary": "拉黑指定已收集大表情/贴纸；仅 Bot 管理员。",
+      "usage": "/social emoji blacklist <编号|文件名>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji.scope",
+      "path": "social emoji scope",
+      "summary": "设置指定素材的 public/local 发送作用域；仅 Bot 管理员。",
+      "usage": "/social emoji scope <编号|文件名> <public|local>",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji.group",
+      "path": "social emoji group",
+      "summary": "管理上游目标过滤黑白名单；完整复用 stealer 的 TargetFilterCommand；仅 Bot 管理员。",
+      "usage": "/social emoji group <scope> <wl|bl> <add|del|clear|show> [target] [id]",
+      "aliases": [],
+      "args": "required",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji.clean",
+      "path": "social emoji clean",
+      "summary": "清理尚未分类的 raw 临时图片缓存，不影响已分类大表情/贴纸；仅 Bot 管理员。",
+      "usage": "/social emoji clean",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji.capacity",
+      "path": "social emoji capacity",
+      "summary": "立即执行现有容量控制，按上游策略删除超限旧素材；仅 Bot 管理员。",
+      "usage": "/social emoji capacity",
+      "aliases": [],
+      "args": "none",
+      "kind": "command"
+    },
+    {
+      "id": "social.emoji.rebuild",
+      "path": "social emoji rebuild-index",
+      "summary": "重建已收集大表情/贴纸索引；仅 Bot 管理员。",
+      "usage": "/social emoji rebuild-index",
+      "aliases": [
+        "social emoji rebuild_index"
+      ],
+      "args": "none",
       "kind": "command"
     },
     {
@@ -3973,7 +4084,7 @@
     {
       "id": "meme.generate",
       "path": "meme",
-      "summary": "用 v4 同路线成熟 meme-generator 生成模板图；支持当前/引用图片、@用户头像与文字参数。",
+      "summary": "用成熟 meme-generator 的固定模板生成模板 meme；支持当前/引用图片、@用户头像与文字参数。",
       "usage": "/meme <模板关键词> [文字参数]",
       "aliases": [
         "meme make",
@@ -3987,7 +4098,8 @@
           "description": "按模板需要选填；直接交给上游参数收集器。",
           "required": false
         }
-      ]
+      ],
+      "agent_notes": "用户明确要求固定模板生成（例如“摸头 meme”“做个鲁迅说”）时使用本能力/doge_meme。该模板生成器拥有独立开关，不随其他群聊素材库状态变化。"
     },
     {
       "id": "meme.list",

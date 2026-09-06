@@ -21,10 +21,10 @@ GROUPS
              排版、结构图、工程系统，以及以图像/动画展示机制的科学实验。
   language    14  语言学
              西夏文、汉字历史音系、RRPL 与构造语言。
-  play        38  游戏 / 群聊实验
+  play        49  游戏 / 群聊实验
              小游戏、解谜、概念炼金、荒诞竞技场与可按群开启的社交增强。
   media       32  媒体 / 小工具
-             图片识别、Pixiv、meme 模板、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。
+             图片识别、Pixiv、固定模板 meme、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。
   admin       15  管理
              AstrBot 框架级会话与管理指令，统一收在 /admin 下。
   legacy      81  Legacy / 历史博物馆（默认不加载）
@@ -41,8 +41,8 @@ QUICK START
 
 SCALE
   顶层指令       36
-  正式叶子功能   267
-  正式调用形式   555  （含 288 个兼容别名）
+  正式叶子功能   278
+  正式调用形式   572  （含 294 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -1200,14 +1200,12 @@ BACK
 
 ```text
 COMMAND  /social
-群聊社交增强：读空气主动发言、语义大表情和模板 meme；自动能力默认按群关闭。
+群聊社交增强：读空气主动发言，以及按群控制的 QQ 大表情/贴纸收集、检索和自动发送；与模板 /meme 独立。
 
 SUBCOMMANDS
   air              按群控制 AI 读空气回复与合适时机主动发言。
     /social air [{on|off|status}]
-  emoji            按群控制自动收集、标签检索并发送大表情包。
-    /social emoji [{on|off|status}]
-  meme              3 功能  列出 v4 同路线 meme-generator 模板关键词。
+  emoji            15 功能  按群控制已收集 QQ 大表情/贴纸库的自动收集、标签检索与发送；此开关不影响独立的模板 /meme 生成器。
 
 NEXT
   /help social air
@@ -1216,21 +1214,47 @@ BACK
   /help
 ```
 
-#### `/help social meme`
+#### `/help social emoji`
 
 ```text
-COMMAND  /social meme
+COMMAND  /social emoji
+
+DIRECT
+  /social emoji [{on|off|status|help}]
+    按群控制已收集 QQ 大表情/贴纸库的自动收集、标签检索与发送；此开关不影响独立的模板 /meme 生成器。
 
 SUBCOMMANDS
-  list             列出 v4 同路线 meme-generator 模板关键词。
-    /social meme list [过滤词]
-  info             查看 meme 模板所需图片、文字与标签。
-    /social meme info <模板关键词>
-  make             用成熟 meme-generator 引擎生成模板图；支持当前/引用图片、@用户与头像参数。
-    /social meme make <模板关键词> [文字参数]
+  list             列出已收集的 QQ 大表情/贴纸素材，可按分类分页。
+    /social emoji list [分类] [数量] [页码]
+  collect          全局开启或关闭新大表情/贴纸的自动收集；仅 Bot 管理员。
+    /social emoji collect {on|off}
+  auto             全局开启或关闭按情绪自动发送已收集的大表情/贴纸；仅 Bot 管理员。
+    /social emoji auto {on|off}
+  capture          开启 30 秒强制收图窗口，把随后图片交给现有 VLM 分类并入大表情/贴纸库；仅 Bot 管理员。
+    /social emoji capture
+  analysis         切换大表情/贴纸智能检索使用的自然语言情绪分析；仅 Bot 管理员。
+    /social emoji analysis {on|off}
+  emotion-stats    查看大表情/贴纸情绪分析统计和当前模式。
+    /social emoji emotion-stats
+  tag-stats        查看素材标签/场景统计与无标签条目；安全绕过上游 2.8.x tag_stats 尾部误接 raw 清理代码。
+    /social emoji tag-stats [N]
+  delete           删除指定已收集大表情/贴纸；仅 Bot 管理员。
+    /social emoji delete <编号|文件名>
+  blacklist        拉黑指定已收集大表情/贴纸；仅 Bot 管理员。
+    /social emoji blacklist <编号|文件名>
+  scope            设置指定素材的 public/local 发送作用域；仅 Bot 管理员。
+    /social emoji scope <编号|文件名> <public|local>
+  group            管理上游目标过滤黑白名单；完整复用 stealer 的 TargetFilterCommand；仅 Bot 管理员。
+    /social emoji group <scope> <wl|bl> <add|del|clear|show> [target] [id]
+  clean            清理尚未分类的 raw 临时图片缓存，不影响已分类大表情/贴纸；仅 Bot 管理员。
+    /social emoji clean
+  capacity         立即执行现有容量控制，按上游策略删除超限旧素材；仅 Bot 管理员。
+    /social emoji capacity
+  rebuild-index    重建已收集大表情/贴纸索引；仅 Bot 管理员。
+    /social emoji rebuild-index
 
 NEXT
-  /help social meme list
+  /help social emoji list
 
 BACK
   /help social
@@ -1238,21 +1262,21 @@ BACK
 
 ## 媒体 / 小工具 (`media`)
 
-图片识别、Pixiv、meme 模板、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。
+图片识别、Pixiv、固定模板 meme、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。
 
 ### `/media`
 
 ```text
 GROUP  media
 媒体 / 小工具
-图片识别、Pixiv、meme 模板、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。
+图片识别、Pixiv、固定模板 meme、Minecraft 状态、网易云点歌、幻影坦克和少量媒体/小工具。
 
 COMMANDS
   /media         4  视觉小实验：AnimeTrace 图片识别与本地幻影坦克。
   /pixiv         4  Pixiv 插画搜索：标签搜索优先使用 Pixiv 匿名长期热门种子，再由相关推荐扩展高质量候选，近期热门与最新流依次回退；原图 CDN 下载，Lolicon 负责随机/画师与故障回退；固定关闭 R18、过滤 AI 生成作品。
   /music         4  网易云音乐搜索与 QQ 原生音乐卡片点歌；先搜索再按序号选择，不下载整首歌、不转码。
   /util          5  有用但不值得单独成域的小工具：codec、天气、APOD、Bing 等。
-  /meme          8  v4 meme 正式入口：复用生产 meme-generator 的 300 个模板、图片/引用/@头像参数收集和模板管理。
+  /meme          8  模板 meme 生成：复用生产 meme-generator 的 300 个固定模板、图片/引用/@头像参数收集和模板管理；不受 /social emoji 开关影响。
   /mc            7  Minecraft Java 服务器真实状态查询、每会话服务器管理与本地状态卡片；沿用 v4 mcstatus 路线。
 
 NEXT
@@ -1377,11 +1401,11 @@ BACK
 
 ```text
 COMMAND  /meme
-v4 meme 正式入口：复用生产 meme-generator 的 300 个模板、图片/引用/@头像参数收集和模板管理。
+模板 meme 生成：复用生产 meme-generator 的 300 个固定模板、图片/引用/@头像参数收集和模板管理；不受 /social emoji 开关影响。
 
 DIRECT
   /meme <模板关键词> [文字参数]
-    用 v4 同路线成熟 meme-generator 生成模板图；支持当前/引用图片、@用户头像与文字参数。
+    用成熟 meme-generator 的固定模板生成模板 meme；支持当前/引用图片、@用户头像与文字参数。
 
 SUBCOMMANDS
   list             渲染可用 meme 模板列表；直接复用上游模板菜单。

@@ -7,6 +7,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star, register
 
+from data.plugins.doge_shared.agent_tools import DogeMemeTool, register_domain_tools
 from data.plugins.doge_shared.help_service import format_cli_error
 from data.plugins.doge_shared.presentation import text_result
 from data.plugins.doge_shared.raw_command import command_payload
@@ -24,11 +25,12 @@ HELP = """Doge Meme /meme
 底层直接复用生产中的 astrbot_plugin_meme_generator；不另造模板引擎。"""
 
 
-@register("doge_memes", "runnel", "v4 meme 正式入口，直接复用成熟 meme-generator 引擎", "1.0.0")
+@register("doge_memes", "runnel", "模板 meme 正式入口，直接复用成熟 meme-generator 引擎", "1.0.1")
 class DogeMemes(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         self.context = context
+        register_domain_tools(context, "doge_memes", DogeMemeTool())
 
     def _engine(self):
         meta = self.context.get_registered_star("astrbot_plugin_meme_generator")

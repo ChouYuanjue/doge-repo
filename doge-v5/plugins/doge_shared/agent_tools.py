@@ -234,6 +234,140 @@ class DogeCthuvianTool(FunctionTool[AstrAgentContext]):
         return await execute_formal_command(context, f"/lang cthuvian {command_action} {text}")
 
 
+def _external_star_from_run_context(context, name: str):
+    plugin_context = context.context.context
+    meta = plugin_context.get_registered_star(name)
+    engine = getattr(meta, "star_cls", None) if meta else None
+    if engine is None:
+        raise RuntimeError(f"required upstream plugin is not loaded: {name}")
+    return engine
+
+
+async def _collect_external_tool(iterator) -> str:
+    chunks: list[str] = []
+    async for item in iterator:
+        if item is not None:
+            chunks.append(str(item))
+    return "\n".join(x for x in chunks if x).strip()
+
+
+def _emoji_tool_text(text: str) -> str:
+    text = str(text or "")
+    text = text.replace("search_meme", "search_emoji").replace("send_meme", "send_emoji")
+    text = text.replace("表情包功能", "大表情/贴纸库功能")
+    text = text.replace("表情包候选", "大表情/贴纸候选")
+    text = text.replace("候选表情包", "候选大表情/贴纸")
+    text = text.replace("表情包列表", "大表情/贴纸列表")
+    text = text.replace("表情包文件", "大表情/贴纸文件")
+    text = text.replace("表情包", "大表情/贴纸")
+    return text
+
+
+@dataclass
+class DogeMemeTool(FunctionTool[AstrAgentContext]):
+    name: str = "doge_meme"
+    description: str = (
+        "模板 meme 生成工具。只用于 meme-generator 的固定模板合成，例如‘摸头 meme’、‘鲁迅说’、‘结婚申请’等；"
+        "可使用当前/引用图片、@用户头像和文字参数。它与群聊收集的大表情/emoji/sticker 库完全独立，"
+        "绝不要因为 emoji/sticker 功能关闭就认为模板 meme 不可用。返回媒体 asset_id 后用 doge_present 发送。"
+    )
+    parameters: dict = Field(default_factory=lambda: {
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["generate", "detail", "list", "status"]},
+            "template": {"type": "string", "description": "generate/detail 时的模板关键词，例如 摸头"},
+            "text": {"type": "string", "description": "generate 时可选文字参数，多个参数按空格保留"},
+            "page": {"type": "integer", "minimum": 1},
+        },
+        "required": ["action"],
+    })
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+        action = str(kwargs.get("action") or "generate").strip().lower()
+        template = str(kwargs.get("template") or "").strip()
+        text = str(kwargs.get("text") or "").strip()
+        if action == "generate":
+            if not template:
+                raise ValueError("meme template keyword is empty")
+            payload = template + ((" " + text) if text else "")
+            return await execute_formal_command(context, f"/meme {payload}")
+        if action == "detail":
+            if not template:
+                raise ValueError("meme template keyword is empty")
+            return await execute_formal_command(context, f"/meme detail {template}")
+        if action == "list":
+            page = max(1, int(kwargs.get("page", 1)))
+            return await execute_formal_command(context, f"/meme list {page}")
+        if action == "status":
+            return await execute_formal_command(context, "/meme status")
+        raise ValueError("unknown meme action")
+
+
+@dataclass
+class DogeEmojiSearchTool(FunctionTool[AstrAgentContext]):
+    name: str = "search_emoji"
+    description: str = (
+        "从当前群允许使用的‘已收集 QQ 大表情/贴纸库’中按角色、图上文字、情绪或画面检索候选。"
+        "这是 emoji/sticker 库，不是模板 meme 生成器；用户说‘某某 meme/模板表情’时应使用 doge_meme，而不是本工具。"
+        "搜索成功后用 send_emoji 发送候选编号。"
+    )
+    parameters: dict = Field(default_factory=lambda: {
+        "type": "object",
+        "properties": {"query": {"type": "string", "description": "2-8 个检索词，如 猫猫 震惊 怎么会这样"}},
+        "required": ["query"],
+    })
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+        engine = _external_star_from_run_context(context, "astrbot_plugin_stealer")
+        event = context.context.event
+        text = await _collect_external_tool(engine.search_meme(event, str(kwargs.get("query") or "")))
+        text = _emoji_tool_text(text)
+        if "已禁用大表情/贴纸库功能" in text:
+            text += "\n这只表示当前会话的 emoji/sticker 库关闭；/meme 模板生成器不受影响。"
+        return text
+
+
+@dataclass
+class DogeEmojiSendTool(FunctionTool[AstrAgentContext]):
+    name: str = "send_emoji"
+    description: str = (
+        "发送 search_emoji 返回的已收集 QQ 大表情/贴纸候选。只接受候选编号；"
+        "不要用于 meme-generator 模板生成。成功时图片已直接发送，本工具会终止当前 Agent 回复。"
+    )
+    parameters: dict = Field(default_factory=lambda: {
+        "type": "object",
+        "properties": {"emoji_id": {"type": "integer", "minimum": 1}},
+        "required": ["emoji_id"],
+    })
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
+        engine = _external_star_from_run_context(context, "astrbot_plugin_stealer")
+        event = context.context.event
+        text = _emoji_tool_text(await _collect_external_tool(engine.send_meme(event, int(kwargs.get("emoji_id")))))
+        if "发送成功" in text:
+            return None
+        return text
+
+
+@dataclass
+class DogeEmojiStealTool(FunctionTool[AstrAgentContext]):
+    name: str = "steal_emoji"
+    description: str = (
+        "把当前消息中的一张图片收进 QQ 大表情/贴纸库，并由现有视觉模型自动打标签。"
+        "只用于收藏 sticker/emoji 素材，不是模板 meme 生成。"
+    )
+    parameters: dict = Field(default_factory=lambda: {
+        "type": "object",
+        "properties": {"image_ref": {"type": "string", "description": "当前消息已有图片 URL 或文件路径"}},
+        "required": ["image_ref"],
+    })
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+        engine = _external_star_from_run_context(context, "astrbot_plugin_stealer")
+        event = context.context.event
+        return _emoji_tool_text(await _collect_external_tool(engine.steal_sticker(event, str(kwargs.get("image_ref") or ""))))
+
+
 @dataclass
 class DogePixivTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_pixiv"

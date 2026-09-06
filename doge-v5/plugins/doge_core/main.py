@@ -24,6 +24,7 @@ from data.plugins.doge_shared.help_live import (
     render_help_live,
     scope_key,
 )
+from data.plugins.doge_shared.media_namespace import remove_stealer_meme_command_group, strip_legacy_stealer_tools
 from data.plugins.doge_shared.module_control import disabled_plugins, filter_toolset_for_session
 from data.plugins.doge_shared.materials import MATERIALS
 from data.plugins.doge_shared.persona_runtime import PersonaRuntime, ReplyBudget
@@ -170,6 +171,12 @@ class DogeCore(Star):
     @filter.on_astrbot_loaded()
     async def install_parallel_agent_runtime(self):
         await install_parallel_agent_patch()
+        remove_stealer_meme_command_group()
+
+    @filter.on_plugin_loaded()
+    async def preserve_media_namespace_after_plugin_load(self, metadata):
+        if str(getattr(metadata, "name", "") or "") == "astrbot_plugin_stealer":
+            remove_stealer_meme_command_group()
 
     def _normalize_platform_history_timestamps(self) -> None:
         """Make AstrBot's SQLite UTC-naive history timestamps UTC-aware at the shared read boundary."""
@@ -403,6 +410,9 @@ class DogeCore(Star):
         affect_scope = event.unified_msg_origin + (f"|sender:{sender}" if sender else "")
         mood = self.affect.observe(affect_scope, event.message_str or "")
         await filter_toolset_for_session(event.unified_msg_origin, req.func_tool)
+        removed_stealer_tools = strip_legacy_stealer_tools(req.func_tool)
+        if removed_stealer_tools:
+            logger.debug("Doge media namespace: hidden ambiguous upstream tools from Agent: %s", ",".join(removed_stealer_tools))
         session_disabled = await disabled_plugins(event.unified_msg_origin)
 
         mode = await self._persona_mode(event, req)

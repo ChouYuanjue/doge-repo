@@ -68,27 +68,11 @@ class SocialTests(unittest.TestCase):
         self.assertEqual(obj._set_emoji_group('200',False),[])
         self.assertEqual(engine.plugin_config.send_target_whitelist,[f'group:{_SENTINEL}'])
 
-    def test_meme_make_adds_hidden_engine_prefix(self):
-        seen=[]
-        class Manager:
-            async def generate_meme(self,event):
-                seen.append(event.message_str); return b"png"
-        engine=SimpleNamespace(meme_config=SimpleNamespace(trigger_prefix="__hidden__"), meme_manager=Manager())
-        meta=SimpleNamespace(config=Config(), star_cls=engine)
-        obj=object.__new__(DogeSocial); obj.context=Ctx({'astrbot_plugin_meme_generator':meta})
-        event=Event('/social meme make 摸头 hello')
-        asyncio.run(obj._meme_make(event,'摸头 hello'))
-        self.assertEqual(seen,['__hidden__摸头 hello'])
-        self.assertEqual(event.message_str,'/social meme make 摸头 hello')
+    def test_social_no_longer_owns_template_meme_route(self):
+        source=(PLUGINS/'doge_social/main.py').read_text(encoding='utf-8')
+        self.assertNotIn('domain == "meme"',source)
+        self.assertNotIn('/social meme make',source)
+        self.assertIn('模板 /meme',source)
 
-    def test_meme_event_rewrite_is_scoped_and_restored(self):
-        obj=object.__new__(DogeSocial); event=Event('/social meme make 摸头 hello')
-        old=[x.text if isinstance(x,Comp.Plain) else None for x in event.chain]
-        with obj._meme_event(event,'摸头 hello'):
-            self.assertEqual(event.message_str,'摸头 hello')
-            self.assertEqual(event.chain[0].text,'摸头 hello')
-            self.assertIsInstance(event.chain[1],Comp.At)
-        self.assertEqual(event.message_str,'/social meme make 摸头 hello')
-        self.assertEqual(event.chain[0].text,old[0])
 
 if __name__=='__main__': unittest.main()
