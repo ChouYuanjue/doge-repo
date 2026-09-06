@@ -30,7 +30,7 @@ from data.plugins.doge_shared.session_control import (
 
 
 
-@register("doge_admin", "runnel", "AstrBot 默认命令的 /admin 命名空间", "5.6.0")
+@register("doge_admin", "runnel", "AstrBot 默认命令的 /admin 命名空间", "5.6.1")
 class DogeAdmin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
@@ -55,9 +55,9 @@ class DogeAdmin(Star):
             "/admin name <alias> [admin]\n"
             "/admin provider [index] [model-index] [admin]\n"
             "/admin dashboard_update [admin]\n"
-            "/admin modules list|on <module>|off <module>|reset  [group admin]\n"
-            "/admin agent status|on|off  [group admin]\n"
-            "/admin persona status|normal|research  [group admin]"
+            "/admin modules list|on <module>|off <module>|reset  [Doge admin / group admin]\n"
+            "/admin agent status|on|off  [Doge admin / group admin]\n"
+            "/admin persona status|normal|research  [Doge admin / group admin]"
         )
 
     @admin.command("sid")
@@ -92,7 +92,7 @@ class DogeAdmin(Star):
         if not event.get_group_id():
             raise PermissionError("这个设置只在群聊中提供")
         if not await is_group_admin(event):
-            raise PermissionError("只有当前群的群主或群管理员可以修改这个设置")
+            raise PermissionError("只有 Doge 管理员、当前群群主或群管理员可以修改这个设置")
 
     @admin.group("modules")
     def modules(self):

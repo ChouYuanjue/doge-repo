@@ -623,14 +623,18 @@ class ModuleControlTests(unittest.TestCase):
         class Event:
             message_obj = SimpleNamespace(group=None)
 
-            def __init__(self, uid):
+            def __init__(self, uid, *, bot_admin=False):
                 self.uid = uid
+                self.bot_admin = bot_admin
 
             def get_group_id(self):
                 return "300"
 
             def get_sender_id(self):
                 return self.uid
+
+            def is_admin(self):
+                return self.bot_admin
 
             async def get_group(self):
                 return group
@@ -639,6 +643,9 @@ class ModuleControlTests(unittest.TestCase):
         self.assertTrue(asyncio.run(is_group_admin(Event("200"))))
         self.assertTrue(asyncio.run(is_group_admin(Event("201"))))
         self.assertFalse(asyncio.run(is_group_admin(Event("999"))))
+        # Absolute/Bot admin outranks QQ group membership. This is the production
+        # /admin agent off case: the owner may be an ordinary QQ group member.
+        self.assertTrue(asyncio.run(is_group_admin(Event("999", bot_admin=True))))
 
 
 class SessionControlTests(unittest.TestCase):

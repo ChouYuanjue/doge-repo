@@ -153,9 +153,22 @@ async def reset_modules(umo: str) -> None:
 
 
 async def is_group_admin(event) -> bool:
-    """Verify actual group owner/admin status; AstrBot global admin alone is not enough."""
+    """Doge admin precedence: global Bot admin, then QQ group owner/admin.
+
+    Runtime-private absolute admins are promoted into AstrBot admins_id by the
+    installer, so event.is_admin() is the authoritative top-level bypass. A Doge
+    owner must never lose admin commands merely because QQ does not mark them as
+    owner/admin in the current group.
+    """
     if not event.get_group_id():
         return False
+    checker = getattr(event, "is_admin", None)
+    if callable(checker):
+        try:
+            if bool(checker()):
+                return True
+        except Exception:
+            pass
     sender = str(event.get_sender_id())
     group = getattr(event.message_obj, "group", None)
     if not group or (not getattr(group, "group_owner", None) and not getattr(group, "group_admins", None)):
