@@ -465,7 +465,10 @@ class DogeCore(Star):
             return
         text = response.completion_text or ""
         if text:
-            text = strip_unsolicited_followup(text, str(event.message_str or ""))
+            user_text = str(event.message_str or "")
+            text = strip_unsolicited_followup(text, user_text)
+            mode = str(event.get_extra("_doge_persona_mode") or "normal")
+            text = self.persona_runtime.normalize_voice(text, mode=mode, user_text=user_text)
             budget = event.get_extra("_doge_reply_budget")
             if isinstance(budget, ReplyBudget):
                 text = self.persona_runtime.enforce_reply_budget(text, budget)

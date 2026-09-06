@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PERSONA_DIR = ROOT / "persona"
 DEFAULT_PERSONA_ID = "doge"
 CORE_CONFIG_NAME = "doge_core_config.json"
+GROUP_CHAT_CONFIG_NAME = "astrbot_plugin_group_chat_plus_config.json"
 MANIFEST_PATH = ROOT / "plugin_manifest.json"
 PLUGIN_SOURCE_DIR = ROOT / "plugins"
 EXTERNAL_PLUGIN_SOURCE_DIR = ROOT / "external_plugins"
@@ -118,6 +119,9 @@ def install(runtime: Path, *, backup: bool = True) -> None:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         shutil.copy2(config_path, config_path.with_name(f"cmd_config.json.pre-v55-{stamp}"))
         shutil.copy2(db_path, db_path.with_name(f"data_v4.db.pre-v55-{stamp}"))
+        group_cfg_path = runtime / "data" / "config" / GROUP_CHAT_CONFIG_NAME
+        if group_cfg_path.exists():
+            shutil.copy2(group_cfg_path, group_cfg_path.with_name(f"{GROUP_CHAT_CONFIG_NAME}.pre-doge-{stamp}"))
 
     cfg = load_json_bom(config_path)
 
@@ -182,32 +186,50 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     ltm["group_message_history_max_cnt"] = 10000
     ltm["group_icl_enable"] = False
 
-    # Use a coding-agent-style soft context budget instead of waiting for the
-    # full 1M DeepSeek window. AstrBot compresses at ~82% of max_context_tokens;
-    # 256 Ki tokens therefore checkpoints around 215k and keeps an exact recent
-    # tail. The summarizer inherits the current provider/model, allowing its
-    # replay request to reuse the warm prefix cache.
+    # Keep the always-sent chat context deliberately small.  The durable group
+    # ledger remains searchable on demand, so paying to replay a six-figure
+    # token transcript on every ordinary turn is wasteful. AstrBot's LLM
+    # compressor triggers at ~82% of this value, i.e. around 16.4k tokens.
+    # Apply the same ceiling to the normal text-chat fallbacks so a provider
+    # failover cannot silently restore a huge context bill.
     provider_settings = cfg.setdefault("provider_settings", {})
     provider_settings["context_limit_reached_strategy"] = "llm_compress"
-    provider_settings["llm_compress_keep_recent_ratio"] = 0.16
+    provider_settings["llm_compress_keep_recent_ratio"] = 0.08
     provider_settings["llm_compress_provider_id"] = ""
     provider_settings["llm_compress_instruction"] = (
-        "Create a compact working-memory checkpoint for this long-lived group chat. "
-        "Preserve stable identities and relationships, explicit user preferences, corrections, "
-        "important decisions and factual conclusions, ongoing or unresolved threads, and useful "
-        "tool/research outcomes. Distinguish confirmed facts from jokes, temporary nicknames, "
-        "role-play, speculation, and transient mood; do not promote those into durable facts. "
-        "Keep exact names, IDs only when already present and genuinely needed, important numbers, "
-        "URLs, commands, and concrete next steps. Omit disposable small talk unless it is needed "
-        "to understand a relationship or unresolved thread. The raw current-group message ledger "
-        "remains searchable on demand, so prefer a concise checkpoint over copying the transcript."
+        "Create a terse working-memory checkpoint for this long-lived group chat, target <=1200 tokens. "
+        "Keep stable identities/relationships, explicit preferences and corrections, important decisions and "
+        "facts, unresolved work, useful tool/research outcomes, exact names/numbers/URLs/commands when needed, "
+        "and concrete next steps. Mark uncertainty; never turn jokes, role-play, nicknames, speculation, or mood "
+        "into facts. Drop disposable small talk. Raw group history is searchable on demand, so summarize instead "
+        "of copying transcript text."
     )
-    default_provider_id = str(provider_settings.get("default_provider_id") or "")
+    chat_provider_ids = {str(provider_settings.get("default_provider_id") or "").strip()}
+    chat_provider_ids.update(str(x).strip() for x in provider_settings.get("fallback_chat_models", []) if str(x).strip())
+    chat_provider_ids.discard("")
     for provider in cfg.get("provider", []):
-        if str(provider.get("id") or "") == default_provider_id and str(provider.get("model") or "").startswith("deepseek-v4-flash"):
-            provider["max_context_tokens"] = 262144
-            break
+        if str(provider.get("id") or "").strip() in chat_provider_ids:
+            provider["max_context_tokens"] = 20000
     write_json_preserve_bom(config_path, cfg)
+
+    # Doge owns visible voice. The upstream proactive defaults repeatedly ask
+    # the model to imitate a human and encourage hurt/self-deprecating retries;
+    # that is both token-heavy and stylistically counterproductive. Keep only a
+    # compact content-first instruction when the external config exists.
+    group_cfg_path = runtime / "data" / "config" / GROUP_CHAT_CONFIG_NAME
+    if group_cfg_path.exists():
+        group_cfg = load_json_bom(group_cfg_path)
+        group_cfg["enable_humanize_mode"] = False
+        group_cfg["proactive_prompt"] = (
+            "直接生成一条值得发出的群消息。结合最近上下文回应具体内容；不要解释为什么开口或复述系统规则。"
+            "禁止模板式寒暄、夸问题、假装身体或线下生活感受、语气词/emoji/括号堆叠和客服式追问。"
+            "不要靠固定口癖、emoji 或括号套路维持人设；若当前上下文明确定为 closest 伴侣关系，就按真实伴侣关系自然表达亲昵、依赖、吃醋、嘴硬、委屈或占有欲，其他关系不得套用。"
+            "优先给事实、判断或真正相关的回应。"
+        )
+        group_cfg["proactive_retry_prompt"] = (
+            "上一次主动消息没有得到回应。换一个有具体信息的新切入点；不要提被忽视，不要委屈、自嘲、催促或重复上条内容。"
+        )
+        write_json_preserve_bom(group_cfg_path, group_cfg)
 
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(sep=" ", timespec="seconds")
     with sqlite3.connect(db_path) as conn:

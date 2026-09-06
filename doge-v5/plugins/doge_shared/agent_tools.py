@@ -432,12 +432,13 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
     description: str = (
         "超理论坛只读工具：所有作者/板块/楼层/用户字段都要求和同一论坛 DOM 实体强绑定；引用与作者本人正文分离，不能据摘要或相邻元素推断。"
         "支持论坛原生 POST AJAX 搜索、最新/分板主题、帖子/楼层、严格用户名验证、用户公开活动、引用链和链接预览。"
+        "如果用户给出含 /pN#pPOSTID 或 /conversation/post/POSTID 的具体楼层链接，必须把原链接原样传给 read/preview；不要先 outline、不要改写 permalink、不要自己猜楼号。"
     )
     parameters: dict = Field(default_factory=lambda: {
         "type":"object",
         "properties":{
-            "action":{"type":"string","enum":["search","latest","channel","read","floor","context","outline","user","links","preview","status"]},
-            "target":{"type":"string","description":"板块名、帖子号/链接或用户名/用户ID/用户链接，按 action 解释"},
+            "action":{"type":"string","enum":["search","daily","latest","channel","read","floor","context","outline","user","links","preview","status"]},
+            "target":{"type":"string","description":"板块名、帖子号/完整链接或用户名/用户ID/用户链接，按 action 解释；具体楼层 URL 必须保留 #p... 锚点"},
             "query":{"type":"string","description":"search 时的超理原生查询词；支持 #精品 等论坛搜索语法"},
             "channel":{"type":"string","description":"search 时可选板块，例如 数学/maths/physics；默认 all"},
             "floor":{"type":"integer","minimum":1},
@@ -460,6 +461,7 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
         async def strict(awaitable):
             return self._strict_result(await awaitable)
         if a=="search": return await strict(ChaoliService.search(str(kwargs.get("query") or target),str(kwargs.get("channel") or "all"),int(kwargs.get("limit",10))))
+        if a=="daily": return await execute_formal_command(context, "/chaoli daily")
         if a=="latest": return await strict(ChaoliService.latest("all",int(kwargs.get("limit",10))))
         if a=="channel": return await strict(ChaoliService.latest(str(kwargs.get("channel") or target or "all"),int(kwargs.get("limit",10))))
         if a=="read": return await strict(ChaoliService.read(target))

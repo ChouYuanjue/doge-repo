@@ -13,7 +13,7 @@ USAGE
 GROUPS
   system       4  系统 / 状态
              认识当前实例、查看运行状态与使用统计。
-  research    61  检索 / 科研
+  research    62  检索 / 科研
              论文、知识检索，以及生化环材、天文和临床数据。
   compute     25  数学 / 计算机 / AI
              精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
@@ -41,8 +41,8 @@ QUICK START
 
 SCALE
   顶层指令       36
-  正式叶子功能   278
-  正式调用形式   572  （含 294 个兼容别名）
+  正式叶子功能   279
+  正式调用形式   573  （含 294 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -168,16 +168,18 @@ BACK
 
 ```text
 COMMAND  /chaoli
-超理论坛严格只读：原生帖子搜索/分板/帖子/楼层/用户活动，以及群级新帖/旧帖新回复订阅推送；作者、最后回复者、楼层和用户均按页面实体强绑定。
+超理论坛严格只读：原生搜索、精确帖子/楼层、#今日活跃日报，以及独立的实时新帖/旧帖新回复群推送；具体楼层 URL 的分页与 post 锚点作为 authoritative locator 原样解析。
 
 SUBCOMMANDS
   search           使用超理原生 POST AJAX 搜索；每条结果强绑定主题 ID、板块、首帖作者与最后回复者，不把更新时间归给首帖作者。
     /chaoli search <查询> [--board 板块] [--limit N]
+  daily            超理日报：优先经 Chaoli 专用代理使用坛主提供的 #今日活跃 index.json/all 语义，以论坛原生 session/token POST 获取结构化 results；失败才使用实时 push 差分维护的按日活跃池，空池/停机修复再退到原生 AJAX POST。日报与实时 push 独立。
+    /chaoli daily [now|on [HH:MM]|off|status|test]
   latest           查看超理最新主题流；首帖作者、最后回复者、发表/更新时间分别绑定，未知板块直接报错而不静默回退。
     /chaoli latest [板块] [数量]
   channel          严格按指定板块浏览主题；板块 slug 与每个主题卡的 data-channel 必须一致。
     /chaoli channel <板块> [数量]
-  read             读取主题楼层；按真实楼号和作者绑定，删除楼层保留占位，引用块与当前楼作者正文分离。
+  read             读取主题或具体楼层链接；/pN#pPOSTID 与 /conversation/post/POSTID 原样定位到对应分页/楼层，按真实作者和楼号绑定，删除楼保留占位，引用与本楼正文分离。
     /chaoli read <帖子号|链接>
   floor            精确读取指定真实楼层；删除楼层明确标记，引用内容不会归到本楼作者。
     /chaoli floor <帖子号> <楼层>
@@ -189,7 +191,7 @@ SUBCOMMANDS
     /chaoli user <用户名|用户ID|链接>
   links            只从帖子正文区域抽取其他 Chaoli 帖子链接，不扫描页面导航或其他 UI。
     /chaoli links <帖子号|链接>
-  preview          严格预览首个可见楼层：标题、首楼作者、最高楼层和首楼本人正文均来自同一主题页。
+  preview          预览主题；若输入含具体 post 锚点/permalink，则直接预览该楼而非退化到首楼或自行猜楼号。
     /chaoli preview <帖子号|链接>
   status           检查 Chaoli 专用选择性代理与论坛首页是否可达。
     /chaoli status

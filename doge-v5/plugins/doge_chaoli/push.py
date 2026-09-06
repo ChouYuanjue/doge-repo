@@ -5,12 +5,16 @@ import json
 import os
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from data.plugins.doge_shared.chaoli import ThreadCard
 
 
 MAX_TRACKED_THREADS = 800
+DAILY_DEFAULT_TIME = "21:30"
+SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 def reply_count(value: str | int | None) -> int | None:
@@ -28,6 +32,46 @@ def card_snapshot(card: ThreadCard) -> dict:
         "last_author": str(card.last_author or ""),
         "last_author_id": card.last_author_id,
     }
+
+def daily_card_snapshot(card: ThreadCard) -> dict:
+    return {
+        "thread_id": int(card.thread_id),
+        "title": str(card.title or ""),
+        "channel": str(card.channel or ""),
+        "channel_slug": str(card.channel_slug or ""),
+        "author": str(card.author or ""),
+        "author_id": card.author_id,
+        "started": str(card.started or ""),
+        "last_author": str(card.last_author or ""),
+        "last_author_id": card.last_author_id,
+        "updated": str(card.updated or ""),
+        "replies": str(card.replies or ""),
+        "url": str(card.url or ""),
+        "crc": str(card.crc or ""),
+    }
+
+
+def daily_card_from_snapshot(value: dict) -> ThreadCard:
+    return ThreadCard(
+        thread_id=int(value.get("thread_id") or 0),
+        title=str(value.get("title") or ""),
+        excerpt="",
+        channel=str(value.get("channel") or ""),
+        channel_slug=str(value.get("channel_slug") or ""),
+        author=str(value.get("author") or ""),
+        author_id=value.get("author_id") if isinstance(value.get("author_id"), int) else None,
+        started=str(value.get("started") or ""),
+        last_author=str(value.get("last_author") or ""),
+        last_author_id=value.get("last_author_id") if isinstance(value.get("last_author_id"), int) else None,
+        updated=str(value.get("updated") or ""),
+        replies=str(value.get("replies") or ""),
+        url=str(value.get("url") or ""),
+        crc=str(value.get("crc") or ""),
+    )
+
+
+def shanghai_date() -> str:
+    return datetime.now(SHANGHAI).date().isoformat()
 
 
 def primed_channel_state(cards: list[ThreadCard]) -> dict:
@@ -134,12 +178,82 @@ def format_push_message(events: list[PushEvent], *, test: bool = False) -> str:
         sections.append(f"旧帖新回复（{len(replies)}）\n" + "\n\n".join(_event_block(x) for x in replies))
     return "\n\n".join(sections)
 
+def format_daily_message(cards: list[ThreadCard], date: str, source: str, *, test: bool = False) -> str:
+    title = f"超理日报{'测试' if test else ''} · {date} · 今日活跃 {len(cards)} 主题"
+    rows: list[str] = []
+    for card in cards[:20]:
+        meta = [card.channel] if card.channel else []
+        if card.author:
+            meta.append(f"发帖：{card.author}")
+        if card.last_author:
+            meta.append(f"最后回复：{card.last_author}")
+        replies = reply_count(card.replies)
+        if replies is not None:
+            meta.append(f"回复：{replies}")
+        rows.append(f"#{card.thread_id} {card.title}" + (("\n" + " · ".join(meta)) if meta else "") + f"\n{card.url}")
+    body = "\n\n".join(rows) if rows else "今天的本地活跃池没有记录到主题。"
+    return f"{title}\n来源：{source}\n\n{body}"
+
+
+class ChaoliDailyPool:
+    """Small per-day fallback pool fed by the real-time push path."""
+
+    def __init__(self, path: str | Path):
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.data = {"schema": 1, "date": "", "seq": 0, "cards": {}}
+        self._load()
+
+    def _load(self) -> None:
+        if not self.path.exists():
+            return
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict) and isinstance(raw.get("cards", {}), dict):
+                self.data = {"schema": 1, "date": str(raw.get("date") or ""), "seq": int(raw.get("seq") or 0), "cards": raw.get("cards", {})}
+        except Exception:
+            pass
+
+    def save(self) -> None:
+        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+        tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(tmp, self.path)
+
+    def reset(self, date: str, cards: list[ThreadCard] | None = None) -> None:
+        self.data = {"schema": 1, "date": str(date), "seq": 0, "cards": {}}
+        if cards:
+            self.merge(date, cards)
+        else:
+            self.save()
+
+    def merge(self, date: str, cards: list[ThreadCard]) -> None:
+        if self.data.get("date") != date:
+            self.data = {"schema": 1, "date": str(date), "seq": 0, "cards": {}}
+        target = self.data.setdefault("cards", {})
+        # Input is newest/most-relevant first. Give its first item the highest
+        # local observation sequence; later realtime activity can re-promote an
+        # older thread without another forum request.
+        for card in reversed(cards):
+            self.data["seq"] = int(self.data.get("seq") or 0) + 1
+            snap = daily_card_snapshot(card)
+            snap["seen_seq"] = self.data["seq"]
+            target[str(card.thread_id)] = snap
+        self.save()
+
+    def cards(self, date: str) -> list[ThreadCard]:
+        if self.data.get("date") != date:
+            return []
+        raw_rows = [v for v in self.data.get("cards", {}).values() if isinstance(v, dict)]
+        raw_rows.sort(key=lambda v: (int(v.get("seen_seq") or 0), int(v.get("thread_id") or 0)), reverse=True)
+        rows = [daily_card_from_snapshot(v) for v in raw_rows]
+        return [x for x in rows if x.thread_id > 0]
+
 
 class ChaoliPushStore:
     def __init__(self, path: str | Path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.data = {"schema": 1, "subscriptions": {}}
+        self.data = {"schema": 2, "subscriptions": {}}
         self.load_error = ""
         self._load()
 
@@ -150,7 +264,20 @@ class ChaoliPushStore:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             if not isinstance(raw, dict) or not isinstance(raw.get("subscriptions", {}), dict):
                 raise ValueError("invalid root")
-            self.data = {"schema": 1, "subscriptions": raw.get("subscriptions", {})}
+            subs = raw.get("subscriptions", {})
+            migrated = int(raw.get("schema") or 1) < 2
+            today = shanghai_date()
+            for _umo, sub in subs.items():
+                if not isinstance(sub, dict):
+                    continue
+                if not isinstance(sub.get("daily"), dict):
+                    # Existing real-time subscribers gain the daily report, but
+                    # deployment never backfills a report for the current day.
+                    sub["daily"] = {"enabled": bool(sub.get("channels")), "time": DAILY_DEFAULT_TIME, "last_sent": today}
+                    migrated = True
+            self.data = {"schema": 2, "subscriptions": subs}
+            if migrated:
+                self.save()
         except Exception as exc:
             self.load_error = type(exc).__name__
 
@@ -170,7 +297,8 @@ class ChaoliPushStore:
 
     def enable(self, umo: str, slug: str, cards: list[ThreadCard]) -> str:
         subs = self.data.setdefault("subscriptions", {})
-        sub = subs.setdefault(umo, {"channels": {}})
+        sub = subs.setdefault(umo, {"channels": {}, "daily": {"enabled": True, "time": DAILY_DEFAULT_TIME, "last_sent": shanghai_date()}})
+        sub.setdefault("daily", {"enabled": True, "time": DAILY_DEFAULT_TIME, "last_sent": shanghai_date()})
         channels = sub.setdefault("channels", {})
         if slug == "all":
             if set(channels) == {"all"}:
@@ -194,13 +322,17 @@ class ChaoliPushStore:
             return "missing"
         channels = sub.get("channels", {})
         if slug is None:
-            subs.pop(umo, None)
+            channels.clear()
+            daily = sub.get("daily") if isinstance(sub.get("daily"), dict) else {}
+            if not daily.get("enabled"):
+                subs.pop(umo, None)
             self.save()
             return "disabled"
         if not isinstance(channels, dict) or slug not in channels:
             return "covered" if isinstance(channels, dict) and "all" in channels and slug != "all" else "missing"
         channels.pop(slug, None)
-        if not channels:
+        daily = sub.get("daily") if isinstance(sub.get("daily"), dict) else {}
+        if not channels and not daily.get("enabled"):
             subs.pop(umo, None)
         self.save()
         return "disabled"
@@ -220,3 +352,41 @@ class ChaoliPushStore:
         sub = self.data.get("subscriptions", {}).get(umo, {})
         channels = sub.get("channels", {}) if isinstance(sub, dict) else {}
         return sorted(str(x) for x in channels) if isinstance(channels, dict) else []
+
+    def daily_state(self, umo: str) -> dict:
+        sub = self.data.get("subscriptions", {}).get(umo, {})
+        daily = sub.get("daily", {}) if isinstance(sub, dict) else {}
+        if not isinstance(daily, dict):
+            return {"enabled": False, "time": DAILY_DEFAULT_TIME, "last_sent": ""}
+        return {
+            "enabled": bool(daily.get("enabled")),
+            "time": str(daily.get("time") or DAILY_DEFAULT_TIME),
+            "last_sent": str(daily.get("last_sent") or ""),
+        }
+
+    def set_daily(self, umo: str, enabled: bool, time_text: str | None = None) -> dict:
+        subs = self.data.setdefault("subscriptions", {})
+        sub = subs.setdefault(umo, {"channels": {}})
+        daily = sub.setdefault("daily", {})
+        daily["enabled"] = bool(enabled)
+        if time_text:
+            daily["time"] = str(time_text)
+        else:
+            daily.setdefault("time", DAILY_DEFAULT_TIME)
+        # Turning a daily on never emits a retroactive report immediately.
+        if enabled:
+            daily["last_sent"] = shanghai_date()
+        if not enabled and not sub.get("channels"):
+            subs.pop(umo, None)
+        self.save()
+        return self.daily_state(umo) if umo in subs else {"enabled": False, "time": str(daily.get("time") or DAILY_DEFAULT_TIME), "last_sent": str(daily.get("last_sent") or "")}
+
+    def mark_daily_sent(self, umo: str, date: str) -> None:
+        sub = self.data.get("subscriptions", {}).get(umo)
+        if not isinstance(sub, dict):
+            return
+        daily = sub.get("daily")
+        if not isinstance(daily, dict):
+            return
+        daily["last_sent"] = str(date)
+        self.save()

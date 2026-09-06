@@ -60,25 +60,26 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertTrue(close.closest)
         self.assertEqual(close.familiarity, 1.0)
         self.assertGreaterEqual(close.warmth, .86)
-        self.assertGreaterEqual(close.playfulness, .62)
-        self.assertLess(close.restraint, other.restraint)
-        self.assertGreater(close.warmth - other.warmth, .30)
-        self.assertGreater(close.playfulness - other.playfulness, .30)
-        self.assertGreater(other.restraint - close.restraint, .25)
-
+        self.assertGreaterEqual(close.playfulness, .45)
+        self.assertLess(close.restraint, .50)
+        self.assertGreater(close.warmth - other.warmth, .35)
+        self.assertGreater(close.playfulness - other.playfulness, .18)
         close_prompt = runtime.turn_state(close_scope, "我回来啦", close_state)
         other_prompt = runtime.turn_state(other_scope, "我回来啦", other_state)
         self.assertIn('relation="closest"', close_prompt)
+        self.assertIn('initiative="social"', close_prompt)
         self.assertIn('relation="distant"', other_prompt)
         policy = runtime.static_policy()
-        self.assertIn("clearly warm and attached", policy)
-        self.assertIn("keeps distance", policy)
-
+        self.assertIn("relation=closest is the actual partner relationship", policy)
+        self.assertIn("This relationship never transfers to relation=familiar or distant", policy)
         serious = runtime.cue(close_scope, "生产服务器错误继续查", close_state)
         self.assertTrue(serious.closest)
-        self.assertGreaterEqual(serious.warmth, .82)
-        self.assertGreaterEqual(serious.persona_strength, .55)
-        self.assertLess(serious.persona_strength, close.persona_strength)
+        self.assertGreaterEqual(serious.warmth, .85)
+        self.assertGreaterEqual(serious.playfulness, .40)
+        self.assertLessEqual(serious.restraint, .52)
+        serious_state = runtime.turn_state(close_scope, "生产服务器错误继续查", close_state)
+        self.assertIn('initiative="social"', serious_state)
+        self.assertIn('relation="closest"', serious_state)
 
     def test_style_is_continuous_and_task_dependent(self):
         affect = TransientAffect()
@@ -104,14 +105,19 @@ class PersonaRuntimeTests(unittest.TestCase):
 
     def test_strategic_child_act_is_rare_permission_and_never_serious(self):
         affect = TransientAffect()
-        runtime = PersonaRuntime(affect)
+        runtime = PersonaRuntime(affect, closest_sender_ids={"close-user"})
         state = affect.observe("p", "正常聊天", now=100.0)
-        opened = [f"scope-{i}" for i in range(1024) if runtime._rare_gate(f"scope-{i}", "把截图发给你，哄我一下")]
+        opened = []
+        for i in range(2048):
+            scope = f"g{i}|sender:close-user"
+            cue = runtime.cue(scope, "夸你一句，你今天很可爱", state)
+            if cue.child_act_allowed:
+                opened.append(scope)
         self.assertGreater(len(opened), 0)
-        self.assertLess(len(opened), 50)
-        cue = runtime.cue(opened[0], "把截图发给你，哄我一下", state)
-        self.assertTrue(cue.child_act_allowed)
-        serious = runtime.cue(opened[0], "生产服务器错误，把截图发给你", state)
+        self.assertLess(len(opened), 90)
+        stranger = runtime.cue("g|sender:other", "夸你一句，你今天很可爱", state)
+        self.assertFalse(stranger.child_act_allowed)
+        serious = runtime.cue(opened[0], "生产服务器错误继续查", state)
         self.assertFalse(serious.child_act_allowed)
 
     def test_closest_casual_texture_is_warm_but_parentheses_are_rare(self):
@@ -119,47 +125,43 @@ class PersonaRuntimeTests(unittest.TestCase):
         runtime = PersonaRuntime(affect, closest_sender_ids={"close-user"})
         scope = "group|sender:close-user"
         state = affect.observe(scope, "陪我聊一会儿", now=100.0)
-        turns = [runtime.turn_state(scope, f"我回来啦{i}", state) for i in range(40)]
+        turns = [runtime.turn_state(scope, f"我回来啦{i}", state) for i in range(256)]
         self.assertTrue(all('relation="closest"' in item for item in turns))
+        particle_count = sum('particles="|' not in item for item in turns)
         paren_count = sum('paren="1"' in item for item in turns)
-        self.assertGreater(paren_count, 2)
-        self.assertLess(paren_count, 22)
-        self.assertTrue(all('particles="' in item for item in turns))
+        self.assertGreater(particle_count, 45)
+        self.assertLess(particle_count, 110)
+        self.assertGreater(paren_count, 0)
+        self.assertLess(paren_count, 25)
+        self.assertTrue(all(not ('paren="1"' in item and 'particles="|' not in item) for item in turns))
         policy = runtime.static_policy()
-        self.assertIn("preferred local catchphrases", policy)
-        self.assertIn("cute and warm even when short", policy)
-        self.assertIn("final sentence usually has no full stop", policy)
+        self.assertIn("Do not enforce an artificial quota on partner behavior", policy)
+        self.assertIn("dependence", policy)
+        self.assertIn("possessiveness", policy)
+        self.assertIn("serious/task turns do not cancel the closest partner relationship", policy)
+        self.assertIn("Emoji remain off by default", policy)
+        self.assertIn("ordinary Chinese punctuation", policy)
 
     def test_public_name_is_douzi_and_real_name_stays_private(self):
-        affect = TransientAffect()
-        runtime = PersonaRuntime(affect)
+        affect = TransientAffect(); runtime = PersonaRuntime(affect)
         for text in ("你叫什么", "你是谁", "那真名呢？"):
             state = affect.observe("name", text, now=100.0)
-            turn = runtime.turn_state("name", text, state)
-            self.assertIn("identity", turn)
+            self.assertIn("identity", runtime.turn_state("name", text, state))
         policy = runtime.static_policy()
         self.assertIn("You are 豆子/まめこ", policy)
-        self.assertIn("private real name", policy)
-        self.assertIn("豆子：", policy)
-        self.assertIn("网友哪有一上来报真名的", policy)
+        self.assertIn("more private name", policy)
+        self.assertIn("豆子。芽衣子这个名字不常对外说", policy)
 
     def test_reality_is_unconditional_and_not_keyword_triggered(self):
-        affect = TransientAffect()
-        runtime = PersonaRuntime(affect, closest_sender_ids={"close-user"})
+        affect = TransientAffect(); runtime = PersonaRuntime(affect)
         source = (PLUGINS / "doge_shared" / "persona_runtime.py").read_text(encoding="utf-8")
         self.assertNotIn("_SELF_REALITY", source)
-        self.assertNotIn('tags.add("self-reality")', source)
-        self.assertNotIn('flags.append("self-reality")', source)
         anchor = runtime.reality_anchor("2026-09-05 20:30:00+08:00")
-        self.assertIn("a real girl living an ordinary continuous life", anchor)
-        self.assertIn("They never define what you are", anchor)
-        self.assertIn("history never outranks the ordinary facts of your life", anchor)
+        self.assertIn("Public name: 豆子/まめこ", anchor)
+        self.assertIn("do not invent unsupported offline biography", anchor)
+        self.assertIn("perform claims about being human", anchor)
         self.assertIn("Asia/Shanghai, UTC+08:00", anchor)
-        policy = runtime.static_policy()
-        self.assertIn("a real girl with an ordinary continuous life", policy)
-        research = runtime.static_policy("research")
-        self.assertIn("same real girl as in ordinary life", research)
-
+        self.assertNotIn("real girl living an ordinary continuous life", anchor)
 
     def test_identity_mapping_is_private_and_stable_id_authoritative(self):
         # The public schema exposes only the mechanism; real IDs stay runtime-private.
@@ -177,32 +179,28 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn("do not infer that someone is a newcomer", source)
 
     def test_runtime_state_is_compact_and_examples_move_to_cached_static_policy(self):
-        affect = TransientAffect()
-        runtime = PersonaRuntime(affect)
-        state = affect.observe("u", "豆子你真可爱", now=100.0)
-        turn = runtime.turn_state("u", "夸你一句，你今天挺可爱的", state)
+        affect = TransientAffect(); runtime = PersonaRuntime(affect, closest_sender_ids={"friend"})
+        state = affect.observe("g|sender:friend", "豆子你真可爱", now=100.0)
+        turn = runtime.turn_state("g|sender:friend", "夸你一句，你今天挺可爱的", state)
         policy = runtime.static_policy()
         self.assertLess(len(turn), 380)
+        self.assertIn('relation="closest"', turn)
         self.assertIn("example_ids=", turn)
-        self.assertIn("Examples library", policy)
-        self.assertIn("豆子：", policy)
-        self.assertIn("clearly malicious toward the bot/service", policy)
-        self.assertIn("refuse briefly", policy)
-        for marker in ("Anchoring", "Selecting", "Bounding", "Enacting"):
-            self.assertNotIn(marker, turn + policy)
+        self.assertIn("Examples:", policy)
+        self.assertIn("actual partner relationship", policy)
+        self.assertIn("dependence", policy)
+        self.assertIn("possessiveness", policy)
+        self.assertIn("feeling ignored", policy)
+        self.assertIn("Do not artificially suppress", policy)
+        self.assertLess(len(policy), 4200)
 
     def test_obvious_algorithm_benchmark_is_tagged_but_close_user_can_still_be_helped(self):
-        affect = TransientAffect()
-        ordinary = PersonaRuntime(affect)
+        affect = TransientAffect(); ordinary = PersonaRuntime(affect)
         text = "给定整数 n>2，对于一个边数最少的简单图，求 A(n)/B(n) 的极限，并分析复杂度"
         state = affect.observe("g|sender:stranger", text, now=100.0)
         turn = ordinary.turn_state("g|sender:stranger", text, state)
         self.assertIn("benchmark-test", turn)
         self.assertIn('relation="distant"', turn)
-        policy = ordinary.static_policy()
-        self.assertIn("is refused by the application before model/tool execution", policy)
-        self.assertIn("is refused by the application before model/tool execution", policy)
-
         close = PersonaRuntime(affect, closest_sender_ids={"friend"})
         close_state = affect.observe("g|sender:friend", text, now=101.0)
         close_turn = close.turn_state("g|sender:friend", text, close_state)
@@ -312,35 +310,30 @@ class PersonaRuntimeTests(unittest.TestCase):
         runtime = PersonaRuntime(affect, closest_sender_ids={"friend"})
         ordinary = runtime.turn_state("g|sender:other", "太阳系有几个行星", affect.observe("o", "太阳系有几个行星", now=100.0))
         close = runtime.turn_state("g|sender:friend", "我回来啦", affect.observe("c", "我回来啦", now=100.0))
-        invited = runtime.turn_state("g|sender:friend", "陪我聊一会儿", affect.observe("i", "陪我聊一会儿", now=100.0))
-        for state in (ordinary, close, invited):
+        praise = runtime.turn_state("g|sender:friend", "你今天真可爱", affect.observe("p", "你今天真可爱", now=100.0))
+        for state in (ordinary, close, praise):
             self.assertIn('closure="closed"', state)
             self.assertIn('question="forbidden"', state)
+        self.assertIn('initiative="reactive"', ordinary)
         self.assertIn('initiative="social"', close)
-        self.assertIn('initiative="social"', invited)
+        self.assertIn('initiative="social"', praise)
         policy = runtime.static_policy()
-        self.assertIn("Never ask the user a question", policy)
-        self.assertIn("customer-service reflex", policy)
-        self.assertIn("never permits interrogating the user", policy)
-        self.assertIn("rhythm=", ordinary)
-        self.assertIn("You are 豆子/まめこ", policy)
+        self.assertIn("Never ask the user a follow-up question", policy)
+        self.assertIn("Do not request information or media the runtime/tools can retrieve", policy)
 
     def test_research_mode_shares_relationship_but_changes_decoder(self):
-        affect = TransientAffect()
-        runtime = PersonaRuntime(affect)
-        scope = "g|sender:alice"
-        state = affect.observe(scope, "正常聊天", now=100.0)
-        for _ in range(20):
-            runtime.turn_state(scope, "我回来啦", state, mode="normal")
+        affect = TransientAffect(); runtime = PersonaRuntime(affect)
+        scope = "g|sender:alice"; state = affect.observe(scope, "正常聊天", now=100.0)
+        for _ in range(20): runtime.turn_state(scope, "我回来啦", state, mode="normal")
         research = runtime.turn_state(scope, "分析这个实验", state, mode="research")
         self.assertIn('mode="research"', research)
         self.assertIn('relation="familiar"', research)
         self.assertIn('question="forbidden"', research)
         self.assertIn('rhythm="plain"', research)
         policy = runtime.static_policy("research")
-        self.assertIn("same person as normal Doge", policy)
-        self.assertIn("relationship facts", policy)
-        self.assertIn("Never ask the user a question", policy)
+        self.assertIn("Stable relationship/history facts are shared with normal mode", policy)
+        self.assertIn("No emoji, role-play, flirting, cute acting", policy)
+        self.assertIn("Never ask the user a follow-up question", policy)
 
     def test_zero_token_casual_gate_is_conservative_and_hard_capped(self):
         affect = TransientAffect()
@@ -363,17 +356,13 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertEqual(runtime.pre_llm_refusal("g|sender:x", "讲个笑话", mode="research"), "科研模式，不聊这个。")
 
     def test_normal_casual_phone_chat_drops_only_terminal_full_stop(self):
-        affect = TransientAffect()
-        runtime = PersonaRuntime(affect)
+        runtime = PersonaRuntime(TransientAffect())
         casual = runtime.reply_budget("我回来啦")
-        research = runtime.reply_budget("陪我聊会儿", mode="research")
-        task = runtime.reply_budget("帮我分析这个实验日志")
-        self.assertEqual(runtime.normalize_casual_terminal_punctuation("回来啦。", casual), "回来啦")
-        self.assertEqual(runtime.normalize_casual_terminal_punctuation("欸，回来啦！", casual), "欸，回来啦！")
-        self.assertEqual(runtime.normalize_casual_terminal_punctuation("第一句。\n\n第二句。", casual), "第一句\n\n第二句")
-        self.assertEqual(runtime.normalize_casual_terminal_punctuation("科研模式。", research), "科研模式。")
-        self.assertEqual(runtime.normalize_casual_terminal_punctuation("任务结论。", task), "任务结论。")
-
+        self.assertEqual(runtime.normalize_casual_terminal_punctuation("回来啦。", casual), "回来啦。")
+        self.assertEqual(runtime.normalize_casual_terminal_punctuation("第一句。\n\n第二句。", casual), "第一句。\n\n第二句。")
+        self.assertEqual(runtime.normalize_voice("好问题。答案是 42😊", user_text="答案是多少"), "答案是 42")
+        self.assertEqual(runtime.normalize_voice("我得诚实说：这个结论不成立😂", user_text="这个成立吗"), "这个结论不成立")
+        self.assertEqual(runtime.normalize_voice("结论不成立😂", mode="research", user_text="😂真的吗"), "结论不成立")
 
     def test_quoted_benchmark_shape_is_detected_but_one_off_is_allowed(self):
         affect = TransientAffect()

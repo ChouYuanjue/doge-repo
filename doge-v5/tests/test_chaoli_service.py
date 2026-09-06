@@ -116,7 +116,9 @@ class ChaoliParserTests(unittest.TestCase):
         ids = {x["id"] for x in d["operations"] if x["id"].startswith("chaoli.")}
         self.assertIn("chaoli.outline", ids)
         self.assertIn("chaoli.search", ids)
-        self.assertIn("原生帖子搜索", d["commands"]["chaoli"]["summary"])
+        self.assertIn("精确帖子/楼层", d["commands"]["chaoli"]["summary"])
+        self.assertIn("chaoli.daily", ids)
+        self.assertIn("authoritative locator", d["commands"]["chaoli"]["summary"])
 
 
 class ChaoliSearchTests(unittest.IsolatedAsyncioTestCase):
@@ -152,6 +154,97 @@ class ChaoliMemberLookupTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("引用 @B：B 的原话", out)
         self.assertIn("本人新增正文：甲的新回复", out)
         self.assertNotIn("本人新增正文：B 的原话", out)
+
+
+PAGE2_HTML = """
+<html><head><title>分页主题 - 超理论坛</title></head><body>
+<div class='post' id='p102981' data-id='102981'><div class='postHeader'><div class='info'><h3><a href='/index.php/member/1202'>FatFish</a></h3><span>33楼 </span><a class='time' href='/index.php/conversation/post/102981'>2026-09-05</a></div></div><div class='postBody'>Bourgain 的 4/7 与 3/5 讨论</div></div>
+</body></html>
+"""
+
+
+class ChaoliExactPostTests(unittest.IsolatedAsyncioTestCase):
+    def test_thread_ref_preserves_pagination_suffix_and_floor_permalink(self):
+        self.assertEqual(ChaoliService.parse_thread_ref("https://chaoli.club/index.php/12179/p2#p102981"), (12179, "p2"))
+        _, floors = ChaoliService._parse_thread(PAGE2_HTML, 12179)
+        self.assertEqual(floors[0].number, 33)
+        self.assertEqual(floors[0].url, "https://chaoli.club/index.php/conversation/post/102981")
+
+    async def test_exact_page_anchor_is_authoritative_locator(self):
+        url = "https://chaoli.club/index.php/12179/p2#p102981"
+        with patch.object(ChaoliService, "_fetch_exact_ref", AsyncMock(return_value=(12179, 102981, PAGE2_HTML, url))) as fetch:
+            out = await ChaoliService.read(url)
+        fetch.assert_awaited_once_with(url)
+        self.assertIn("定位 33楼", out)
+        self.assertIn("FatFish", out)
+        self.assertIn("Bourgain", out)
+        self.assertIn("/conversation/post/102981", out)
+
+    async def test_post_permalink_redirect_result_uses_same_exact_page(self):
+        url = "https://chaoli.club/index.php/conversation/post/102981"
+        final = "https://chaoli.club/index.php/12179/p2#p102981"
+        with patch.object(ChaoliService, "_fetch_exact_ref", AsyncMock(return_value=(12179, 102981, PAGE2_HTML, final))):
+            out = await ChaoliService.preview(url)
+        self.assertIn("定位 33楼", out)
+        self.assertIn("Bourgain", out)
+
+
+class ChaoliDailySourceTests(unittest.IsolatedAsyncioTestCase):
+    PAYLOAD = {
+        "results": [
+            {
+                "conversationId": "12189", "title": "几何勘误", "channelId": "4", "private": "0",
+                "startMemberId": "15870", "startMember": "Mimo", "startTime": "1786879561",
+                "lastPostMemberId": "16720", "lastPostMember": "Sze Chia-Hao", "lastPostTime": "1788708317",
+                "firstPost": "正文", "replies": 10,
+            },
+            {
+                "conversationId": "12142", "title": "抛硬币中的期望", "channelId": "4", "private": "0",
+                "startMemberId": "76", "startMember": "Ayachi Nene", "startTime": "1785058132",
+                "lastPostMemberId": "16687", "lastPostMember": "AMST", "lastPostTime": "1788707621",
+                "firstPost": "科普", "countPosts": "11",
+            },
+        ],
+        "messages": [],
+    }
+    CATALOG = {"4": ("maths", "数学")}
+
+    def test_channel_catalog_reads_nested_board_tree(self):
+        html = """<div id='channelList'><ul>
+        <li id='channel-4'><div class='info'><a href='/index.php/conversations/maths' class='channel channel-4'>数学</a></div></li>
+        <li id='channel-40'><div class='info'><a href='/index.php/conversations/lang' class='channel channel-40'>语言</a></div></li>
+        <li id='channel-43'><div class='info'><a href='/index.php/conversations/collections' class='channel channel-43'>辑录</a></div></li>
+        </ul></div>"""
+        catalog = ChaoliService._channel_catalog(html)
+        self.assertEqual(catalog["4"], ("maths", "数学"))
+        self.assertEqual(catalog["40"], ("lang", "语言"))
+        self.assertEqual(catalog["43"], ("collections", "辑录"))
+
+    def test_structured_owner_json_results_are_strongly_bound(self):
+        cards = ChaoliService._parse_json_cards(self.PAYLOAD, self.CATALOG, 5)
+        self.assertEqual([c.thread_id for c in cards], [12189, 12142])
+        self.assertEqual((cards[0].channel_slug, cards[0].channel), ("maths", "数学"))
+        self.assertEqual((cards[0].author, cards[0].author_id), ("Mimo", 15870))
+        self.assertEqual((cards[0].last_author, cards[0].last_author_id), ("Sze Chia-Hao", 16720))
+        self.assertEqual(cards[0].replies, "10")
+        self.assertIn("2026-", cards[0].updated)
+
+    async def test_daily_cards_use_official_json_post_payload(self):
+        with patch.object(ChaoliService, "_daily_json_sync", return_value=(self.PAYLOAD, self.CATALOG)):
+            cards = await ChaoliService.daily_json_cards(5)
+        self.assertEqual([c.thread_id for c in cards], [12189, 12142])
+        self.assertEqual(cards[1].author, "Ayachi Nene")
+
+    def test_daily_json_code_uses_dedicated_proxy_and_post_not_query_get(self):
+        source = (PLUGINS / "doge_shared" / "chaoli.py").read_text(encoding="utf-8")
+        block = source[source.index("def _daily_json_sync"):source.index("async def daily_json_cards")]
+        self.assertIn('session.proxies = {"http": proxy, "https": proxy}', block)
+        self.assertIn("DAILY_JSON_URL", block)
+        self.assertIn("session.post(", block)
+        self.assertIn('data={"search": DAILY_QUERY, "token": token}', block)
+        self.assertNotIn("requests.get(DAILY_JSON_URL", block)
+        self.assertIn("urlunparse", block)
+
 
 
 if __name__ == "__main__":

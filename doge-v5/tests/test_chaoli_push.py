@@ -27,11 +27,14 @@ import doge_chaoli.main as chaoli_main
 from doge_chaoli.main import DogeChaoli
 
 from doge_chaoli.push import (
+    ChaoliDailyPool,
     ChaoliPushStore,
     PushEvent,
     classify_cards,
+    format_daily_message,
     format_push_message,
     primed_channel_state,
+    shanghai_date,
 )
 from doge_shared.chaoli import ThreadCard
 
@@ -158,6 +161,78 @@ class ChaoliPushDeliveryTests(unittest.IsolatedAsyncioTestCase):
             rendered = str(args[1])
             self.assertIn("旧帖新回复", rendered)
             self.assertIn("6→7", rendered)
+
+
+class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
+    def test_schema1_realtime_subscription_migrates_to_daily_without_backfill(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "push.json"
+            path.write_text('{"schema":1,"subscriptions":{"umo":{"channels":{"all":{"max_seen_thread_id":100,"threads":{}}}}}}', encoding="utf-8")
+            store = ChaoliPushStore(path)
+            self.assertEqual(store.channel_slugs("umo"), ["all"])
+            daily = store.daily_state("umo")
+            self.assertTrue(daily["enabled"])
+            self.assertEqual(daily["time"], "21:30")
+            self.assertEqual(daily["last_sent"], shanghai_date())
+
+    def test_realtime_and_daily_switches_are_independent(self):
+        with tempfile.TemporaryDirectory() as td:
+            store = ChaoliPushStore(Path(td) / "push.json")
+            store.enable("umo", "all", [card(100)])
+            self.assertTrue(store.daily_state("umo")["enabled"])
+            store.disable("umo", None)
+            self.assertEqual(store.channel_slugs("umo"), [])
+            self.assertTrue(store.daily_state("umo")["enabled"])
+            store.enable("umo", "all", [card(100)])
+            store.set_daily("umo", False)
+            self.assertEqual(store.channel_slugs("umo"), ["all"])
+            self.assertFalse(store.daily_state("umo")["enabled"])
+
+    def test_daily_pool_rolls_by_date_and_renders_deterministically(self):
+        with tempfile.TemporaryDirectory() as td:
+            pool = ChaoliDailyPool(Path(td) / "daily.json")
+            pool.merge("2026-09-06", [card(100, replies=3), card(101, replies=1)])
+            self.assertEqual([c.thread_id for c in pool.cards("2026-09-06")], [100, 101])
+            pool.merge("2026-09-06", [card(101, replies=2)])
+            self.assertEqual([c.thread_id for c in pool.cards("2026-09-06")], [101, 100])
+            self.assertEqual(pool.cards("2026-09-07"), [])
+            text = format_daily_message(pool.cards("2026-09-06"), "2026-09-06", "pool")
+            self.assertIn("今日活跃 2 主题", text)
+            self.assertIn("来源：pool", text)
+
+    async def test_json_failure_uses_nonempty_daily_pool_without_native_repoll(self):
+        with tempfile.TemporaryDirectory() as td:
+            plugin = object.__new__(DogeChaoli)
+            plugin.daily_pool = ChaoliDailyPool(Path(td) / "daily.json")
+            plugin.daily_pool.merge("2026-09-06", [card(100)])
+            with patch.object(chaoli_main.ChaoliService, "daily_json_cards", AsyncMock(side_effect=RuntimeError("cf"))), patch.object(
+                chaoli_main.ChaoliService, "daily_native_cards", AsyncMock(return_value=[card(999)])
+            ) as native:
+                cards, source = await plugin._daily_cards_for_send("2026-09-06")
+            self.assertEqual([c.thread_id for c in cards], [100])
+            self.assertIn("按日活跃池", source)
+            native.assert_not_awaited()
+
+    async def test_multiple_due_groups_share_one_daily_source_fetch(self):
+        with tempfile.TemporaryDirectory() as td:
+            plugin = object.__new__(DogeChaoli)
+            plugin.push_store = ChaoliPushStore(Path(td) / "push.json")
+            plugin._push_lock = __import__("asyncio").Lock()
+            plugin.context = type("Ctx", (), {})()
+            plugin.context.send_message = AsyncMock(return_value=True)
+            for umo in ("napcat:GroupMessage:1", "napcat:GroupMessage:2"):
+                plugin.push_store.set_daily(umo, True, "00:00")
+                plugin.push_store.data["subscriptions"][umo]["daily"]["last_sent"] = ""
+            plugin.push_store.save()
+            fetch = AsyncMock(return_value=([card(100)], "owner-json"))
+            plugin._daily_cards_for_send = fetch
+            with patch.object(chaoli_main, "is_plugin_enabled", AsyncMock(return_value=True)):
+                await plugin._poll_daily_once()
+            fetch.assert_awaited_once()
+            self.assertEqual(plugin.context.send_message.await_count, 2)
+            for umo in ("napcat:GroupMessage:1", "napcat:GroupMessage:2"):
+                self.assertEqual(plugin.push_store.daily_state(umo)["last_sent"], shanghai_date())
+
 
 
 if __name__ == "__main__":

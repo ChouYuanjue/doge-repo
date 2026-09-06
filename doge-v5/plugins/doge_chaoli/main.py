@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
@@ -15,7 +17,16 @@ from data.plugins.doge_shared.help_service import format_cli_error
 from data.plugins.doge_shared.module_control import is_group_admin, is_plugin_enabled
 from data.plugins.doge_shared.presentation import long_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, original_message_text, split_head
-from .push import ChaoliPushStore, PushEvent, classify_cards, format_push_message
+from .push import (
+    DAILY_DEFAULT_TIME,
+    ChaoliDailyPool,
+    ChaoliPushStore,
+    PushEvent,
+    classify_cards,
+    format_daily_message,
+    format_push_message,
+    shanghai_date,
+)
 
 HELP = """Doge Chaoli /chaoli
   /chaoli search <查询> [--board 板块] [--limit N]
@@ -32,13 +43,17 @@ HELP = """Doge Chaoli /chaoli
   /chaoli push on [板块]                开启本群新帖/旧帖新回复推送（群主/管理员）
   /chaoli push off [板块]               关闭本群推送；不写板块则全部关闭
   /chaoli push status                   查看本群订阅
-  /chaoli push test [板块]              预览推送样式，不改变水位（群主/管理员）
+  /chaoli push test [板块]              预览实时推送样式，不改变水位（群主/管理员）
+  /chaoli daily                         立即查看今日活跃；优先坛主推荐 JSON，失败使用按日活跃池
+  /chaoli daily on [HH:MM]              开启本群日报，默认 21:30（群主/管理员）
+  /chaoli daily off|status|test          日报管理/预览；和实时 push 独立
   /chaoli status                        检查 Chaoli 专用代理链
+日报主源为坛主推荐的 #今日活跃 JSON，始终走 Chaoli 专用代理；自动日报失败时使用实时推送维护的按日池。
 搜索使用超理前端自己的 POST AJAX 接口，不经过会被 Cloudflare 拦截的 GET 查询页。
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、只读浏览、楼层上下文、用户活动、引用链与群订阅推送", "5.10.27")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.28")
 class DogeChaoli(Star):
     PUSH_LIMIT = 30
     PUSH_INTERVAL = max(60, min(int(os.getenv("DOGE_CHAOLI_PUSH_INTERVAL", "120") or 120), 600))
@@ -53,6 +68,7 @@ class DogeChaoli(Star):
         self.context = context
         self.data_dir = StarTools.get_data_dir("doge_chaoli")
         self.push_store = ChaoliPushStore(self.data_dir / "push-subscriptions.json")
+        self.daily_pool = ChaoliDailyPool(self.data_dir / "daily-pool.json")
         self._push_lock = asyncio.Lock()
         self._push_task: asyncio.Task | None = None
         register_domain_tools(context, "doge_chaoli", DogeChaoliTool())
@@ -63,7 +79,7 @@ class DogeChaoli(Star):
     async def on_platform_loaded(self):
         if self._push_task is None or self._push_task.done():
             self._push_task = asyncio.create_task(self._push_loop(), name="doge-chaoli-push")
-            logger.info(f"doge chaoli push loop started interval={self.PUSH_INTERVAL}s")
+            logger.info(f"doge chaoli push+daily loop started interval={self.PUSH_INTERVAL}s daily_default={DAILY_DEFAULT_TIME}")
 
     async def terminate(self):
         task, self._push_task = self._push_task, None
@@ -129,16 +145,132 @@ class DogeChaoli(Star):
 
         raise ValueError("用法：/chaoli push on [板块] | off [板块] | status | test [板块]")
 
+    @staticmethod
+    def _normalize_daily_time(value: str | None) -> str:
+        raw = str(value or DAILY_DEFAULT_TIME).strip()
+        if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", raw):
+            raise ValueError("日报时间必须是 HH:MM，例如 21:30")
+        return raw
+
+    async def _daily_command(self, event: AstrMessageEvent, raw: str) -> str:
+        if not event.get_group_id():
+            raise ValueError("超理日报订阅只支持群聊")
+        parts = raw.strip().split()
+        sub = parts[0].lower() if parts else "now"
+        umo = str(event.unified_msg_origin)
+        if sub in {"now", "show", "today"}:
+            today = shanghai_date()
+            cards, source = await self._daily_cards_for_send(today)
+            return format_daily_message(cards, today, source)
+        if sub == "status":
+            async with self._push_lock:
+                state = self.push_store.daily_state(umo)
+            return f"本群超理日报：{'ON' if state['enabled'] else 'OFF'} · 时间 {state['time']} · 最近发送 {state['last_sent'] or '无'}。实时 push 与日报互不影响。"
+        if not await is_group_admin(event):
+            raise ValueError("只有本群群主或管理员可以修改或测试超理日报")
+        if sub in {"on", "enable"}:
+            time_text = self._normalize_daily_time(parts[1] if len(parts) > 1 else DAILY_DEFAULT_TIME)
+            async with self._push_lock:
+                state = self.push_store.set_daily(umo, True, time_text)
+            return f"已开启本群超理日报，每天 {state['time']}；今天不补发，从下一次日报时点开始。实时 push 保持原设置。"
+        if sub in {"off", "disable"}:
+            async with self._push_lock:
+                self.push_store.set_daily(umo, False)
+            return "已关闭本群超理日报；实时 push 不受影响。"
+        if sub in {"test", "preview"}:
+            today = shanghai_date()
+            cards, source = await self._daily_cards_for_send(today)
+            return format_daily_message(cards, today, source, test=True)
+        raise ValueError("用法：/chaoli daily [now|on [HH:MM]|off|status|test]")
+
+    async def _ensure_daily_pool(self) -> None:
+        today = shanghai_date()
+        if self.daily_pool.data.get("date") == today:
+            return
+        # A day rollover or restart may otherwise lose activity that happened
+        # while Doge was offline. Seed from the forum-owner JSON POST first;
+        # native POST search is only the transport fallback.
+        try:
+            cards = await ChaoliService.daily_json_cards(self.PUSH_LIMIT)
+            self.daily_pool.reset(today, cards)
+            logger.info(f"doge chaoli daily pool seeded date={today} cards={len(cards)} via official JSON POST")
+            return
+        except Exception as json_exc:
+            logger.info(f"doge chaoli daily JSON seed unavailable: {type(json_exc).__name__}: {json_exc}")
+        try:
+            cards = await ChaoliService.daily_native_cards(self.PUSH_LIMIT)
+            self.daily_pool.reset(today, cards)
+            logger.info(f"doge chaoli daily pool seeded date={today} cards={len(cards)} via native POST fallback")
+        except Exception as exc:
+            self.daily_pool.reset(today, [])
+            logger.warning(f"doge chaoli daily pool seed failed: {type(exc).__name__}: {exc}")
+
+    async def _daily_cards_for_send(self, today: str) -> tuple[list, str]:
+        # Primary path: exactly the forum-owner recommended JSON URL through the
+        # dedicated Chaoli proxy. This is attempted once and shared by every
+        # group whose digest is due in this polling cycle.
+        try:
+            cards = await ChaoliService.daily_json_cards(self.PUSH_LIMIT)
+            if cards:
+                self.daily_pool.merge(today, cards)
+                return cards, "坛主推荐 #今日活跃 JSON（Chaoli 专用代理）"
+        except Exception as exc:
+            logger.info(f"doge chaoli daily JSON unavailable; using daily pool: {type(exc).__name__}: {exc}")
+        cards = self.daily_pool.cards(today)
+        if not cards:
+            # Repair only an empty pool (typically after downtime); normal JSON
+            # failures consume the pool without generating another forum poll.
+            try:
+                cards = await ChaoliService.daily_native_cards(self.PUSH_LIMIT)
+                self.daily_pool.merge(today, cards)
+                return cards, "按日活跃池（原生 #今日活跃 一次校准）"
+            except Exception:
+                pass
+        return cards, "实时 push 差分维护的按日活跃池"
+
+    async def _poll_daily_once(self) -> None:
+        now = datetime.now(ZoneInfo("Asia/Shanghai"))
+        today = now.date().isoformat()
+        hhmm = now.strftime("%H:%M")
+        async with self._push_lock:
+            subscriptions = self.push_store.subscriptions()
+        due: list[str] = []
+        for umo, sub in subscriptions.items():
+            if not isinstance(sub, dict) or not await is_plugin_enabled(str(umo), "doge_chaoli"):
+                continue
+            daily = sub.get("daily")
+            if not isinstance(daily, dict) or not daily.get("enabled"):
+                continue
+            target = str(daily.get("time") or DAILY_DEFAULT_TIME)
+            if hhmm >= target and str(daily.get("last_sent") or "") != today:
+                due.append(str(umo))
+        if not due:
+            return
+        cards, source = await self._daily_cards_for_send(today)
+        message = format_daily_message(cards, today, source)
+        for umo in due:
+            delivered = False
+            try:
+                delivered = bool(await self.context.send_message(umo, MessageChain([Plain(message)])))
+            except Exception as exc:
+                logger.warning(f"doge chaoli daily send failed umo={umo}: {type(exc).__name__}: {exc}")
+            if delivered:
+                async with self._push_lock:
+                    self.push_store.mark_daily_sent(umo, today)
+
     async def _push_loop(self) -> None:
         try:
+            await self._ensure_daily_pool()
             while True:
                 await asyncio.sleep(self.PUSH_INTERVAL)
                 try:
+                    await self._ensure_daily_pool()
                     await self._poll_push_once()
+                    await self._poll_daily_once()
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
-                    logger.warning(f"doge chaoli push poll failed: {type(exc).__name__}: {exc}")
+                    logger.warning(f"doge chaoli push/daily poll failed: {type(exc).__name__}: {exc}")
         except asyncio.CancelledError:
             raise
 
@@ -168,6 +300,7 @@ class DogeChaoli(Star):
             except Exception as exc:
                 logger.warning(f"doge chaoli push fetch failed channel={slug}: {type(exc).__name__}: {exc}")
 
+        pool_cards: dict[int, object] = {}
         for umo, channels in active.items():
             all_events = []
             next_states: dict[str, dict] = {}
@@ -177,6 +310,8 @@ class DogeChaoli(Star):
                     continue
                 events, next_state = classify_cards(state if isinstance(state, dict) else {}, cards)
                 all_events.extend(events)
+                for push_event in events:
+                    pool_cards[push_event.card.thread_id] = push_event.card
                 next_states[str(slug)] = next_state
             if not next_states:
                 continue
@@ -197,6 +332,9 @@ class DogeChaoli(Star):
                 for slug, next_state in next_states.items():
                     self.push_store.update_channel(umo, slug, next_state, save=False)
                 self.push_store.save()
+
+        if pool_cards and getattr(self, "daily_pool", None) is not None:
+            self.daily_pool.merge(shanghai_date(), list(pool_cards.values()))
 
     @filter.command("chaoli")
     async def command(self, event: AstrMessageEvent):
@@ -289,6 +427,8 @@ class DogeChaoli(Star):
                 out = await ChaoliService.preview(rest)
             elif action == "push":
                 out = await self._push_command(event, rest)
+            elif action == "daily":
+                out = await self._daily_command(event, rest)
             elif action == "status":
                 out = await ChaoliService.status()
             else:
@@ -300,7 +440,7 @@ class DogeChaoli(Star):
             logger.warning(f"doge chaoli failed: {exc}")
             yield text_result(event, format_cli_error("chaoli", exc), markdown=False)
 
-    @filter.regex(r"https?://(?:www\.)?chaoli\.club/index\.php/\d+(?:/\d+)?(?:#[^\s]+)?$")
+    @filter.regex(r"https?://(?:www\.)?chaoli\.club/index\.php/(?:\d+(?:/p?\d+)?(?:#p\d+)?|conversation/post/\d+)$")
     async def auto_preview(self, event: AstrMessageEvent):
         # Passive preview is only for ordinary messages. AstrBot's wake stage may
         # strip the leading slash from event.message_str, so use the untouched
@@ -308,7 +448,7 @@ class DogeChaoli(Star):
         text = original_message_text(event).strip()
         if text.lstrip().startswith("/"):
             return
-        m = re.search(r"https?://(?:www\.)?chaoli\.club/index\.php/\d+(?:/\d+)?", text, re.I)
+        m = re.search(r"https?://(?:www\.)?chaoli\.club/index\.php/(?:\d+(?:/p?\d+)?(?:#p\d+)?|conversation/post/\d+)", text, re.I)
         if not m:
             return
         try:
