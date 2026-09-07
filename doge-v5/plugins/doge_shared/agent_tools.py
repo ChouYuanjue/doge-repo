@@ -461,7 +461,9 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
         async def strict(awaitable):
             return self._strict_result(await awaitable)
         if a=="search": return await strict(ChaoliService.search(str(kwargs.get("query") or target),str(kwargs.get("channel") or "all"),int(kwargs.get("limit",10))))
-        if a=="daily": return await execute_formal_command(context, "/chaoli daily")
+        if a=="daily":
+            await execute_formal_command(context, "/chaoli daily")
+            return None
         if a=="daily_push":
             await execute_formal_command(context, "/chaoli daily push")
             return None

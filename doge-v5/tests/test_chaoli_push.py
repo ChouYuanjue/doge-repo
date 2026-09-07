@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+from astrbot.api.message_components import Image, Plain
+
 ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
 if str(PLUGINS) not in sys.path:
@@ -25,6 +27,7 @@ sys.modules["data.plugins"] = plugins_pkg
 
 import doge_chaoli.main as chaoli_main
 from doge_chaoli.main import DogeChaoli
+from doge_chaoli.daily_report import DailyReportBundle, DailyTopicEvidence, DailyTopicSummary, _report_markdown, summarize_daily_topics
 
 from doge_chaoli.push import (
     ChaoliDailyPool,
@@ -225,7 +228,13 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             plugin.push_store.set_daily(umo, True, "23:45")
             plugin.push_store.data["subscriptions"][umo]["daily"]["last_sent"] = "2026-09-06"
             plugin.push_store.save()
-            plugin._daily_cards_for_send = AsyncMock(return_value=([card(100)], "owner-json"))
+            page = Path(td) / "daily-1.png"
+            page.write_bytes(b"png")
+            manifest = Path(td) / "daily.json"
+            manifest.write_text("{}", encoding="utf-8")
+            c = card(100)
+            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), "# report", (page,), manifest)
+            plugin._daily_report_for_send = AsyncMock(return_value=bundle)
 
             event = type("Event", (), {
                 "unified_msg_origin": umo,
@@ -237,7 +246,10 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(result)
             plugin.context.send_message.assert_awaited_once()
             self.assertEqual(plugin.context.send_message.await_args.args[0], umo)
-            self.assertIn("超理日报", str(plugin.context.send_message.await_args.args[1]))
+            chain = plugin.context.send_message.await_args.args[1]
+            self.assertIsInstance(chain.chain[0], Plain)
+            self.assertIn("超理日报", chain.chain[0].text)
+            self.assertTrue(any(isinstance(x, Image) for x in chain.chain[1:]))
             self.assertEqual(plugin.push_store.daily_state(umo)["last_sent"], shanghai_date())
 
     async def test_failed_manual_daily_push_does_not_advance_watermark(self):
@@ -252,7 +264,13 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             plugin.push_store.set_daily(umo, True, "23:45")
             plugin.push_store.data["subscriptions"][umo]["daily"]["last_sent"] = "2026-09-06"
             plugin.push_store.save()
-            plugin._daily_cards_for_send = AsyncMock(return_value=([card(100)], "owner-json"))
+            page = Path(td) / "daily-1.png"
+            page.write_bytes(b"png")
+            manifest = Path(td) / "daily.json"
+            manifest.write_text("{}", encoding="utf-8")
+            c = card(100)
+            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), "# report", (page,), manifest)
+            plugin._daily_report_for_send = AsyncMock(return_value=bundle)
             event = type("Event", (), {
                 "unified_msg_origin": umo,
                 "get_group_id": lambda self: "1",
@@ -274,16 +292,80 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
                 plugin.push_store.set_daily(umo, True, "00:00")
                 plugin.push_store.data["subscriptions"][umo]["daily"]["last_sent"] = ""
             plugin.push_store.save()
-            fetch = AsyncMock(return_value=([card(100)], "owner-json"))
-            plugin._daily_cards_for_send = fetch
+            page = Path(td) / "daily-1.png"
+            page.write_bytes(b"png")
+            manifest = Path(td) / "daily.json"
+            manifest.write_text("{}", encoding="utf-8")
+            c = card(100)
+            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), "# report", (page,), manifest)
+            build = AsyncMock(return_value=bundle)
+            plugin._daily_report_for_send = build
             with patch.object(chaoli_main, "is_plugin_enabled", AsyncMock(return_value=True)):
                 await plugin._poll_daily_once()
-            fetch.assert_awaited_once()
+            build.assert_awaited_once()
             self.assertEqual(plugin.context.send_message.await_count, 2)
+            for call in plugin.context.send_message.await_args_list:
+                chain = call.args[1]
+                self.assertIsInstance(chain.chain[0], Plain)
+                self.assertTrue(any(isinstance(x, Image) for x in chain.chain[1:]))
             for umo in ("napcat:GroupMessage:1", "napcat:GroupMessage:2"):
                 self.assertEqual(plugin.push_store.daily_state(umo)["last_sent"], shanghai_date())
 
 
+
+
+class ChaoliDailyReportTests(unittest.TestCase):
+    def test_report_keeps_all_index_topics_and_marks_evidence_failure(self):
+        c1 = card(100, replies=7, title="A")
+        c2 = card(101, replies=3, title="B")
+        f1 = chaoli_main.ChaoliService._parse_thread("""<html><title>A - 超理论坛</title><div class='post' data-id='1' id='p1'><div class='postHeader'><div class='info'><h3><a href='/index.php/member/1'>甲</a></h3><span>1楼</span><a class='time' href='/index.php/conversation/post/1' title='2026-09-07 20:00:00'></a></div></div><div class='postBody'><p>正文</p></div></div></html>""", 100)[1][0]
+        evidence = [
+            DailyTopicEvidence(c1, f1, (f1,), (f1,)),
+            DailyTopicEvidence(c2, None, (), (), "ChaoliError: failed"),
+        ]
+        md = _report_markdown([c1, c2], evidence, [DailyTopicSummary(100, "A 的编辑摘要。", (1,)), DailyTopicSummary(101, "", (), "missing")], "2026-09-07", "owner-json")
+        self.assertIn("## 01 · A", md)
+        self.assertIn("## 02 · B", md)
+        self.assertIn("正文证据本次未能补全", md)
+        self.assertIn("A 的编辑摘要", md)
+        self.assertIn("不读取群聊上下文或豆子人格", md)
+        self.assertNotIn("今日概览", md)
+        self.assertNotIn("活跃主题索引", md)
+        self.assertNotIn("逐主题证据", md)
+
+    def test_report_uses_24h_floor_window_and_exact_permalinks(self):
+        c = card(100, replies=2, title="主题")
+        first = chaoli_main.ChaoliService._parse_thread("""<html><title>主题 - 超理论坛</title><div class='post' data-id='1' id='p1'><div class='postHeader'><div class='info'><h3><a href='/index.php/member/1'>甲</a></h3><span>1楼</span><a class='time' href='/index.php/conversation/post/1' title='2026-09-01 10:00:00'></a></div></div><div class='postBody'><p>主题背景</p></div></div></html>""", 100)[1][0]
+        floor = chaoli_main.ChaoliService._parse_thread("""<html><title>主题 - 超理论坛</title><div class='post' data-id='9' id='p9'><div class='postHeader'><div class='info'><h3><a href='/index.php/member/2'>乙</a></h3><span>3楼</span><a class='time' href='/index.php/conversation/post/9' title='2026-09-07 21:00:00'></a></div></div><div class='postBody'><p>今天的更新</p></div></div></html>""", 100)[1][0]
+        md = _report_markdown([c], [DailyTopicEvidence(c, first, (floor,), (floor,))], [DailyTopicSummary(100, "今天有明确推进。", (3,))], "2026-09-07", "owner-json")
+        self.assertIn("过去24小时 1 个公开楼层更新", md)
+        self.assertIn("https://chaoli.club/index.php/conversation/post/9", md)
+        self.assertIn("今天的更新", md)
+
+
+class ChaoliDailySummaryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_summary_provider_is_direct_and_floor_refs_are_validated(self):
+        c = card(100, replies=2, title="主题")
+        floor = chaoli_main.ChaoliService._parse_thread("""<html><title>主题 - 超理论坛</title><div class='post' data-id='9' id='p9'><div class='postHeader'><div class='info'><h3><a href='/index.php/member/2'>乙</a></h3><span>3楼</span><a class='time' href='/index.php/conversation/post/9' title='2026-09-07 21:00:00'></a></div></div><div class='postBody'><p>今天的更新</p></div></div></html>""", 100)[1][0]
+        provider = type("Provider", (), {})()
+        provider.text_chat = AsyncMock(return_value=type("Resp", (), {"completion_text": '{"topics":[{"thread_id":100,"summary":"围绕主题继续讨论，并在今天得到更新。","evidence_floors":[3]}]}'})())
+        rows = await summarize_daily_topics(provider, [DailyTopicEvidence(c, floor, (floor,), (floor,))])
+        self.assertEqual(rows[0].evidence_floors, (3,))
+        self.assertIn("得到更新", rows[0].text)
+        kwargs = provider.text_chat.await_args.kwargs
+        self.assertEqual(kwargs["temperature"], 0.0)
+        self.assertEqual(kwargs["thinking"], {"type": "disabled"})
+        self.assertNotIn("contexts", kwargs)
+        self.assertNotIn("session_id", kwargs)
+
+    async def test_summary_with_fake_floor_is_rejected(self):
+        c = card(100, replies=2, title="主题")
+        floor = chaoli_main.ChaoliService._parse_thread("""<html><title>主题 - 超理论坛</title><div class='post' data-id='9' id='p9'><div class='postHeader'><div class='info'><h3><a href='/index.php/member/2'>乙</a></h3><span>3楼</span><a class='time' href='/index.php/conversation/post/9' title='2026-09-07 21:00:00'></a></div></div><div class='postBody'><p>今天的更新</p></div></div></html>""", 100)[1][0]
+        provider = type("Provider", (), {})()
+        provider.text_chat = AsyncMock(return_value=type("Resp", (), {"completion_text": '{"topics":[{"thread_id":100,"summary":"伪造支持。","evidence_floors":[99]}]}'})())
+        rows = await summarize_daily_topics(provider, [DailyTopicEvidence(c, floor, (floor,), (floor,))])
+        self.assertEqual(rows[0].text, "")
+        self.assertEqual(rows[0].error, "invalid_evidence_refs")
 
 if __name__ == "__main__":
     unittest.main()

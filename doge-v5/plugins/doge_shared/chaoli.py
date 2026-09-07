@@ -428,8 +428,17 @@ class ChaoliService:
     def _own_text_and_quotes(cls, body) -> tuple[str, tuple[Quote, ...]]:
         if body is None:
             return "", ()
+        # A post may embed a separately attributed "best answer" card inside
+        # its .postBody. That nested answer is forum UI/content from another
+        # post, not part of the current floor. Remove it before both quote and
+        # own-body extraction so attribution stays exact.
+        cleaned = BeautifulSoup(str(body), "lxml")
+        root = cleaned.select_one(".postBody") or cleaned.body or cleaned
+        for embedded in root.select(".embedded-answer"):
+            embedded.decompose()
+
         quotes: list[Quote] = []
-        for block in body.select("blockquote"):
+        for block in root.select("blockquote"):
             cite = block.select_one("cite a.link-member[href], cite a[href*='/member/']")
             qauthor = cls._text(cite).lstrip("@").strip() if cite else ""
             clone = BeautifulSoup(str(block), "lxml")
@@ -438,8 +447,6 @@ class ChaoliService:
             qtext = cls._text(clone)
             if qtext:
                 quotes.append(Quote(qauthor, qtext))
-        clone = BeautifulSoup(str(body), "lxml")
-        root = clone.select_one(".postBody") or clone.body or clone
         for block in root.select("blockquote"):
             block.decompose()
         return cls._text(root), tuple(quotes)

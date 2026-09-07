@@ -247,5 +247,25 @@ class ChaoliDailySourceTests(unittest.IsolatedAsyncioTestCase):
 
 
 
+
+class ChaoliEmbeddedAnswerTests(unittest.TestCase):
+    def test_embedded_best_answer_is_not_attributed_to_parent_floor(self):
+        from bs4 import BeautifulSoup
+        from doge_shared.chaoli import ChaoliService
+        body = BeautifulSoup("""
+        <div class='postBody'>
+          <p>这是首楼自己的正文。</p>
+          <div class='embedded-answer thing hasControls'>
+            <div class='postHeader'><div class='info'><h3>最佳回答 <a href='/index.php/member/2'>乙</a></h3></div></div>
+            <div class='postBody'><blockquote><cite><a class='link-member' href='/index.php/member/1'>@甲</a></cite>引用</blockquote><p>这是乙的最佳回答正文。</p></div>
+          </div>
+        </div>
+        """, 'lxml').select_one('.postBody')
+        own, quotes = ChaoliService._own_text_and_quotes(body)
+        self.assertEqual(own, '这是首楼自己的正文。')
+        self.assertEqual(quotes, ())
+        self.assertNotIn('最佳回答', own)
+        self.assertNotIn('这是乙的最佳回答正文', own)
+
 if __name__ == "__main__":
     unittest.main()

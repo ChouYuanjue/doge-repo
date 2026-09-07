@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
-from astrbot.api.message_components import Plain
+from astrbot.api.message_components import Image, Plain
 from astrbot.api.star import Context, Star, StarTools, register
 
 from data.plugins.doge_shared.agent_tools import DogeChaoliTool, register_domain_tools
@@ -17,6 +17,7 @@ from data.plugins.doge_shared.help_service import format_cli_error
 from data.plugins.doge_shared.module_control import is_group_admin, is_plugin_enabled
 from data.plugins.doge_shared.presentation import long_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, original_message_text, split_head
+from .daily_report import DailyReportBundle, build_daily_report
 from .push import (
     DAILY_DEFAULT_TIME,
     ChaoliDailyPool,
@@ -44,17 +45,17 @@ HELP = """Doge Chaoli /chaoli
   /chaoli push off [板块]               关闭本群推送；不写板块则全部关闭
   /chaoli push status                   查看本群订阅
   /chaoli push test [板块]              预览实时推送样式，不改变水位（群主/管理员）
-  /chaoli daily                         立即查看今日活跃；优先坛主推荐 JSON，失败使用按日活跃池
-  /chaoli daily push                    立即主动推送今日日报到当前群；成功后推进当天发送水位（管理员）
+  /chaoli daily                         生成并发送今日完整图片日报；独立摘要器 + 可核验楼层证据
+  /chaoli daily push                    立即主动推送同一份完整图片日报；成功后推进当天发送水位（管理员）
   /chaoli daily on [HH:MM]              开启本群日报，默认 23:45（Doge 管理员/群主/群管理员）
   /chaoli daily off|status|test          日报管理/预览；和实时 push 独立
   /chaoli status                        检查 Chaoli 专用代理链
-日报主源为坛主推荐的 #今日活跃 JSON，始终走 Chaoli 专用代理；自动日报失败时使用实时推送维护的按日池。
+日报主源为坛主推荐的 #今日活跃 JSON，始终走 Chaoli 专用代理；报告独立于群聊人格与会话上下文，摘要逐条绑定真实楼层证据。
 搜索使用超理前端自己的 POST AJAX 接口，不经过会被 Cloudflare 拦截的 GET 查询页。
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.30")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.31")
 class DogeChaoli(Star):
     PUSH_LIMIT = 30
     PUSH_INTERVAL = max(60, min(int(os.getenv("DOGE_CHAOLI_PUSH_INTERVAL", "120") or 120), 600))
@@ -161,8 +162,11 @@ class DogeChaoli(Star):
         umo = str(event.unified_msg_origin)
         if sub in {"now", "show", "today"}:
             today = shanghai_date()
-            cards, source = await self._daily_cards_for_send(today)
-            return format_daily_message(cards, today, source)
+            report = await self._daily_report_for_send(today)
+            delivered = bool(await self.context.send_message(umo, self._daily_report_chain(report)))
+            if not delivered:
+                raise ValueError("超理日报发送失败")
+            return None
         if sub == "status":
             async with self._push_lock:
                 state = self.push_store.daily_state(umo)
@@ -171,10 +175,9 @@ class DogeChaoli(Star):
             raise ValueError("只有 Doge 管理员、本群群主或群管理员可以修改、测试或主动推送超理日报")
         if sub in {"push", "send"}:
             today = shanghai_date()
-            cards, source = await self._daily_cards_for_send(today)
-            message = format_daily_message(cards, today, source)
+            report = await self._daily_report_for_send(today)
             try:
-                delivered = bool(await self.context.send_message(umo, MessageChain([Plain(message)])))
+                delivered = bool(await self.context.send_message(umo, self._daily_report_chain(report)))
             except Exception as exc:
                 logger.warning(f"doge chaoli manual daily push failed umo={umo}: {type(exc).__name__}: {exc}")
                 delivered = False
@@ -199,8 +202,11 @@ class DogeChaoli(Star):
             return "已关闭本群超理日报；实时 push 不受影响。"
         if sub in {"test", "preview"}:
             today = shanghai_date()
-            cards, source = await self._daily_cards_for_send(today)
-            return format_daily_message(cards, today, source, test=True)
+            report = await self._daily_report_for_send(today)
+            delivered = bool(await self.context.send_message(umo, self._daily_report_chain(report)))
+            if not delivered:
+                raise ValueError("超理日报测试发送失败")
+            return None
         raise ValueError("用法：/chaoli daily [now|push|on [HH:MM]|off|status|test]")
 
     async def _ensure_daily_pool(self) -> None:
@@ -224,6 +230,17 @@ class DogeChaoli(Star):
         except Exception as exc:
             self.daily_pool.reset(today, [])
             logger.warning(f"doge chaoli daily pool seed failed: {type(exc).__name__}: {exc}")
+
+    async def _daily_report_for_send(self, today: str) -> DailyReportBundle:
+        cards, source = await self._daily_cards_for_send(today)
+        provider = await self.context.get_using_provider_async()
+        return await build_daily_report(self.data_dir, cards, today, source, provider=provider)
+
+    @staticmethod
+    def _daily_report_chain(report: DailyReportBundle) -> MessageChain:
+        chain = [Plain(report.caption)]
+        chain.extend(Image.fromFileSystem(str(path)) for path in report.pages)
+        return MessageChain(chain)
 
     async def _daily_cards_for_send(self, today: str) -> tuple[list, str]:
         # Primary path: exactly the forum-owner recommended JSON URL through the
@@ -266,12 +283,12 @@ class DogeChaoli(Star):
                 due.append(str(umo))
         if not due:
             return
-        cards, source = await self._daily_cards_for_send(today)
-        message = format_daily_message(cards, today, source)
+        report = await self._daily_report_for_send(today)
+        chain = self._daily_report_chain(report)
         for umo in due:
             delivered = False
             try:
-                delivered = bool(await self.context.send_message(umo, MessageChain([Plain(message)])))
+                delivered = bool(await self.context.send_message(umo, chain))
             except Exception as exc:
                 logger.warning(f"doge chaoli daily send failed umo={umo}: {type(exc).__name__}: {exc}")
             if delivered:
