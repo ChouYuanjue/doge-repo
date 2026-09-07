@@ -45,6 +45,7 @@ HELP = """Doge Chaoli /chaoli
   /chaoli push status                   查看本群订阅
   /chaoli push test [板块]              预览实时推送样式，不改变水位（群主/管理员）
   /chaoli daily                         立即查看今日活跃；优先坛主推荐 JSON，失败使用按日活跃池
+  /chaoli daily push                    立即主动推送今日日报到当前群；成功后推进当天发送水位（管理员）
   /chaoli daily on [HH:MM]              开启本群日报，默认 23:45（Doge 管理员/群主/群管理员）
   /chaoli daily off|status|test          日报管理/预览；和实时 push 独立
   /chaoli status                        检查 Chaoli 专用代理链
@@ -53,7 +54,7 @@ HELP = """Doge Chaoli /chaoli
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.29")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.30")
 class DogeChaoli(Star):
     PUSH_LIMIT = 30
     PUSH_INTERVAL = max(60, min(int(os.getenv("DOGE_CHAOLI_PUSH_INTERVAL", "120") or 120), 600))
@@ -152,7 +153,7 @@ class DogeChaoli(Star):
             raise ValueError("日报时间必须是 HH:MM，例如 23:45")
         return raw
 
-    async def _daily_command(self, event: AstrMessageEvent, raw: str) -> str:
+    async def _daily_command(self, event: AstrMessageEvent, raw: str) -> str | None:
         if not event.get_group_id():
             raise ValueError("超理日报订阅只支持群聊")
         parts = raw.strip().split()
@@ -167,7 +168,26 @@ class DogeChaoli(Star):
                 state = self.push_store.daily_state(umo)
             return f"本群超理日报：{'ON' if state['enabled'] else 'OFF'} · 时间 {state['time']} · 最近发送 {state['last_sent'] or '无'}。实时 push 与日报互不影响。"
         if not await is_group_admin(event):
-            raise ValueError("只有 Doge 管理员、本群群主或群管理员可以修改或测试超理日报")
+            raise ValueError("只有 Doge 管理员、本群群主或群管理员可以修改、测试或主动推送超理日报")
+        if sub in {"push", "send"}:
+            today = shanghai_date()
+            cards, source = await self._daily_cards_for_send(today)
+            message = format_daily_message(cards, today, source)
+            try:
+                delivered = bool(await self.context.send_message(umo, MessageChain([Plain(message)])))
+            except Exception as exc:
+                logger.warning(f"doge chaoli manual daily push failed umo={umo}: {type(exc).__name__}: {exc}")
+                delivered = False
+            if not delivered:
+                raise ValueError("超理日报主动推送失败；发送水位未推进")
+            async with self._push_lock:
+                state = self.push_store.daily_state(umo)
+                if state.get("enabled"):
+                    self.push_store.mark_daily_sent(umo, today)
+            logger.info(f"doge chaoli manual daily push delivered umo={umo} date={today}")
+            # Direct platform send is the command result. Returning None prevents
+            # raw commands and Agent formal bridges from duplicating the digest.
+            return None
         if sub in {"on", "enable"}:
             time_text = self._normalize_daily_time(parts[1] if len(parts) > 1 else DAILY_DEFAULT_TIME)
             async with self._push_lock:
@@ -181,7 +201,7 @@ class DogeChaoli(Star):
             today = shanghai_date()
             cards, source = await self._daily_cards_for_send(today)
             return format_daily_message(cards, today, source, test=True)
-        raise ValueError("用法：/chaoli daily [now|on [HH:MM]|off|status|test]")
+        raise ValueError("用法：/chaoli daily [now|push|on [HH:MM]|off|status|test]")
 
     async def _ensure_daily_pool(self) -> None:
         today = shanghai_date()
@@ -433,6 +453,8 @@ class DogeChaoli(Star):
                 out = await ChaoliService.status()
             else:
                 raise ValueError("未知 chaoli 子命令")
+            if out is None:
+                return
             yield long_result(event, "Chaoli", out, fold_threshold=1800)
         except (ChaoliError, ValueError) as exc:
             yield text_result(event, format_cli_error("chaoli", exc), markdown=False)

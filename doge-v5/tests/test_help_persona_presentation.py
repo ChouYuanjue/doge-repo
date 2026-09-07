@@ -310,5 +310,30 @@ class PersonaTests(unittest.TestCase):
                 self.assertEqual(len(json.loads(row[2])) % 2, 0)
 
 
+
+class ChaoliProactiveCapabilityTests(unittest.TestCase):
+    def test_manual_daily_push_is_exact_formal_leaf(self):
+        from doge_shared.capabilities import match_invocation
+        inv = match_invocation("/chaoli daily push")
+        self.assertIsNotNone(inv)
+        self.assertEqual(inv.capability_id, "chaoli.daily.push")
+
+    def test_proactive_daily_query_prefers_real_push_not_view(self):
+        from doge_shared.capabilities import registry, search_capabilities
+        registry.cache_clear()
+        for query in ("主动触发超理日报推送", "立即推送今天的超理日报"):
+            rows = search_capabilities(query, 6)
+            self.assertTrue(rows)
+            self.assertEqual(rows[0]["id"], "chaoli.daily.push", query)
+            self.assertNotIn(rows[0]["id"], {"chaoli.daily", "chaoli.daily.now"})
+
+    def test_view_daily_query_prefers_read_only_now_not_push(self):
+        from doge_shared.capabilities import registry, search_capabilities
+        registry.cache_clear()
+        rows = search_capabilities("查看超理日报", 6)
+        self.assertTrue(rows)
+        self.assertEqual(rows[0]["id"], "chaoli.daily.now")
+        self.assertNotEqual(rows[0]["id"], "chaoli.daily.push")
+
 if __name__ == "__main__":
     unittest.main()

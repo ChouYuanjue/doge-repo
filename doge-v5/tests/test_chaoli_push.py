@@ -213,6 +213,56 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("按日活跃池", source)
             native.assert_not_awaited()
 
+    async def test_manual_daily_push_really_sends_and_advances_enabled_watermark(self):
+        with tempfile.TemporaryDirectory() as td:
+            plugin = object.__new__(DogeChaoli)
+            plugin.push_store = ChaoliPushStore(Path(td) / "push.json")
+            plugin.daily_pool = ChaoliDailyPool(Path(td) / "daily.json")
+            plugin._push_lock = __import__("asyncio").Lock()
+            plugin.context = type("Ctx", (), {})()
+            plugin.context.send_message = AsyncMock(return_value=True)
+            umo = "napcat:GroupMessage:1"
+            plugin.push_store.set_daily(umo, True, "23:45")
+            plugin.push_store.data["subscriptions"][umo]["daily"]["last_sent"] = "2026-09-06"
+            plugin.push_store.save()
+            plugin._daily_cards_for_send = AsyncMock(return_value=([card(100)], "owner-json"))
+
+            event = type("Event", (), {
+                "unified_msg_origin": umo,
+                "get_group_id": lambda self: "1",
+            })()
+            with patch.object(chaoli_main, "is_group_admin", AsyncMock(return_value=True)):
+                result = await plugin._daily_command(event, "push")
+
+            self.assertIsNone(result)
+            plugin.context.send_message.assert_awaited_once()
+            self.assertEqual(plugin.context.send_message.await_args.args[0], umo)
+            self.assertIn("超理日报", str(plugin.context.send_message.await_args.args[1]))
+            self.assertEqual(plugin.push_store.daily_state(umo)["last_sent"], shanghai_date())
+
+    async def test_failed_manual_daily_push_does_not_advance_watermark(self):
+        with tempfile.TemporaryDirectory() as td:
+            plugin = object.__new__(DogeChaoli)
+            plugin.push_store = ChaoliPushStore(Path(td) / "push.json")
+            plugin.daily_pool = ChaoliDailyPool(Path(td) / "daily.json")
+            plugin._push_lock = __import__("asyncio").Lock()
+            plugin.context = type("Ctx", (), {})()
+            plugin.context.send_message = AsyncMock(return_value=False)
+            umo = "napcat:GroupMessage:1"
+            plugin.push_store.set_daily(umo, True, "23:45")
+            plugin.push_store.data["subscriptions"][umo]["daily"]["last_sent"] = "2026-09-06"
+            plugin.push_store.save()
+            plugin._daily_cards_for_send = AsyncMock(return_value=([card(100)], "owner-json"))
+            event = type("Event", (), {
+                "unified_msg_origin": umo,
+                "get_group_id": lambda self: "1",
+            })()
+
+            with patch.object(chaoli_main, "is_group_admin", AsyncMock(return_value=True)):
+                with self.assertRaisesRegex(ValueError, "水位未推进"):
+                    await plugin._daily_command(event, "push")
+            self.assertEqual(plugin.push_store.daily_state(umo)["last_sent"], "2026-09-06")
+
     async def test_multiple_due_groups_share_one_daily_source_fetch(self):
         with tempfile.TemporaryDirectory() as td:
             plugin = object.__new__(DogeChaoli)

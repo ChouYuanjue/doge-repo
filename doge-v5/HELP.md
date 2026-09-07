@@ -13,7 +13,7 @@ USAGE
 GROUPS
   system       4  系统 / 状态
              认识当前实例、查看运行状态与使用统计。
-  research    62  检索 / 科研
+  research    64  检索 / 科研
              论文、知识检索，以及生化环材、天文和临床数据。
   compute     25  数学 / 计算机 / AI
              精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
@@ -41,8 +41,8 @@ QUICK START
 
 SCALE
   顶层指令       36
-  正式叶子功能   279
-  正式调用形式   573  （含 294 个兼容别名）
+  正式叶子功能   281
+  正式调用形式   576  （含 295 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -173,8 +173,7 @@ COMMAND  /chaoli
 SUBCOMMANDS
   search           使用超理原生 POST AJAX 搜索；每条结果强绑定主题 ID、板块、首帖作者与最后回复者，不把更新时间归给首帖作者。
     /chaoli search <查询> [--board 板块] [--limit N]
-  daily            超理日报：优先经 Chaoli 专用代理使用坛主提供的 #今日活跃 index.json/all 语义，以论坛原生 session/token POST 获取结构化 results；失败才使用实时 push 差分维护的按日活跃池，空池/停机修复再退到原生 AJAX POST。日报与实时 push 独立。
-    /chaoli daily [now|on [HH:MM]|off|status|test]
+  daily             3 功能  超理日报查看与订阅管理：now/空参数只返回今日活跃内容，不会主动发送；定时日报优先经 Chaoli 专用代理使用坛主提供的 #今日活跃 JSON，失败才使用按日活跃池。真正立即推送请使用 /chaoli daily push。
   latest           查看超理最新主题流；首帖作者、最后回复者、发表/更新时间分别绑定，未知板块直接报错而不静默回退。
     /chaoli latest [板块] [数量]
   channel          严格按指定板块浏览主题；板块 slug 与每个主题卡的 data-channel 必须一致。
@@ -203,6 +202,28 @@ NEXT
 
 BACK
   /help
+```
+
+#### `/help chaoli daily`
+
+```text
+COMMAND  /chaoli daily
+
+DIRECT
+  /chaoli daily [now|push|on [HH:MM]|off|status|test]
+    超理日报查看与订阅管理：now/空参数只返回今日活跃内容，不会主动发送；定时日报优先经 Chaoli 专用代理使用坛主提供的 #今日活跃 JSON，失败才使用按日活跃池。真正立即推送请使用 /chaoli daily push。
+
+SUBCOMMANDS
+  now              查看超理日报：查看/看看/显示今天的超理日报与今日活跃内容，只把日报作为当前请求结果返回，不主动向群发送，也不修改 last_sent 发送水位。
+    /chaoli daily now
+  push             主动触发超理日报推送：立即推送今天的超理日报到当前群，真正走群级发送链路，而不是把日报作为当前 Agent 回复返回。仅 Doge 管理员/本群群主/群管理员可执行；若本群已启用定时日报，成功发送后推进当天 last_sent，避免 23:45 重复发送；失败不推进水位。
+    /chaoli daily push
+
+NEXT
+  /help chaoli daily now
+
+BACK
+  /help chaoli
 ```
 
 ### `/paper`
