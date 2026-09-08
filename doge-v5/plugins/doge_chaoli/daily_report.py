@@ -16,6 +16,8 @@ from data.plugins.doge_shared.typeset import _render_tex_document
 from .push import reply_count
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
+REPORT_SCHEMA = 3
+REPORT_TEMPLATE_REV = "tex-institutional-v2"
 
 
 @dataclass(frozen=True, slots=True)
@@ -647,21 +649,34 @@ def _render_story_tex(
     source = _source_line(item, summary)
     if lead:
         return (
+            r"\Kicker{今日头条 · LEAD}" + "\n"
             r"\Meta{" + meta + "}\n"
-            r"{\sffamily\bfseries\color{DogeInk}\fontsize{18.5}{22.5}\selectfont " + headline + r"\par}" + "\n"
-            r"\vspace{1mm}\Deck{" + deck + r"}\vspace{2mm}" + "\n"
-            r"{\fontsize{10.7}{16.5}\selectfont " + _tex_prose(body) + "}\n"
-            r"\vspace{1.5mm}\SourceNote{" + source + r"}\vspace{2mm}\ThinRule" + "\n"
+            r"{\sffamily\bfseries\color{DogeInk}\fontsize{18.2}{21.8}\selectfont " + headline + r"\par}" + "\n"
+            r"\vspace{0.8mm}\Deck{" + deck + r"}\vspace{1.7mm}" + "\n"
+            r"{\fontsize{10.5}{16.1}\selectfont " + _tex_prose(body) + "}\n"
+            r"\vspace{1.2mm}\SourceNote{" + source + r"}\vspace{1.8mm}\ThinRule" + "\n"
         )
-    title_macro = r"\BriefTitle{" if block.level == "brief" else r"\ArticleTitle{"
-    body_size = r"\fontsize{9.2}{14.2}\selectfont " if block.level == "brief" else r"\fontsize{9.8}{15.2}\selectfont "
-    return (
+
+    # Header + deck are one indivisible unit. Unlike needspace, this never asks
+    # multicol to manufacture an almost-empty intermediate page. Feature bodies
+    # remain free to flow naturally after the header. Briefs are short enough to
+    # keep the whole item together, avoiding orphan titles altogether.
+    title_macro = r"\BriefTitle{" if block.level == "brief" else r"\FeatureTitle{"
+    header = (
+        r"\begin{minipage}{\columnwidth}" + "\n"
+        r"\Kicker{" + _tex_escape("短讯 · BRIEF" if block.level == "brief" else "重点 · FEATURE") + "}\n"
         r"\Meta{" + meta + "}\n"
         + title_macro + headline + "}\n"
-        + r"\Deck{" + deck + r"}\vspace{1.2mm}" + "\n"
-        + "{" + body_size + _tex_prose(body) + "}\n"
-        + r"\vspace{1mm}\SourceNote{" + source + r"}\vspace{2mm}\ThinRule" + "\n"
+        + r"\vspace{0.5mm}\Deck{" + deck + r"}" + "\n"
+        r"\end{minipage}\par\nopagebreak[4]\vspace{1.0mm}" + "\n"
     )
+    body_size = r"\fontsize{9.1}{13.9}\selectfont " if block.level == "brief" else r"\fontsize{9.7}{14.8}\selectfont "
+    story = (
+        header
+        + "{" + body_size + _tex_prose(body) + "}\n"
+        + r"\vspace{0.8mm}\SourceNote{" + source + r"}\vspace{1.6mm}\ThinRule" + "\n"
+    )
+    return story
 
 
 def _issue_number(date: str) -> str:
@@ -757,6 +772,7 @@ def _compile_issue_tex(out: Path, tex_text: str, stem: str) -> tuple[Path, tuple
 
 def _signature(cards: list[ThreadCard], date: str, source: str) -> str:
     payload = {
+        "template_revision": REPORT_TEMPLATE_REV,
         "date": date,
         "source": source,
         "cards": [
@@ -773,22 +789,79 @@ def _signature(cards: list[ThreadCard], date: str, source: str) -> str:
     return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
 
 
+def _load_frozen_report(out: Path, cards: list[ThreadCard], date: str, source: str, sig: str) -> DailyReportBundle | None:
+    manifest = out / f"chaoli-daily-{date}-{sig}.json"
+    if not manifest.exists():
+        return None
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        if data.get("schema") != REPORT_SCHEMA or data.get("template_revision") != REPORT_TEMPLATE_REV:
+            return None
+        if data.get("signature") != sig or data.get("date") != date:
+            return None
+        pdf = out / str(data.get("pdf_file") or "")
+        pages = tuple(out / str(x) for x in (data.get("page_files") or []))
+        tex_path = out / f"chaoli-daily-{date}-{sig}.tex"
+        md_path = out / f"chaoli-daily-{date}-{sig}.md"
+        if not pdf.exists() or not pdf.read_bytes()[:4] == b"%PDF" or not pages or not all(x.exists() and x.stat().st_size > 1000 for x in pages):
+            return None
+        editorial_raw = data.get("editorial") or {}
+        editorial = DailyEditorialIssue(
+            str(editorial_raw.get("headline") or "超理日报"),
+            str(editorial_raw.get("standfirst") or ""),
+            tuple(
+                DailyEditorialBlock(
+                    str(x.get("level") or "brief"),
+                    tuple(int(v) for v in (x.get("thread_ids") or [])),
+                    str(x.get("headline") or ""),
+                    str(x.get("deck") or ""),
+                )
+                for x in (editorial_raw.get("blocks") or [])
+            ),
+            str(editorial_raw.get("error") or ""),
+        )
+        topics = {int(x.get("thread_id")): x for x in (data.get("topics") or []) if x.get("thread_id") is not None}
+        evidence = []
+        summaries = []
+        for card in cards:
+            row = topics.get(card.thread_id, {})
+            evidence.append(DailyTopicEvidence(card, None, (), (), str(row.get("evidence_error") or "")))
+            summaries.append(DailyTopicSummary(
+                card.thread_id,
+                str(row.get("article") or ""),
+                tuple(int(x) for x in (row.get("article_evidence_floors") or [])),
+                str(row.get("article_error") or ""),
+            ))
+        return DailyReportBundle(
+            date, source, tuple(cards), tuple(evidence), tuple(summaries), editorial,
+            md_path.read_text(encoding="utf-8") if md_path.exists() else "",
+            tex_path.read_text(encoding="utf-8") if tex_path.exists() else "",
+            pdf, pages, manifest,
+        )
+    except Exception:
+        return None
+
+
 async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: str, source: str, *, provider=None) -> DailyReportBundle:
     out = Path(output_dir) / "reports"
     out.mkdir(parents=True, exist_ok=True)
+    sig = _signature(cards, date, source)
+    frozen = _load_frozen_report(out, cards, date, source, sig)
+    if frozen is not None:
+        return frozen
     evidence = await collect_daily_evidence(cards)
     summaries = await summarize_daily_topics(provider, evidence)
     editorial = await editorialize_daily(provider, evidence, summaries)
     markdown = _report_markdown(cards, evidence, summaries, date, source)  # audit trail only
     tex_text = _render_issue_tex(cards, evidence, summaries, editorial, date, source)
-    sig = _signature(cards, date, source)
     source_path = out / f"chaoli-daily-{date}-{sig}.md"
     source_path.write_text(markdown, encoding="utf-8")
     tex_path = out / f"chaoli-daily-{date}-{sig}.tex"
     tex_path.write_text(tex_text, encoding="utf-8")
 
     manifest_data = {
-        "schema": 2,
+        "schema": REPORT_SCHEMA,
+        "template_revision": REPORT_TEMPLATE_REV,
         "date": date,
         "generated_at": datetime.now(SHANGHAI).isoformat(),
         "source": source,
@@ -827,10 +900,13 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
         ],
     }
     manifest = out / f"chaoli-daily-{date}-{sig}.json"
-    manifest.write_text(json.dumps(manifest_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     render_stem = f"chaoli-daily-{date}-{sig}-{hashlib.sha256(tex_text.encode('utf-8')).hexdigest()[:10]}"
     pdf_path, pages = await asyncio.to_thread(_compile_issue_tex, out, tex_text, render_stem)
+    manifest_data["render_stem"] = render_stem
+    manifest_data["pdf_file"] = pdf_path.name
+    manifest_data["page_files"] = [x.name for x in pages]
+    manifest.write_text(json.dumps(manifest_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return DailyReportBundle(
         date, source, tuple(cards), tuple(evidence), tuple(summaries), editorial, markdown, tex_text, pdf_path, tuple(pages), manifest
     )

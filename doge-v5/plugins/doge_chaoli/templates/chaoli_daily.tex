@@ -6,89 +6,92 @@
 \usepackage{xcolor}
 \usepackage{fancyhdr}
 \usepackage{url}
-\usepackage{needspace}
 
-% Load the Simplified-Chinese face directly from the host TTC files.  Using
-% family-name discovery makes XeTeX/fontconfig scan the full Noto collection on
-% every sandboxed build and can consume >1 GB; explicit Path + FontIndex is
-% deterministic and an order of magnitude faster.
+% Deterministic direct loading avoids an expensive fontconfig scan in the
+% sandbox. FontIndex=2 is Simplified Chinese in the Noto CJK TTC collection.
 \setCJKmainfont[Path=/usr/share/fonts/google-noto-cjk/,FontIndex=2,BoldFont=NotoSerifCJK-Bold.ttc,BoldFeatures={FontIndex=2}]{NotoSerifCJK-Regular.ttc}
 \setCJKsansfont[Path=/usr/share/fonts/google-noto-cjk/,FontIndex=2,BoldFont=NotoSansCJK-Bold.ttc,BoldFeatures={FontIndex=2}]{NotoSansCJK-Regular.ttc}
 
-\geometry{top=14mm,bottom=16mm,left=15mm,right=15mm,headheight=14pt,headsep=5mm}
-\definecolor{DogeInk}{HTML}{172A30}
-\definecolor{DogeAccent}{HTML}{315D62}
-\definecolor{DogeMuted}{HTML}{657277}
-\definecolor{DogeRule}{HTML}{AEB8B8}
+\geometry{top=13.5mm,bottom=15mm,left=15mm,right=15mm,headheight=14pt,headsep=4.5mm,footskip=8mm}
+\definecolor{DogeInk}{HTML}{171B1F}
+\definecolor{DogeAccent}{HTML}{7A3038}
+\definecolor{DogeMuted}{HTML}{697178}
+\definecolor{DogeRule}{HTML}{C8C1BA}
+\definecolor{DogePale}{HTML}{F4F1EC}
 \urlstyle{same}
 \setlength{\parindent}{2em}
 \setlength{\parskip}{0pt}
-\setlength{\columnsep}{7mm}
-\setlength{\columnseprule}{0.25pt}
-\def\columnseprulecolor{\color{DogeRule}}
+\setlength{\columnsep}{7.5mm}
+\setlength{\columnseprule}{0pt}
+\setlength{\multicolsep}{2mm}
 \raggedcolumns
-\emergencystretch=1.2em
+\emergencystretch=1.1em
 \sloppy
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\sffamily\small\color{DogeMuted} 超理日报 · CHAOLI DAILY}
-\fancyhead[R]{\sffamily\small\color{DogeMuted} @@DATE@@}
-\fancyfoot[L]{\sffamily\scriptsize\color{DogeMuted} 数据与原帖：chaoli.club · 自动采编，逐楼层证据校验}
-\fancyfoot[R]{\sffamily\scriptsize\color{DogeMuted} 第 \thepage 页}
-\renewcommand{\headrulewidth}{0.35pt}
+\fancyhead[L]{\sffamily\scriptsize\bfseries\color{DogeMuted} CHAOLI CLUB / DAILY BRIEFING}
+\fancyhead[R]{\sffamily\scriptsize\color{DogeMuted} 超理日报 · @@DATE@@}
+\fancyfoot[L]{\sffamily\scriptsize\color{DogeMuted} chaoli.club · 公开楼层证据采编}
+\fancyfoot[R]{\sffamily\scriptsize\color{DogeMuted} @@ISSUE@@ / \thepage}
+\renewcommand{\headrulewidth}{0.25pt}
 \renewcommand{\footrulewidth}{0pt}
 
-\newcommand{\IssueRule}{\par\vspace{1.4mm}{\color{DogeAccent}\hrule height 1.0pt}\vspace{2.4mm}}
-\newcommand{\ThinRule}{\par\vspace{1.2mm}{\color{DogeRule}\hrule height 0.35pt}\vspace{2mm}}
-\newcommand{\Meta}[1]{{\sffamily\scriptsize\bfseries\color{DogeAccent} #1\par}}
+\newcommand{\IssueRule}{\par\vspace{1.1mm}{\color{DogeAccent}\hrule height 1.15pt}\vspace{2.6mm}}
+\newcommand{\ThinRule}{\par\vspace{1.5mm}{\color{DogeRule}\hrule height 0.35pt}\vspace{2.1mm}}
+\newcommand{\Kicker}[1]{{\sffamily\scriptsize\bfseries\color{DogeAccent}\MakeUppercase{#1}\par}}
+\newcommand{\Meta}[1]{{\sffamily\scriptsize\color{DogeMuted} #1\par}}
 \newcommand{\Deck}[1]{{\sffamily\small\color{DogeMuted} #1\par}}
 \newcommand{\SourceNote}[1]{{\sffamily\scriptsize\color{DogeMuted} #1\par}}
-\newcommand{\ArticleTitle}[1]{\Needspace{7\baselineskip}{\sffamily\bfseries\color{DogeInk}\fontsize{15.5}{18.5}\selectfont #1\par}\vspace{1.2mm}}
-\newcommand{\BriefTitle}[1]{\Needspace{5\baselineskip}{\sffamily\bfseries\color{DogeInk}\fontsize{11.5}{14}\selectfont #1\par}\vspace{0.7mm}}
+\newcommand{\FeatureTitle}[1]{{\sffamily\bfseries\color{DogeInk}\fontsize{14.2}{17.2}\selectfont #1\par}}
+\newcommand{\BriefTitle}[1]{{\sffamily\bfseries\color{DogeInk}\fontsize{11.2}{13.6}\selectfont #1\par}}
 
 \begin{document}
 \thispagestyle{fancy}
 
-% Masthead
-\noindent{\color{DogeAccent}\rule{\textwidth}{1.8pt}}\\[-1mm]
-\noindent\begin{minipage}[t]{0.66\textwidth}
-{\sffamily\bfseries\color{DogeInk}\fontsize{30}{33}\selectfont 超理日报}\par
-{\sffamily\scriptsize\color{DogeMuted}CHAOLI DAILY · DAILY TECHNICAL DIGEST}
+% Institutional masthead: restrained, print-first, no card UI.
+\noindent{\sffamily\scriptsize\bfseries\color{DogeAccent} CHAOLI CLUB · TECHNICAL \& ACADEMIC COMMUNITY}\par
+\vspace{1.1mm}
+\noindent\begin{minipage}[t]{0.67\textwidth}
+{\sffamily\bfseries\color{DogeInk}\fontsize{29}{31}\selectfont 超理日报}\par
+\vspace{0.7mm}
+{\sffamily\small\color{DogeMuted} 每日公开讨论采编 · DAILY TECHNICAL DIGEST}
 \end{minipage}\hfill
-\begin{minipage}[t]{0.30\textwidth}\raggedleft
+\begin{minipage}[t]{0.29\textwidth}\raggedleft
 {\sffamily\small\bfseries\color{DogeInk} @@DATE@@}\par
-{\sffamily\scriptsize\color{DogeMuted} 第 @@ISSUE@@ 期 · 截至 @@TIME@@}\par
-{\sffamily\scriptsize\color{DogeMuted} @@STATS@@}
+{\sffamily\scriptsize\color{DogeMuted} 第 @@ISSUE@@ 期}\par
+{\sffamily\scriptsize\color{DogeMuted} 截至 @@TIME@@ · @@STATS@@}
 \end{minipage}
 \IssueRule
 
-% Issue headline and standfirst
-{\sffamily\bfseries\color{DogeInk}\fontsize{23}{28}\selectfont @@ISSUE_HEADLINE@@\par}
-\vspace{2mm}
-{\fontsize{11.5}{18}\selectfont\color{DogeInk} @@STANDFIRST@@\par}
-\vspace{3mm}
+% The issue thesis is deliberately editorial rather than a dashboard summary.
+{\sffamily\bfseries\color{DogeInk}\fontsize{21.5}{26}\selectfont @@ISSUE_HEADLINE@@\par}
+\vspace{1.6mm}
+\noindent{\fontsize{10.8}{16.6}\selectfont\color{DogeInk} @@STANDFIRST@@\par}
+\vspace{2.2mm}
 \ThinRule
 
-% Lead story spans the page width.
 @@LEAD_STORY@@
 
-\vspace{1mm}
+\vspace{0.5mm}
 \begin{multicols}{2}
 @@COLUMN_STORIES@@
 \end{multicols}
 
-% Keep the evidence/methodology colophon visually grounded on the final page.
-% With a light news day this turns residual space into deliberate breathing room
-% instead of leaving a ragged blank tail after the source index.
+% Colophon sits at the bottom of the final page; with Needspace removed this no
+% longer participates in column pagination and simply makes residual whitespace
+% intentional.
 \vfill
-\vspace{2mm}
+\vspace{2.5mm}
 {\color{DogeAccent}\hrule height 0.8pt}
-\vspace{2mm}
-{\sffamily\bfseries\small\color{DogeInk} 本期来源与口径}\par
-\vspace{1mm}
+\vspace{1.8mm}
+{\sffamily\bfseries\small\color{DogeInk} 资料与方法}\par
+\vspace{0.8mm}
 {\sffamily\scriptsize\color{DogeMuted} @@METHODOLOGY@@\par}
-\vspace{1.2mm}
+\vspace{1.1mm}
 @@SOURCE_INDEX@@
 
 \end{document}
