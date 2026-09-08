@@ -1,0 +1,617 @@
+diff --git a/_conf_schema.json b/_conf_schema.json
+index a2f8933bc2db44746a726da8b8f4254b2c63ae6c..aa42f5fbfb806f7caf69c6d5f864da89ce2e989c 100644
+--- a/_conf_schema.json
++++ b/_conf_schema.json
+@@ -583,2 +583,26 @@
+-        "hint": "最多获取多少条历史消息作为上下文，0表示不获取，-1表示不限制",
+-        "default": -1
++        "hint": "发送给AI的群聊历史上限。Doge生产建议72；完整历史仍会持久化，不因该值删除。cache-aware模式下实际窗口会在low→high之间增长。",
++        "default": 72
++    },
++    "enable_cache_aware_context": {
++        "description": "启用前缀缓存友好的分段上下文窗口",
++        "type": "bool",
++        "hint": "启用后不采用每条消息都移动起点的普通滑窗；窗口从low增长到high，超过high时才一次性回落到low，从而让连续请求共享更长的精确前缀。只影响发送给AI的上下文，不删除历史。",
++        "default": true
++    },
++    "cache_context_low_messages": {
++        "description": "Cache-aware回复窗口低水位",
++        "type": "int",
++        "hint": "发生窗口重锚定时保留的最近消息数。建议48。",
++        "default": 48
++    },
++    "cache_context_high_messages": {
++        "description": "Cache-aware回复窗口高水位",
++        "type": "int",
++        "hint": "回复AI最多携带的群历史消息数。超过后一次性回落到low。建议72。",
++        "default": 72
++    },
++    "decision_context_high_messages": {
++        "description": "读空气Decision AI上下文高水位",
++        "type": "int",
++        "hint": "Decision AI只判断是否需要回复，不需要读取完整回复上下文。建议18；低水位自动取其约2/3。",
++        "default": 18
+diff --git a/main.py b/main.py
+index e781383ed3680d87adefafa61a953aa73cecda0e..20a19475514ea61700dbabc714e9d5d4cb0455f5 100644
+--- a/main.py
++++ b/main.py
+@@ -109,0 +110 @@ from astrbot.core.provider.entities import ProviderRequest
++from astrbot.core.agent.message import TextPart
+@@ -1206 +1207 @@ class ChatPlus(Star):
+-                f"⚠️ max_context_messages 配置值 '{_max_context_raw}' 无法转换为整数，使用默认值 -1"
++                f"⚠️ max_context_messages 配置值 '{_max_context_raw}' 无法转换为整数，使用默认值 72"
+@@ -1208 +1209,24 @@ class ChatPlus(Star):
+-            self.max_context_messages = -1
++            self.max_context_messages = 72
++
++        # Doge cache-aware context windows. Durable history remains complete;
++        # these values only bound what is serialized into LLM prompts. The
++        # hysteresis window keeps the same first message across many turns, so
++        # DeepSeek can reuse the whole previous prompt prefix instead of losing
++        # cache on every sliding-window shift.
++        self.enable_cache_aware_context = bool(config.get("enable_cache_aware_context", True))
++        try:
++            self.cache_context_high_messages = int(config.get("cache_context_high_messages", 72))
++        except (TypeError, ValueError):
++            self.cache_context_high_messages = 72
++        self.cache_context_high_messages = max(8, min(self.cache_context_high_messages, 160))
++        try:
++            self.cache_context_low_messages = int(config.get("cache_context_low_messages", 48))
++        except (TypeError, ValueError):
++            self.cache_context_low_messages = 48
++        self.cache_context_low_messages = max(4, min(self.cache_context_low_messages, self.cache_context_high_messages))
++        try:
++            self.decision_context_high_messages = int(config.get("decision_context_high_messages", 18))
++        except (TypeError, ValueError):
++            self.decision_context_high_messages = 18
++        self.decision_context_high_messages = max(4, min(self.decision_context_high_messages, 48))
++        self.decision_context_low_messages = max(2, min(round(self.decision_context_high_messages * 2 / 3), self.decision_context_high_messages))
+@@ -7019,0 +7044,8 @@ class ChatPlus(Star):
++        history_fetch_limit = max_context
++        if self.enable_cache_aware_context:
++            _high = self.cache_context_high_messages
++            _low = self.cache_context_low_messages
++            # Read one overlap band beyond the visible high watermark so the
++            # current anchor remains discoverable while new messages append.
++            history_fetch_limit = min(500, _high + max(8, _high - _low))
++
+@@ -7135 +7167 @@ class ChatPlus(Star):
+-                max_messages=max_context,
++                max_messages=history_fetch_limit,
+@@ -7218,7 +7250,5 @@ class ChatPlus(Star):
+-                            if isinstance(max_context, int):
+-                                if max_context == -1:
+-                                    msgs_iter = official_history  # 不限制
+-                                elif max_context > 0:
+-                                    msgs_iter = official_history[
+-                                        -max_context:
+-                                    ]  # 限制数量
++                            if isinstance(history_fetch_limit, int):
++                                if history_fetch_limit == -1:
++                                    msgs_iter = official_history
++                                elif history_fetch_limit > 0:
++                                    msgs_iter = official_history[-history_fetch_limit:]
+@@ -7226 +7256 @@ class ChatPlus(Star):
+-                                    msgs_iter = []  # max_context == 0 时不应走到这里
++                                    msgs_iter = []
+@@ -7228 +7258 @@ class ChatPlus(Star):
+-                                msgs_iter = official_history  # 非整数时默认全量
++                                msgs_iter = official_history
+@@ -7405 +7435,15 @@ class ChatPlus(Star):
+-        if (
++        if history_messages and self.enable_cache_aware_context:
++            before_cnt = len(history_messages)
++            history_messages = ContextManager.cache_aware_history_window(
++                f"reply:{platform_name}:{chat_id}",
++                history_messages,
++                low=self.cache_context_low_messages,
++                high=self.cache_context_high_messages,
++            )
++            if self.debug_mode:
++                logger.info(
++                    f"  cache-aware上下文: {before_cnt} -> {len(history_messages)} "
++                    f"(low={self.cache_context_low_messages}, high={self.cache_context_high_messages})"
++                )
++                _log_msgs("历史-cache-aware窗口", history_messages)
++        elif (
+@@ -7411,4 +7454,0 @@ class ChatPlus(Star):
+-            before_cnt = len(history_messages)
+-
+-            # 统一策略：删除最早的消息，只保留最新的 max_context 条
+-            # 由于消息已经按时间戳排序，直接截取末尾即可
+@@ -7416,15 +7456,2 @@ class ChatPlus(Star):
+-
+-            if self.debug_mode:
+-                removed_cnt = before_cnt - len(history_messages)
+-                logger.info(
+-                    f"  智能截断: {before_cnt} -> {len(history_messages)} "
+-                    f"(按时间顺序删除最早的 {removed_cnt} 条消息，保留最新的 {max_context} 条)"
+-                )
+-                _log_msgs("历史-截断后", history_messages)
+-        elif self.debug_mode:
+-            if isinstance(max_context, int) and max_context == -1:
+-                logger.info("  配置为-1，不限制上下文数量")
+-            elif isinstance(max_context, int) and max_context == 0:
+-                logger.info("  配置为0，无历史上下文")
+-            else:
+-                logger.info("  未触发上下文限制")
++        elif self.debug_mode and isinstance(max_context, int) and max_context == 0:
++            logger.info("  配置为0，无历史上下文")
+@@ -7534 +7561,4 @@ class ChatPlus(Star):
+-            if isinstance(max_context, int) and max_context > 0:
++            if self.enable_cache_aware_context:
++                fetch_limit = min(500, self.cache_context_high_messages + max(8, self.cache_context_high_messages - self.cache_context_low_messages))
++                msgs_iter = official_history[-fetch_limit:]
++            elif isinstance(max_context, int) and max_context > 0:
+@@ -7622 +7652,21 @@ class ChatPlus(Star):
+-            if (
++            newest_before = (
++                ContextManager._cache_window_message_key(current_history[-1])
++                if current_history
++                else ""
++            )
++            newest_after = (
++                ContextManager._cache_window_message_key(refreshed_msgs[-1])
++                if refreshed_msgs
++                else ""
++            )
++            if newest_after == newest_before:
++                return None
++
++            if self.enable_cache_aware_context:
++                refreshed_msgs = ContextManager.cache_aware_history_window(
++                    f"reply:{platform_name}:{chat_id}",
++                    refreshed_msgs,
++                    low=self.cache_context_low_messages,
++                    high=self.cache_context_high_messages,
++                )
++            elif (
+@@ -7629,3 +7678,0 @@ class ChatPlus(Star):
+-            if len(refreshed_msgs) <= len(current_history):
+-                return None
+-
+@@ -10108,4 +10155,7 @@ class ChatPlus(Star):
+-            decision_context = formatted_context
+-            if self.concurrent_mode == "smart":
+-                smart_batch_messages = self._smart_batch_snapshots.get(
+-                    early_message_id, []
++            decision_history = history_messages
++            if self.enable_cache_aware_context:
++                decision_history = ContextManager.cache_aware_history_window(
++                    f"decision:{platform_name}:{chat_id}",
++                    history_messages,
++                    low=self.decision_context_low_messages,
++                    high=self.decision_context_high_messages,
+@@ -10113,15 +10163,20 @@ class ChatPlus(Star):
+-                if smart_batch_messages:
+-                    try:
+-                        decision_context = await ContextManager.format_context_for_ai(
+-                            history_messages,
+-                            current_message_for_ai,
+-                            event.get_self_id(),
+-                            include_timestamp=self.include_timestamp,
+-                            include_sender_info=self.include_sender_info,
+-                            window_buffered_messages=smart_batch_messages,
+-                            poke_notice=poke_notice_text,
+-                        )
+-                    except Exception as smart_ctx_err:
+-                        logger.warning(
+-                            f"[Smart并发] 决策阶段重建批次上下文失败，回退原上下文: {smart_ctx_err}"
+-                        )
++            smart_batch_messages = (
++                self._smart_batch_snapshots.get(early_message_id, [])
++                if self.concurrent_mode == "smart"
++                else self.cache_manager.get_window_buffered_messages(chat_id)
++            )
++            try:
++                decision_context = await ContextManager.format_context_for_ai(
++                    decision_history,
++                    current_message_for_ai,
++                    event.get_self_id(),
++                    include_timestamp=self.include_timestamp,
++                    include_sender_info=self.include_sender_info,
++                    window_buffered_messages=smart_batch_messages,
++                    poke_notice=poke_notice_text,
++                )
++            except Exception as decision_ctx_err:
++                logger.warning(
++                    f"[cache-aware] 决策上下文重建失败，回退回复上下文: {decision_ctx_err}"
++                )
++                decision_context = formatted_context
+@@ -10972,0 +11028,11 @@ class ChatPlus(Star):
++        # Function schema order is semantically irrelevant but participates in
++        # serialized provider input. Canonical order prevents plugin reload/order
++        # jitter from needlessly cold-starting a prefix cache.
++        try:
++            if req.func_tool is not None and isinstance(getattr(req.func_tool, "tools", None), list):
++                req.func_tool.tools.sort(key=lambda tool: str(getattr(tool, "name", "")))
++            elif req.func_tool is not None and isinstance(getattr(req.func_tool, "func_list", None), list):
++                req.func_tool.func_list.sort(key=lambda tool: str(getattr(tool, "name", "")))
++        except Exception:
++            pass
++
+@@ -11070,2 +11136,3 @@ class ChatPlus(Star):
+-        # P2: 情绪提示追加到 system_prompt 末尾（由 _generate_and_send_reply /
+-        # proactive_chat_manager 预先存入 event extra，此处统一处理）。
++        # P2: 情绪是本轮状态，不属于稳定 system prefix。DeepSeek 的前缀缓存
++        # 从 token 0 精确匹配；把 mood 写进 system_prompt 会让每次情绪变化都
++        # 使整段历史缓存失效。与 Doge persona-state/time 一样放到当前 user tail。
+@@ -11074 +11141,5 @@ class ChatPlus(Star):
+-            req.system_prompt += f"\n\n{mood_hint}"
++            if not hasattr(req, "extra_user_content_parts") or req.extra_user_content_parts is None:
++                req.extra_user_content_parts = []
++            req.extra_user_content_parts.append(
++                TextPart(text=f"<group-chat-current-mood>{mood_hint}</group-chat-current-mood>")
++            )
+@@ -11076 +11147 @@ class ChatPlus(Star):
+-                logger.info(f"  ✅ 已追加情绪提示到 system_prompt")
++                logger.info("  ✅ 已将情绪提示追加到当前user tail（cache-friendly）")
+diff --git a/metadata.yaml b/metadata.yaml
+index ae81b1fb6d7693ad28625cec75a0ae710553b67e..e58983f41b35910dab34cb1a1b502bc666474d61 100644
+--- a/metadata.yaml
++++ b/metadata.yaml
+@@ -5 +5 @@ help: 通过AI智能判断是否回复群聊消息,聊天效果增强,V1.2.3.hot
+-version: V1.2.3.hotfix.2 # 插件版本号
++version: V1.2.3.hotfix.2-doge.1 # Doge cache-aware runtime patch
+diff --git a/private_chat/private_chat_utils/private_chat_proactive_chat_manager.py b/private_chat/private_chat_utils/private_chat_proactive_chat_manager.py
+index f1205525a707f97ee98caca028e9ae9f2898237a..0748070977b822cd42431f875257dcad5ac3f780 100644
+--- a/private_chat/private_chat_utils/private_chat_proactive_chat_manager.py
++++ b/private_chat/private_chat_utils/private_chat_proactive_chat_manager.py
+@@ -38,0 +39 @@ from ...utils.ai_error_formatter import format_ai_error
++from ...utils.context_manager import ContextManager
+@@ -4094,6 +4095 @@ class ProactiveChatManager:
+-            if (
+-                history_messages
+-                and isinstance(max_context, int)
+-                and max_context > 0
+-                and len(history_messages) > max_context
+-            ):
++            if history_messages and isinstance(max_context, int) and max_context > 0:
+@@ -4101,5 +4097,8 @@ class ProactiveChatManager:
+-
+-                # 统一策略：删除最早的消息，只保留最新的 max_context 条
+-                # 由于消息已经按时间戳排序，直接截取末尾即可
+-                history_messages = history_messages[-max_context:]
+-
++                proactive_high = max(8, min(max_context, 160))
++                proactive_low = max(4, round(proactive_high * 2 / 3))
++                history_messages = ContextManager.cache_aware_history_window(
++                    f"private-proactive:{platform_id}:{chat_id}",
++                    history_messages,
++                    low=proactive_low,
++                    high=proactive_high,
++                )
+@@ -4107 +4105,0 @@ class ProactiveChatManager:
+-                    removed_cnt = before_cnt - len(history_messages)
+@@ -4109,2 +4107,2 @@ class ProactiveChatManager:
+-                        f"[主动对话] 智能截断: {before_cnt} -> {len(history_messages)} "
+-                        f"(按时间顺序删除最早的 {removed_cnt} 条消息，保留最新的 {max_context} 条)"
++                        f"[主动对话] cache-aware上下文: {before_cnt} -> {len(history_messages)} "
++                        f"(low={proactive_low}, high={proactive_high})"
+diff --git a/tests/test_cache_windows.py b/tests/test_cache_windows.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..89c6858520c5620bf4f146236ac1fffd4e8dbe14
+--- /dev/null
++++ b/tests/test_cache_windows.py
+@@ -0,0 +1,128 @@
++from __future__ import annotations
++
++import json
++import unittest
++import asyncio
++from pathlib import Path
++from types import SimpleNamespace
++
++from utils.context_manager import ContextManager
++from utils.decision_ai import DecisionAI
++
++ROOT = Path(__file__).resolve().parents[1]
++
++
++def _msg(i: int):
++    return SimpleNamespace(
++        message_id=f"m{i}",
++        timestamp=1_700_000_000 + i,
++        message_str=f"message {i}",
++        sender=SimpleNamespace(user_id=str(i % 5)),
++    )
++
++
++class CacheWindowTests(unittest.TestCase):
++    def setUp(self):
++        ContextManager._cache_window_anchors.clear()
++
++    def test_keeps_same_anchor_while_appending(self):
++        rows = [_msg(i) for i in range(80)]
++        visible = ContextManager.cache_aware_history_window("reply:g", rows, low=48, high=72)
++        self.assertEqual(len(visible), 48)
++        self.assertEqual(visible[0].message_id, "m32")
++        for i in range(80, 104):
++            rows.append(_msg(i))
++            visible = ContextManager.cache_aware_history_window("reply:g", rows, low=48, high=72)
++            self.assertEqual(visible[0].message_id, "m32")
++            self.assertEqual(visible[-1].message_id, f"m{i}")
++            self.assertLessEqual(len(visible), 72)
++
++    def test_reanchors_once_after_high_watermark(self):
++        rows = [_msg(i) for i in range(80)]
++        ContextManager.cache_aware_history_window("reply:g", rows, low=48, high=72)
++        rows.extend(_msg(i) for i in range(80, 105))
++        visible = ContextManager.cache_aware_history_window("reply:g", rows, low=48, high=72)
++        self.assertEqual(len(visible), 48)
++        self.assertEqual(visible[0].message_id, "m57")
++        self.assertEqual(visible[-1].message_id, "m104")
++        rows.append(_msg(105))
++        nxt = ContextManager.cache_aware_history_window("reply:g", rows, low=48, high=72)
++        self.assertEqual(nxt[0].message_id, "m57")
++        self.assertEqual(nxt[-1].message_id, "m105")
++
++    def test_never_mutates_durable_history(self):
++        rows = [_msg(i) for i in range(120)]
++        before = [x.message_id for x in rows]
++        visible = ContextManager.cache_aware_history_window("reply:g", rows, low=48, high=72)
++        self.assertEqual(len(visible), 48)
++        self.assertEqual([x.message_id for x in rows], before)
++        self.assertEqual(len(rows), 120)
++
++    def test_decision_and_reply_have_independent_anchors(self):
++        rows = [_msg(i) for i in range(100)]
++        reply = ContextManager.cache_aware_history_window("reply:g", rows, low=48, high=72)
++        decision = ContextManager.cache_aware_history_window("decision:g", reply, low=12, high=18)
++        self.assertEqual(len(reply), 48)
++        self.assertEqual(len(decision), 12)
++        self.assertNotEqual(reply[0].message_id, decision[0].message_id)
++        self.assertEqual(set(ContextManager._cache_window_anchors), {"reply:g", "decision:g"})
++
++    def test_config_defaults_are_bounded_and_enabled(self):
++        schema = json.loads((ROOT / "_conf_schema.json").read_text(encoding="utf-8"))
++        self.assertEqual(schema["max_context_messages"]["default"], 72)
++        self.assertTrue(schema["enable_cache_aware_context"]["default"])
++        self.assertEqual(schema["cache_context_low_messages"]["default"], 48)
++        self.assertEqual(schema["cache_context_high_messages"]["default"], 72)
++        self.assertEqual(schema["decision_context_high_messages"]["default"], 18)
++
++    def test_decision_request_explicitly_disables_native_reasoning(self):
++        class Provider:
++            def __init__(self):
++                self.payload = None
++
++            async def _prepare_chat_payload(self, prompt, image_urls, audio_urls, contexts, system_prompt, tool_calls_result, **kwargs):
++                return ({"model": "deepseek-v4-flash", "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}]}, [])
++
++            async def _query(self, payload, tools, *, request_max_retries=None):
++                self.payload = dict(payload)
++                self.tools = tools
++                self.retries = request_max_retries
++                return SimpleNamespace(completion_text="yes")
++
++        provider = Provider()
++        resp = asyncio.run(DecisionAI._controlled_decision_request(
++            provider, prompt="P", system_prompt="S", image_urls=[], session_id="x", enable_reasoning=False
++        ))
++        self.assertEqual(resp.completion_text, "yes")
++        self.assertEqual(provider.payload["temperature"], 0.0)
++        self.assertEqual(provider.payload["max_tokens"], 64)
++        self.assertEqual(provider.payload["thinking"], {"type": "disabled"})
++        self.assertIsNone(provider.tools)
++        self.assertEqual(provider.retries, 1)
++
++    def test_mood_is_current_turn_tail_not_system_prefix(self):
++        main = (ROOT / "main.py").read_text(encoding="utf-8")
++        self.assertIn("<group-chat-current-mood>", main)
++        self.assertNotIn('req.system_prompt += f"\\n\\n{mood_hint}"', main)
++        self.assertIn('req.extra_user_content_parts.append(', main)
++
++    def test_tool_schema_order_is_canonicalized(self):
++        main = (ROOT / "main.py").read_text(encoding="utf-8")
++        self.assertIn('req.func_tool.tools.sort(key=lambda tool:', main)
++
++    def test_sender_state_is_tail_only(self):
++        reply = (ROOT / "utils" / "reply_handler.py").read_text(encoding="utf-8")
++        decision = (ROOT / "utils" / "decision_ai.py").read_text(encoding="utf-8")
++        self.assertIn("_sender_tail", reply)
++        self.assertIn("_decision_sender_tail", decision)
++        patterns = (
++            '+ sender_emphasis\n                    + "\\n"\n                    + formatted_message',
++            '+ sender_emphasis\n                    + "\\n\\n"\n                    + formatted_message',
++        )
++        for pattern in patterns:
++            self.assertNotIn(pattern, reply)
++            self.assertNotIn(pattern, decision)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/utils/context_manager.py b/utils/context_manager.py
+index 877daf952e5ebe75b52682743d0a37763a1368d5..dbb0119b7af54e4904abfcbe38cc050a278068b9 100644
+--- a/utils/context_manager.py
++++ b/utils/context_manager.py
+@@ -1395,0 +1396,60 @@ class ContextManager:
++    _cache_window_anchors: dict[str, str] = {}
++
++    @staticmethod
++    def _cache_window_message_key(msg) -> str:
++        """Stable-enough key for a stored platform message inside one process."""
++        try:
++            mid = str(getattr(msg, "message_id", "") or "").strip()
++            if mid and not mid.startswith("official_"):
++                return "id:" + mid
++            sender = getattr(msg, "sender", None)
++            sid = str(getattr(sender, "user_id", "") or "")
++            content = ContextManager._content_to_safe_text(getattr(msg, "message_str", "") or "")
++            # Do not include timestamp here: some conversation-history adapters
++            # synthesize ``time.time()`` for timestamp-less rows on every read,
++            # which would make an unchanged anchor look new every request.
++            import hashlib
++            digest = hashlib.sha1(content.encode("utf-8", "ignore")).hexdigest()[:20]
++            return f"fallback:{sid}:{digest}"
++        except Exception:
++            return f"object:{id(msg)}"
++
++    @classmethod
++    def cache_aware_history_window(
++        cls,
++        window_key: str,
++        history_messages: List[AstrBotMessage],
++        *,
++        low: int,
++        high: int,
++    ) -> List[AstrBotMessage]:
++        """Append-only history window with hysteresis for prefix-cache reuse.
++
++        A normal sliding suffix changes its first message on every turn once it
++        reaches capacity, invalidating provider prefix caches continuously. This
++        window keeps the same anchor while it grows from ``low`` to ``high``;
++        only after crossing ``high`` does it jump once to the newest ``low``
++        messages. Full durable history is untouched.
++        """
++        rows = list(history_messages or [])
++        if not rows:
++            cls._cache_window_anchors.pop(str(window_key), None)
++            return []
++        high = max(1, int(high))
++        low = max(1, min(int(low), high))
++        key = str(window_key)
++        anchor = cls._cache_window_anchors.get(key)
++        if anchor:
++            for idx, msg in enumerate(rows):
++                if cls._cache_window_message_key(msg) == anchor:
++                    window = rows[idx:]
++                    if len(window) <= high:
++                        return window
++                    break
++        # First request after restart/anchor loss, or high watermark crossed.
++        # Large histories re-anchor at low; genuinely short histories keep all.
++        window = rows if len(rows) <= high else rows[-low:]
++        if window:
++            cls._cache_window_anchors[key] = cls._cache_window_message_key(window[0])
++        return window
++
+diff --git a/utils/decision_ai.py b/utils/decision_ai.py
+index 0bceea241bd3ee724f91bf5e390c421fd0557349..46530e6f52063c6f9f76af63adac3d1a8c3b41f7 100644
+--- a/utils/decision_ai.py
++++ b/utils/decision_ai.py
+@@ -489,0 +490,49 @@ class DecisionAI:
++    @staticmethod
++    async def _controlled_decision_request(
++        provider,
++        *,
++        prompt: str,
++        system_prompt: str,
++        image_urls: list | None,
++        session_id: str,
++        enable_reasoning: bool,
++    ):
++        """Low-overhead provider request for the binary reply classifier.
++
++        AstrBot 4.27's public OpenAI-compatible ``text_chat`` does not forward
++        arbitrary sampling/thinking kwargs into the request payload. When the
++        configured provider exposes its native prepare/query path, reuse it so
++        image handling stays intact while explicitly disabling model-native
++        reasoning for the normal yes/no classifier.
++        """
++        prepare = getattr(provider, "_prepare_chat_payload", None)
++        query = getattr(provider, "_query", None)
++        if callable(prepare) and callable(query):
++            payload, _ = await prepare(
++                prompt,
++                image_urls or [],
++                [],
++                [],
++                system_prompt,
++                None,
++                model=None,
++                extra_user_content_parts=None,
++            )
++            payload["temperature"] = 0.0
++            payload["max_tokens"] = 800 if enable_reasoning else 64
++            if not enable_reasoning:
++                payload["thinking"] = {"type": "disabled"}
++            return await query(payload, None, request_max_retries=1)
++        return await provider.text_chat(
++            prompt=prompt,
++            contexts=[],
++            image_urls=image_urls or [],
++            func_tool=None,
++            system_prompt=system_prompt,
++            session_id=session_id,
++            temperature=0.0,
++            max_tokens=800 if enable_reasoning else 64,
++            thinking=None if enable_reasoning else {"type": "disabled"},
++            request_max_retries=1,
++        )
++
+@@ -815 +864,2 @@ class DecisionAI:
+-                # 🔧 v1.2.2-hotfix.1: sender_emphasis 提前到 formatted_message 之前，
++                # Cache-aware order: current-speaker identity is appended in
++                # _decision_sender_tail after the reusable history prefix.
+@@ -819 +868,0 @@ class DecisionAI:
+-                    + sender_emphasis
+@@ -870 +919 @@ class DecisionAI:
+-                # prompt 仅保留动态内容（sender_emphasis 提前到 formatted_message 之前）
++                # prompt keeps reusable history first; sender state stays in the tail.
+@@ -872,3 +921 @@ class DecisionAI:
+-                    sender_emphasis
+-                    + "\n"
+-                    + formatted_message
++                    formatted_message
+@@ -892 +939,2 @@ class DecisionAI:
+-                response = await provider.text_chat(
++                response = await DecisionAI._controlled_decision_request(
++                    provider,
+@@ -894 +942 @@ class DecisionAI:
+-                    contexts=[],
++                    system_prompt=combined_system_prompt,
+@@ -896,2 +943,0 @@ class DecisionAI:
+-                    func_tool=None,
+-                    system_prompt=combined_system_prompt,  # persona + 静态指令
+@@ -898,0 +945 @@ class DecisionAI:
++                    enable_reasoning=enable_reasoning,
+diff --git a/utils/proactive_chat_manager.py b/utils/proactive_chat_manager.py
+index a18e22281bac419a04c131e9ff2ba04cae5c6647..50fdae15975facd35e2e67893279a9c90d77c2d7 100644
+--- a/utils/proactive_chat_manager.py
++++ b/utils/proactive_chat_manager.py
+@@ -4293,6 +4293 @@ class ProactiveChatManager:
+-            if (
+-                history_messages
+-                and isinstance(max_context, int)
+-                and max_context > 0
+-                and len(history_messages) > max_context
+-            ):
++            if history_messages and isinstance(max_context, int) and max_context > 0:
+@@ -4300,5 +4295,8 @@ class ProactiveChatManager:
+-
+-                # 统一策略：删除最早的消息，只保留最新的 max_context 条
+-                # 由于消息已经按时间戳排序，直接截取末尾即可
+-                history_messages = history_messages[-max_context:]
+-
++                proactive_high = max(8, min(max_context, 160))
++                proactive_low = max(4, round(proactive_high * 2 / 3))
++                history_messages = ContextManager.cache_aware_history_window(
++                    f"proactive:{platform_id}:{chat_id}",
++                    history_messages,
++                    low=proactive_low,
++                    high=proactive_high,
++                )
+@@ -4306 +4303,0 @@ class ProactiveChatManager:
+-                    removed_cnt = before_cnt - len(history_messages)
+@@ -4308,2 +4305,2 @@ class ProactiveChatManager:
+-                        f"[主动对话] 智能截断: {before_cnt} -> {len(history_messages)} "
+-                        f"(按时间顺序删除最早的 {removed_cnt} 条消息，保留最新的 {max_context} 条)"
++                        f"[主动对话] cache-aware上下文: {before_cnt} -> {len(history_messages)} "
++                        f"(low={proactive_low}, high={proactive_high})"
+diff --git a/utils/reply_handler.py b/utils/reply_handler.py
+index 42ad74dc2d5d4a4837300ad41b4f995ec5d8e22c..cd4477403b9260320c0e880d2fdd6508e6e3c257 100644
+--- a/utils/reply_handler.py
++++ b/utils/reply_handler.py
+@@ -337,2 +337,3 @@ class ReplyHandler:
+-                # 🔧 v1.2.2-hotfix.1: sender_emphasis 提前到 formatted_message 之前，
+-                # 让 AI 在阅读历史消息前就明确当前对话对象，避免被历史/窗口缓冲消息干扰
++                # Cache-aware order: the volatile current-speaker reminder stays
++                # in _sender_tail after history. Putting it before formatted history
++                # breaks provider prefix caching whenever speakers alternate.
+@@ -341 +341,0 @@ class ReplyHandler:
+-                    + sender_emphasis
+@@ -365,2 +364,0 @@ class ReplyHandler:
+-                    + sender_emphasis
+-                    + "\n"

@@ -93,20 +93,19 @@ class TransportMarkdownTests(unittest.TestCase):
         self.assertEqual(rows[0].created_at.tzinfo, timezone.utc)
         self.assertTrue(manager._doge_utc_normalized)
 
-    def test_final_reality_anchor_is_unconditional_and_uses_shanghai_time(self):
-        class Runtime:
-            def reality_anchor(self, local_time):
-                return "REALITY " + local_time
-
+    def test_final_time_anchor_keeps_system_prefix_stable_for_cache(self):
         class Event:
             pass
 
-        req = types.SimpleNamespace(system_prompt="base")
+        req = types.SimpleNamespace(system_prompt="base", extra_user_content_parts=[])
         core = object.__new__(DogeCore)
-        core.persona_runtime = Runtime()
         asyncio.run(core.finalize_reality_and_time(Event(), req))
-        self.assertTrue(req.system_prompt.startswith("base\n\nREALITY "))
-        self.assertRegex(req.system_prompt, r"[+-]08:00$")
+        self.assertEqual(req.system_prompt, "base")
+        self.assertEqual(len(req.extra_user_content_parts), 1)
+        marker = req.extra_user_content_parts[0].text
+        self.assertIn('<doge-runtime-time ', marker)
+        self.assertIn('timezone="Asia/Shanghai"', marker)
+        self.assertRegex(marker, r"[+-]08:00\"/>$")
 
     def test_completed_answer_strips_service_followup_even_when_short(self):
         self.assertEqual(strip_unsolicited_followup("HTTP 200。要不要我继续测？", "测试一下"), "HTTP 200")

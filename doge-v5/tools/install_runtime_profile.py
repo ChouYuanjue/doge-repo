@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import sqlite3
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,9 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 PERSONA_DIR = ROOT / "persona"
 DEFAULT_PERSONA_ID = "doge"
 CORE_CONFIG_NAME = "doge_core_config.json"
+GROUP_CHAT_CONFIG_NAME = "astrbot_plugin_group_chat_plus_config.json"
 MANIFEST_PATH = ROOT / "plugin_manifest.json"
 PLUGIN_SOURCE_DIR = ROOT / "plugins"
 EXTERNAL_PLUGIN_SOURCE_DIR = ROOT / "external_plugins"
+EXTERNAL_PATCH_DIR = ROOT / "patches"
+PATCHED_EXTERNALS = {"astrbot_plugin_group_chat_plus"}
+DOGE_PATCH_MARKER = ".doge_external_patch.json"
 EXTERNAL_DEFAULTS = {
     "astrbot_plugin_group_chat_plus",
     "astrbot_plugin_meme_generator",
@@ -72,11 +78,112 @@ def sync_default_plugin_links(runtime: Path) -> list[str]:
     return linked
 
 
-def sync_external_plugin_links(runtime: Path) -> list[str]:
-    """Link pinned external engines required by default Doge social/media facades.
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
-    These are Git submodules under ``external_plugins``.  As with Doge plugins,
-    existing real runtime directories are never overwritten.
+
+def _source_commit(source: Path) -> str:
+    return subprocess.check_output(
+        ["git", "-C", str(source), "rev-parse", "HEAD"],
+        universal_newlines=True,
+    ).strip()
+
+
+def _materialize_patched_external(source: Path, target: Path, name: str) -> bool:
+    """Create a runtime-local patched copy from a pristine pinned submodule.
+
+    The upstream checkout stays clean.  A marker proves ownership so future
+    installs may replace only Doge-managed copies; unrelated real plugin
+    directories are never overwritten.
+    """
+    patch_dir = EXTERNAL_PATCH_DIR / name
+    manifest_path = patch_dir / "manifest.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(f"Patch manifest missing for {name}: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    patch_path = patch_dir / str(manifest.get("patch") or "")
+    if not patch_path.is_file():
+        raise FileNotFoundError(f"Patch file missing for {name}: {patch_path}")
+
+    expected_sha = str(manifest.get("sha256") or "")
+    actual_sha = _sha256(patch_path)
+    if actual_sha != expected_sha:
+        raise RuntimeError(
+            f"Patch checksum mismatch for {name}: expected {expected_sha}, got {actual_sha}"
+        )
+
+    expected_base = str(manifest.get("base_commit") or "")
+    actual_base = _source_commit(source)
+    if actual_base != expected_base:
+        raise RuntimeError(
+            f"Pinned upstream mismatch for {name}: expected {expected_base}, got {actual_base}"
+        )
+
+    desired_marker = {
+        "managed_by": "doge",
+        "plugin": name,
+        "base_commit": actual_base,
+        "patch_sha256": actual_sha,
+        "runtime_version": manifest.get("runtime_version", ""),
+    }
+
+    if target.is_dir() and not target.is_symlink():
+        marker_path = target / DOGE_PATCH_MARKER
+        if marker_path.exists():
+            try:
+                current_marker = json.loads(marker_path.read_text(encoding="utf-8"))
+            except Exception:
+                current_marker = None
+            if current_marker == desired_marker:
+                return False
+        else:
+            # Preserve user/AstrBot-managed real directories.
+            print(f"patched_external_skipped_unmanaged={name}")
+            return False
+
+    staging = target.with_name(target.name + ".doge-staging")
+    if staging.exists() or staging.is_symlink():
+        if staging.is_symlink() or staging.is_file():
+            staging.unlink()
+        else:
+            shutil.rmtree(staging)
+    shutil.copytree(
+        source,
+        staging,
+        ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache", "data"),
+    )
+    subprocess.run(
+        [
+            "git",
+            "apply",
+            "--no-index",
+            "--unidiff-zero",
+            "--whitespace=nowarn",
+            str(patch_path),
+        ],
+        cwd=str(staging),
+        check=True,
+    )
+    (staging / DOGE_PATCH_MARKER).write_text(
+        json.dumps(desired_marker, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    if target.is_symlink() or target.is_file():
+        target.unlink()
+    elif target.exists():
+        # Only marker-owned directories reach here.
+        shutil.rmtree(target)
+    staging.rename(target)
+    return True
+
+
+def sync_external_plugin_links(runtime: Path) -> list[str]:
+    """Install pinned external engines required by Doge.
+
+    Unmodified externals remain symlinked to their pinned Git submodules.
+    Doge-patched externals are materialized as runtime-local copies from the
+    pristine upstream checkout, then a checksummed patchset is applied.
     """
     runtime_plugins = runtime / "data" / "plugins"
     runtime_plugins.mkdir(parents=True, exist_ok=True)
@@ -86,6 +193,12 @@ def sync_external_plugin_links(runtime: Path) -> list[str]:
         if not source.is_dir():
             raise FileNotFoundError(f"Pinned external plugin source missing: {name}")
         target = runtime_plugins / name
+
+        if name in PATCHED_EXTERNALS:
+            if _materialize_patched_external(source, target, name):
+                linked.append(name)
+            continue
+
         if target.is_symlink():
             try:
                 if target.resolve() == source:
@@ -114,8 +227,8 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     if not config_path.exists() or not db_path.exists():
         raise FileNotFoundError("AstrBot runtime config/database not found")
 
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     if backup:
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         shutil.copy2(config_path, config_path.with_name(f"cmd_config.json.pre-v55-{stamp}"))
         shutil.copy2(db_path, db_path.with_name(f"data_v4.db.pre-v55-{stamp}"))
 
@@ -207,6 +320,29 @@ def install(runtime: Path, *, backup: bool = True) -> None:
         if str(provider.get("id") or "").strip() in chat_provider_ids:
             provider["max_context_tokens"] = 20000
     write_json_preserve_bom(config_path, cfg)
+
+    # Group Chat Plus bypasses AstrBot's normal conversation compressor by
+    # serializing platform history into its own prompt. Keep that prompt bounded
+    # and prefix-cache-friendly without touching any voice/proactive/persona
+    # configuration. Full history persistence is controlled separately and is
+    # intentionally left unchanged.
+    group_cfg_path = runtime / "data" / "config" / GROUP_CHAT_CONFIG_NAME
+    group_cache_profile = {
+        "max_context_messages": 72,
+        "enable_cache_aware_context": True,
+        "cache_context_low_messages": 48,
+        "cache_context_high_messages": 72,
+        "decision_context_high_messages": 18,
+    }
+    if group_cfg_path.exists():
+        if backup:
+            shutil.copy2(
+                group_cfg_path,
+                group_cfg_path.with_name(f"{GROUP_CHAT_CONFIG_NAME}.pre-cache-{stamp}"),
+            )
+        group_cfg = load_json_bom(group_cfg_path)
+        group_cfg.update(group_cache_profile)
+        write_json_preserve_bom(group_cfg_path, group_cfg)
 
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(sep=" ", timespec="seconds")
     with sqlite3.connect(db_path) as conn:

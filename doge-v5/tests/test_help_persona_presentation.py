@@ -262,6 +262,14 @@ class PersonaTests(unittest.TestCase):
             (data / "config" / "doge_core_config.json").write_text(
                 json.dumps({"absolute_admin_ids": ["2700074128", "existing-admin"]}), encoding="utf-8"
             )
+            group_cfg_path = data / "config" / "astrbot_plugin_group_chat_plus_config.json"
+            group_cfg_path.write_text(json.dumps({
+                "max_context_messages": -1,
+                "proactive_prompt": "KEEP NATURAL PROACTIVE",
+                "proactive_retry_prompt": "KEEP NATURAL RETRY",
+                "enable_humanize_mode": False,
+                "unrelated": {"keep": True},
+            }, ensure_ascii=False), encoding="utf-8")
             installer.install(runtime, backup=False); installer.install(runtime, backup=False)
             self.assertTrue((data / "plugins" / "doge_pixiv").is_symlink())
             self.assertEqual((data / "plugins" / "doge_pixiv").resolve(), (PLUGINS / "doge_pixiv").resolve())
@@ -271,7 +279,13 @@ class PersonaTests(unittest.TestCase):
             self.assertTrue((data / "plugins" / "doge_shared").is_symlink())
             self.assertTrue((data / "plugins" / "astrbot_plugin_meme_generator").is_symlink())
             self.assertEqual((data / "plugins" / "astrbot_plugin_meme_generator").resolve(), (ROOT / "external_plugins" / "astrbot_plugin_meme_generator").resolve())
-            self.assertTrue((data / "plugins" / "astrbot_plugin_group_chat_plus").is_symlink())
+            gcp_runtime = data / "plugins" / "astrbot_plugin_group_chat_plus"
+            self.assertTrue(gcp_runtime.is_dir())
+            self.assertFalse(gcp_runtime.is_symlink())
+            marker = json.loads((gcp_runtime / ".doge_external_patch.json").read_text(encoding="utf-8"))
+            self.assertEqual(marker["managed_by"], "doge")
+            self.assertEqual(marker["runtime_version"], "V1.2.3.hotfix.2-doge.1")
+            self.assertIn("cache_aware_history_window", (gcp_runtime / "utils" / "context_manager.py").read_text(encoding="utf-8"))
             self.assertTrue((data / "plugins" / "astrbot_plugin_stealer").is_symlink())
             out = json.loads((data / "cmd_config.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(out["provider_settings"]["default_personality"], "doge")
@@ -303,6 +317,16 @@ class PersonaTests(unittest.TestCase):
             self.assertEqual(prov_settings["context_limit_reached_strategy"], "llm_compress")
             self.assertEqual(prov_settings["llm_compress_keep_recent_ratio"], 0.08)
             self.assertIn("group chat", prov_settings["llm_compress_instruction"])
+            group_out = json.loads(group_cfg_path.read_text(encoding="utf-8-sig"))
+            self.assertEqual(group_out["max_context_messages"], 72)
+            self.assertTrue(group_out["enable_cache_aware_context"])
+            self.assertEqual(group_out["cache_context_low_messages"], 48)
+            self.assertEqual(group_out["cache_context_high_messages"], 72)
+            self.assertEqual(group_out["decision_context_high_messages"], 18)
+            self.assertEqual(group_out["proactive_prompt"], "KEEP NATURAL PROACTIVE")
+            self.assertEqual(group_out["proactive_retry_prompt"], "KEEP NATURAL RETRY")
+            self.assertFalse(group_out["enable_humanize_mode"])
+            self.assertEqual(group_out["unrelated"], {"keep": True})
             conn = sqlite3.connect(data / "data_v4.db")
             rows = conn.execute("SELECT persona_id,system_prompt,begin_dialogs FROM personas").fetchall(); conn.close()
             self.assertEqual({row[0] for row in rows}, {"doge", "doge_research"})
