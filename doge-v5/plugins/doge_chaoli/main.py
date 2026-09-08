@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
-from astrbot.api.message_components import Image, Plain
+from astrbot.api.message_components import File, Image, Node, Nodes, Plain
 from astrbot.api.star import Context, Star, StarTools, register
 
 from data.plugins.doge_shared.agent_tools import DogeChaoliTool, register_domain_tools
@@ -45,8 +45,8 @@ HELP = """Doge Chaoli /chaoli
   /chaoli push off [板块]               关闭本群推送；不写板块则全部关闭
   /chaoli push status                   查看本群订阅
   /chaoli push test [板块]              预览实时推送样式，不改变水位（群主/管理员）
-  /chaoli daily                         生成并发送今日完整图片日报；独立摘要器 + 可核验楼层证据
-  /chaoli daily push                    立即主动推送同一份完整图片日报；成功后推进当天发送水位（管理员）
+  /chaoli daily                         生成并发送今日正式 TeX 日报；合并转发逐页预览 + PDF 原件 + 可核验楼层证据
+  /chaoli daily push                    立即主动推送同一份 TeX/PDF 日报；成功后推进当天发送水位（管理员）
   /chaoli daily on [HH:MM]              开启本群日报，默认 23:45（Doge 管理员/群主/群管理员）
   /chaoli daily off|status|test          日报管理/预览；和实时 push 独立
   /chaoli status                        检查 Chaoli 专用代理链
@@ -55,7 +55,7 @@ HELP = """Doge Chaoli /chaoli
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.31")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.32")
 class DogeChaoli(Star):
     PUSH_LIMIT = 30
     PUSH_INTERVAL = max(60, min(int(os.getenv("DOGE_CHAOLI_PUSH_INTERVAL", "120") or 120), 600))
@@ -163,7 +163,7 @@ class DogeChaoli(Star):
         if sub in {"now", "show", "today"}:
             today = shanghai_date()
             report = await self._daily_report_for_send(today)
-            delivered = bool(await self.context.send_message(umo, self._daily_report_chain(report)))
+            delivered = await self._send_daily_report(umo, report)
             if not delivered:
                 raise ValueError("超理日报发送失败")
             return None
@@ -177,7 +177,7 @@ class DogeChaoli(Star):
             today = shanghai_date()
             report = await self._daily_report_for_send(today)
             try:
-                delivered = bool(await self.context.send_message(umo, self._daily_report_chain(report)))
+                delivered = await self._send_daily_report(umo, report)
             except Exception as exc:
                 logger.warning(f"doge chaoli manual daily push failed umo={umo}: {type(exc).__name__}: {exc}")
                 delivered = False
@@ -203,7 +203,7 @@ class DogeChaoli(Star):
         if sub in {"test", "preview"}:
             today = shanghai_date()
             report = await self._daily_report_for_send(today)
-            delivered = bool(await self.context.send_message(umo, self._daily_report_chain(report)))
+            delivered = await self._send_daily_report(umo, report)
             if not delivered:
                 raise ValueError("超理日报测试发送失败")
             return None
@@ -236,11 +236,60 @@ class DogeChaoli(Star):
         provider = await self.context.get_using_provider_async()
         return await build_daily_report(self.data_dir, cards, today, source, provider=provider)
 
-    @staticmethod
-    def _daily_report_chain(report: DailyReportBundle) -> MessageChain:
-        chain = [Plain(report.caption)]
-        chain.extend(Image.fromFileSystem(str(path)) for path in report.pages)
-        return MessageChain(chain)
+    async def _daily_forward_identity(self, umo: str) -> tuple[str, str]:
+        """Resolve the active OneBot account without hardcoding Doge's QQ id."""
+        try:
+            platform_id = str(umo).split(":", 1)[0]
+            get_platform = getattr(self.context, "get_platform_inst", None)
+            platform = get_platform(platform_id) if callable(get_platform) else None
+            bot = getattr(platform, "bot", None)
+            call_action = getattr(bot, "call_action", None)
+            if callable(call_action):
+                info = await call_action("get_login_info")
+                if isinstance(info, dict):
+                    uin = str(info.get("user_id") or info.get("uin") or "").strip()
+                    name = str(info.get("nickname") or info.get("nick") or "豆子").strip() or "豆子"
+                    if uin:
+                        return uin, name
+        except Exception as exc:
+            logger.debug(f"doge chaoli daily forward identity fallback: {type(exc).__name__}: {exc}")
+        return "0", "豆子"
+
+    async def _daily_report_chain(self, umo: str, report: DailyReportBundle) -> MessageChain:
+        """One merged-forward issue: edition note, all page previews, then PDF."""
+        uin, name = await self._daily_forward_identity(umo)
+        nodes = [
+            Node(
+                uin=uin,
+                name=name,
+                content=[Plain(
+                    f"{report.caption}\n"
+                    f"共 {len(report.pages)} 页。以下为逐页预览，末尾附 PDF 原件；整期通过合并转发发送。"
+                )],
+            )
+        ]
+        for index, path in enumerate(report.pages, 1):
+            nodes.append(Node(
+                uin=uin,
+                name=name,
+                content=[
+                    Plain(f"第 {index}/{len(report.pages)} 页"),
+                    Image.fromFileSystem(str(path)),
+                ],
+            ))
+        nodes.append(Node(
+            uin=uin,
+            name=name,
+            content=[
+                Plain("PDF 原件"),
+                File(name=f"Chaoli-Daily-{report.date}.pdf", file=str(report.pdf)),
+            ],
+        ))
+        return MessageChain([Nodes(nodes)])
+
+    async def _send_daily_report(self, umo: str, report: DailyReportBundle) -> bool:
+        chain = await self._daily_report_chain(umo, report)
+        return bool(await self.context.send_message(umo, chain))
 
     async def _daily_cards_for_send(self, today: str) -> tuple[list, str]:
         # Primary path: exactly the forum-owner recommended JSON URL through the
@@ -284,11 +333,10 @@ class DogeChaoli(Star):
         if not due:
             return
         report = await self._daily_report_for_send(today)
-        chain = self._daily_report_chain(report)
         for umo in due:
             delivered = False
             try:
-                delivered = bool(await self.context.send_message(umo, chain))
+                delivered = await self._send_daily_report(umo, report)
             except Exception as exc:
                 logger.warning(f"doge chaoli daily send failed umo={umo}: {type(exc).__name__}: {exc}")
             if delivered:

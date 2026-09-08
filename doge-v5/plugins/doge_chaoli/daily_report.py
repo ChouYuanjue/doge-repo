@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import html
 import json
 import re
-import subprocess
+import shutil
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -13,6 +12,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from data.plugins.doge_shared.chaoli import ChaoliError, ChaoliService, Floor, ThreadCard
+from data.plugins.doge_shared.typeset import _render_tex_document
 from .push import reply_count
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -40,7 +40,7 @@ class DailyEditorialBlock:
     level: str
     thread_ids: tuple[int, ...]
     headline: str
-    body: str
+    deck: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +60,8 @@ class DailyReportBundle:
     summaries: tuple[DailyTopicSummary, ...]
     editorial: DailyEditorialIssue
     markdown: str
-    html: str
+    tex: str
+    pdf: Path
     pages: tuple[Path, ...]
     manifest: Path
 
@@ -73,6 +74,21 @@ class DailyReportBundle:
 
 def _one_line(text: str, limit: int) -> str:
     value = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(value) > limit:
+        value = value[: max(1, limit - 1)].rstrip() + "…"
+    return value
+
+
+def _prose(text: str, limit: int) -> str:
+    """Normalize model prose while preserving editorial paragraph structure."""
+    raw = str(text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    paragraphs = []
+    for part in re.split(r"\n\s*\n+", raw):
+        line = re.sub(r"[ \t]+", " ", part).strip()
+        line = re.sub(r"\n+", " ", line).strip()
+        if line:
+            paragraphs.append(line)
+    value = "\n\n".join(paragraphs)
     if len(value) > limit:
         value = value[: max(1, limit - 1)].rstrip() + "…"
     return value
@@ -187,7 +203,7 @@ def _summary_evidence_payload(item: DailyTopicEvidence) -> dict:
                 "floor": floor.number,
                 "author": floor.author,
                 "time": floor.time,
-                "text": _one_line(floor.text, 520),
+                "text": _one_line(floor.text, 900),
             }
             for floor in floors
         ],
@@ -245,25 +261,27 @@ def _extract_json_object(raw: str) -> dict:
     return value
 
 
-async def summarize_daily_topics(provider, evidence: list[DailyTopicEvidence], *, batch_size: int = 4) -> list[DailyTopicSummary]:
-    """Evidence-grounded editorial summaries via direct provider calls.
+async def summarize_daily_topics(provider, evidence: list[DailyTopicEvidence], *, batch_size: int = 3) -> list[DailyTopicSummary]:
+    """Write evidence-grounded newsroom copy for every active forum topic.
 
-    This deliberately bypasses AstrBot event/Agent hooks: no conversation
-    contexts, no Doge persona, no group history and no tools are supplied.
+    This is direct provider work: no chat history, no persona, no Agent tools.
+    The returned prose is the factual article body used in the final issue; the
+    chief-editor pass may rank and title it but may not rewrite these facts.
     """
     if provider is None:
         return [DailyTopicSummary(x.card.thread_id, "", (), "no_provider") for x in evidence]
 
     system = (
-        "你是技术论坛日报的严谨编辑，不是聊天机器人。仅依据输入中的论坛证据写中文摘要。"
-        "每个主题写一个自然连贯的短段落，不套固定分段或固定句式；让读者只看这段就能判断帖子在讲什么、"
-        "最近24小时有哪些值得注意的推进，以及是否值得点进原帖继续读。句子从具体内容本身开始，避免泛泛的导语和总结腔。"
-        "不要寒暄，不使用第一人称，不带人格，不评价坛友，不推断现实身份，不补充外部知识。"
-        "如果证据不足就明确说证据不足。每条摘要必须列出支撑它的楼层号；楼层号只能来自输入。"
-        "返回严格 JSON：{\"topics\":[{\"thread_id\":123,\"summary\":\"2到4句摘要\",\"evidence_floors\":[1,5]}]}。"
+        "你是严肃技术社区日报的采编记者。仅依据输入中的论坛楼层证据写中文稿件，不能使用群聊上下文、人物设定、外部知识或常识补全。"
+        "每个主题都要写成一篇可以直接刊登的小稿，而不是标题列表或三句摘要。先用自然语言交代讨论对象和必要背景，再写最近24小时真正出现的推进、论证、反例、修正、分歧或结果；"
+        "如果某条更新只是在顶帖、征求意见或补链接，就如实写短，不制造进展。数学/物理/语言学等技术内容尽量保留具体对象、条件、数值、构造或结论，但不要伪造公式。"
+        "根据证据量写2到5个自然段；实质内容丰富时约350到750中文字符，证据稀薄时可以更短。不要使用‘主题概述/今日进展/关键观点/待解决问题’之类模板小标题，"
+        "不要寒暄，不使用第一人称，不评价坛友人格。若证据无法支持某一点，直接不写；若整帖证据不足，明确写证据不足。"
+        "每条稿件必须列出支撑它的楼层号，楼层号只能来自输入。返回严格 JSON："
+        "{\"topics\":[{\"thread_id\":123,\"article\":\"多段正文\",\"evidence_floors\":[1,5]}]}。"
     )
     out: dict[int, DailyTopicSummary] = {}
-    batch_size = max(1, min(int(batch_size), 5))
+    batch_size = max(1, min(int(batch_size), 4))
     for start in range(0, len(evidence), batch_size):
         batch = evidence[start : start + batch_size]
         payload = [_summary_evidence_payload(item) for item in batch]
@@ -271,13 +289,10 @@ async def summarize_daily_topics(provider, evidence: list[DailyTopicEvidence], *
             item.card.thread_id: {floor["floor"] for floor in row["floors"]}
             for item, row in zip(batch, payload)
         }
-        prompt = (
-            "请按输入顺序编辑这些主题。不要遗漏任何 thread_id。\n\n"
-            + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-        )
+        prompt = "按输入顺序撰写可直接刊登的日报稿件，不遗漏 thread_id。\n\n" + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
         try:
             resp = await _report_provider_json(
-                provider, system, prompt, max_tokens=min(2200, 420 + 420 * len(batch))
+                provider, system, prompt, max_tokens=min(5200, 900 + 1100 * len(batch))
             )
             root = _extract_json_object(resp.completion_text or "")
             rows = root.get("topics")
@@ -292,7 +307,7 @@ async def summarize_daily_topics(provider, evidence: list[DailyTopicEvidence], *
                     continue
                 if tid not in allowed:
                     continue
-                text = _one_line(str(row.get("summary") or ""), 520)
+                text = _prose(str(row.get("article") or row.get("summary") or ""), 1800)
                 raw_floors = row.get("evidence_floors")
                 if not isinstance(raw_floors, list):
                     raw_floors = []
@@ -335,30 +350,23 @@ def _fallback_editorial(evidence: list[DailyTopicEvidence], summaries: list[Dail
     blocks: list[DailyEditorialBlock] = []
     for idx, item in enumerate(ordered):
         summary = summary_by_id.get(item.card.thread_id)
-        body = (summary.text if summary and summary.text else "") or (
-            _floor_excerpt(item.first_floor, 360) if item.first_floor is not None else "本次正文证据不足。"
-        )
+        text = summary.text if summary and summary.text else item.card.title
         blocks.append(DailyEditorialBlock(
             "lead" if idx == 0 else ("feature" if len(item.activity_floors) >= 2 else "brief"),
             (item.card.thread_id,),
             item.card.title,
-            _one_line(body, 520 if idx == 0 else 360),
+            _one_line(text, 120),
         ))
     lead = ordered[0].card.title if ordered else "今日论坛"
     stand = "；".join(
-        _one_line((summary_by_id.get(item.card.thread_id).text if summary_by_id.get(item.card.thread_id) else "") or item.card.title, 100)
+        _one_line((summary_by_id.get(item.card.thread_id).text if summary_by_id.get(item.card.thread_id) else "") or item.card.title, 120)
         for item in ordered[:2]
     )
-    return DailyEditorialIssue(_one_line(lead, 42), _one_line(stand, 220), tuple(blocks), error)
+    return DailyEditorialIssue(_one_line(lead, 48), _one_line(stand, 280), tuple(blocks), error)
 
 
 async def editorialize_daily(provider, evidence: list[DailyTopicEvidence], summaries: list[DailyTopicSummary]) -> DailyEditorialIssue:
-    """Turn validated topic capsules into one edited issue with real hierarchy.
-
-    The editor only sees already-grounded capsules and activity metadata. It does
-    not see chat history, persona state, raw tools or unrelated forum content.
-    Every active thread must appear exactly once in the returned issue.
-    """
+    """Assign newspaper hierarchy and headlines without rewriting article facts."""
     if not evidence:
         return DailyEditorialIssue("今日没有活跃主题", "论坛 #今日活跃 当前为空。", (), "empty")
     if provider is None:
@@ -376,33 +384,26 @@ async def editorialize_daily(provider, evidence: list[DailyTopicEvidence], summa
             "cumulative_replies": reply_count(item.card.replies),
             "activity_24h": len(item.activity_floors),
             "authors_24h": list(dict.fromkeys(x.author for x in item.activity_floors if x.author))[:8],
-            "capsule": summary.text if summary and summary.text else (
-                _floor_excerpt(item.first_floor, 420) if item.first_floor is not None else "正文证据不足"
-            ),
-            "capsule_evidence_floors": list(summary.evidence_floors if summary else ()),
+            "article": summary.text if summary and summary.text else "正文证据不足",
+            "evidence_floors": list(summary.evidence_floors if summary else ()),
         })
 
     system = (
-        "你是一份小型技术社区日报的编辑。输入已经是逐主题、逐楼层校验过的事实胶囊；你的任务不是再把它们按顺序复述一遍，"
-        "而是编辑成一份读者可以直接读完的日报。先判断今天真正的主线和信息价值，再决定版面层级。"
-        "必须把信息密度和主次拉开：有实质推进的讨论可以成为头条；只是顶帖、邀请反馈或轻量更新的主题应压成短讯。"
-        "如果两个主题没有真实关系，不要为了制造叙事强行关联；如果确实相关，可以放在同一个 block 中。"
-        "整期 headline 要具体到今天发生的内容，不写‘今日看点/值得关注/论坛动态/精彩回顾’这类空标题。"
-        "standfirst 用一小段话交代今天整体发生了什么，让没点原帖的人也能获得信息。"
-        "每个 block 的 headline 和 body 都从具体内容开始，body 可以重组输入 capsule，但不得加入 capsule 没有的事实、外部知识或人物判断。"
-        "所有 thread_id 必须且只能出现一次；必须恰好有一个 lead。level 只能是 lead/feature/brief。"
-        "lead 通常 180-360 中文字，feature 100-220 字，brief 40-110 字；不是字数任务，信息说完就停。"
+        "你是一份严肃技术社区日报的总编辑。输入中的 article 已经逐楼层校验，是最终事实正文；你绝对不能重写、扩写或补充正文事实。"
+        "你的工作只包括：给整期拟一个具体、克制、有信息量的主标题；写一段80到180字的整期导语，说明今天整体最值得知道的脉络；"
+        "为每个 thread 单独决定 lead/feature/brief 版面等级，并拟一个新闻式稿件标题和一句很短的 deck。"
+        "必须根据实际信息量拉开主次：真正有推导、实验、计算、争论或结论推进的可以做头条；只有轻量更新的必须降为短讯。"
+        "不要写‘今日看点/精彩回顾/值得关注/社区动态’等空标题，不要为了叙事强行关联无关主题。"
+        "每个 thread_id 必须且只能出现一次，每个 block 只能包含一个 thread_id，整期恰好一个 lead。"
         "返回严格 JSON：{\"headline\":\"...\",\"standfirst\":\"...\",\"blocks\":["
-        "{\"level\":\"lead\",\"thread_ids\":[123],\"headline\":\"...\",\"body\":\"...\"}]}。"
+        "{\"level\":\"lead\",\"thread_ids\":[123],\"headline\":\"...\",\"deck\":\"...\"}]}。"
     )
     prompt = json.dumps(entries, ensure_ascii=False, separators=(",", ":"))
     try:
-        resp = await _report_provider_json(
-            provider, system, prompt, max_tokens=min(3600, 1000 + 480 * len(entries))
-        )
+        resp = await _report_provider_json(provider, system, prompt, max_tokens=min(2600, 800 + 300 * len(entries)))
         root = _extract_json_object(resp.completion_text or "")
-        headline = _one_line(str(root.get("headline") or ""), 56)
-        standfirst = _one_line(str(root.get("standfirst") or ""), 320)
+        headline = _one_line(str(root.get("headline") or ""), 72)
+        standfirst = _prose(str(root.get("standfirst") or ""), 420)
         raw_blocks = root.get("blocks")
         if not headline or not standfirst or not isinstance(raw_blocks, list):
             raise ValueError("editorial_shape")
@@ -417,32 +418,27 @@ async def editorialize_daily(provider, evidence: list[DailyTopicEvidence], summa
             if level not in {"lead", "feature", "brief"}:
                 raise ValueError("editorial_level")
             tids_raw = row.get("thread_ids")
-            if not isinstance(tids_raw, list) or not tids_raw:
+            if not isinstance(tids_raw, list) or len(tids_raw) != 1:
                 raise ValueError("editorial_thread_ids")
-            tids: list[int] = []
-            for value in tids_raw:
-                tid = int(value)
-                if tid not in known or tid in seen or tid in tids:
-                    raise ValueError("editorial_thread_reference")
-                tids.append(tid)
-            seen.extend(tids)
+            tid = int(tids_raw[0])
+            if tid not in known or tid in seen:
+                raise ValueError("editorial_thread_reference")
+            seen.append(tid)
             if level == "lead":
                 lead_count += 1
-            block_head = _one_line(str(row.get("headline") or ""), 72)
-            body_limit = 700 if level == "lead" else (460 if level == "feature" else 240)
-            body = _one_line(str(row.get("body") or ""), body_limit)
-            if not block_head or not body:
+            block_head = _one_line(str(row.get("headline") or ""), 78)
+            deck = _one_line(str(row.get("deck") or ""), 180)
+            if not block_head or not deck:
                 raise ValueError("editorial_empty_block")
-            blocks.append(DailyEditorialBlock(level, tuple(tids), block_head, body))
+            blocks.append(DailyEditorialBlock(level, (tid,), block_head, deck))
         if set(seen) != known or len(seen) != len(known) or lead_count != 1:
             raise ValueError("editorial_coverage")
-        # Keep lead first, then features, then briefs; model still chooses which
-        # stories receive each tier and may group genuinely related threads.
         order = {"lead": 0, "feature": 1, "brief": 2}
         blocks.sort(key=lambda x: order[x.level])
         return DailyEditorialIssue(headline, standfirst, tuple(blocks))
     except Exception as exc:
         return _fallback_editorial(evidence, summaries, f"{type(exc).__name__}: {exc}")
+
 
 def _topic_activity_meta(item: DailyTopicEvidence) -> str:
     activity = list(item.activity_floors)
@@ -571,50 +567,112 @@ def _report_markdown(
 
 
 
-def _html_text(value: str) -> str:
-    return html.escape(str(value or ""), quote=True)
+
+def _tex_escape(value: str) -> str:
+    """Escape untrusted forum/model text for literal XeLaTeX prose."""
+    text = str(value or "")
+    mapping = {
+        "\\": r"\textbackslash{}",
+        "{": r"\{",
+        "}": r"\}",
+        "%": r"\%",
+        "$": r"\$",
+        "#": r"\#",
+        "&": r"\&",
+        "_": r"\_",
+        "^": r"\textasciicircum{}",
+        "~": r"\textasciitilde{}",
+    }
+    return "".join(mapping.get(ch, ch) for ch in text)
 
 
-def _block_source_refs(
+def _tex_prose(value: str) -> str:
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n+", str(value or "")) if p.strip()]
+    return "\n\n".join(_tex_escape(p) + r"\par" for p in paragraphs)
+
+
+def _tex_url(value: str) -> str:
+    # Hyperref's \url reads a verbatim-like argument. Braces/backslashes are not
+    # expected in Chaoli permalinks; percent-encode the few unsafe characters.
+    from urllib.parse import quote
+    safe = quote(str(value or ""), safe=":/?#[]@!$&'()*+,;=-._~%")
+    return r"\url{" + safe.replace("{", "%7B").replace("}", "%7D").replace("\\", "%5C") + "}"
+
+
+def _story_meta(item: DailyTopicEvidence) -> str:
+    card = item.card
+    parts = [card.channel or "未标注板块", f"#{card.thread_id}"]
+    if card.author:
+        parts.append(f"发帖 {card.author}")
+    if card.last_author:
+        parts.append(f"最后回复 {card.last_author}")
+    if card.updated:
+        parts.append(f"最近 {card.updated}")
+    rc = reply_count(card.replies)
+    if rc is not None:
+        parts.append(f"累计 {rc} 回复")
+    parts.append(f"近24h {len(item.activity_floors)} 楼更新")
+    return " · ".join(parts)
+
+
+def _article_body(item: DailyTopicEvidence, summary: DailyTopicSummary) -> str:
+    if summary.text:
+        return summary.text
+    if item.error:
+        return "本次逐帖证据未能补全。该主题仍按论坛 #今日活跃 索引保留，日报不对正文内容作推断。"
+    if item.first_floor is not None:
+        return _floor_excerpt(item.first_floor, 900) + "\n\n自动采编稿未生成，本页只保留可核验首楼内容。"
+    return "本次公开正文证据不足，日报仅保留该主题的索引记录。"
+
+
+def _source_line(item: DailyTopicEvidence, summary: DailyTopicSummary) -> str:
+    floors = "、".join(f"{n}楼" for n in summary.evidence_floors) if summary.evidence_floors else "索引/首楼"
+    return f"证据：{floors} · 原帖 {_tex_url(item.card.url)}"
+
+
+def _render_story_tex(
     block: DailyEditorialBlock,
     evidence_by_id: dict[int, DailyTopicEvidence],
     summary_by_id: dict[int, DailyTopicSummary],
-) -> tuple[str, str]:
-    refs: list[str] = []
-    urls: list[str] = []
-    for tid in block.thread_ids:
-        item = evidence_by_id[tid]
-        summary = summary_by_id.get(tid)
-        floors = list(summary.evidence_floors if summary else ())
-        if floors:
-            refs.append(f"#{tid} · " + " / ".join(f"{n}F" for n in floors[:6]))
-        else:
-            refs.append(f"#{tid}")
-        urls.append(f"chaoli.club/index.php/{tid}")
-    return " · ".join(refs), " · ".join(urls)
+    *,
+    lead: bool = False,
+) -> str:
+    tid = block.thread_ids[0]
+    item = evidence_by_id[tid]
+    summary = summary_by_id.get(tid, DailyTopicSummary(tid, "", (), "missing"))
+    body = _article_body(item, summary)
+    meta = _tex_escape(_story_meta(item))
+    headline = _tex_escape(block.headline)
+    deck = _tex_escape(block.deck)
+    source = _source_line(item, summary)
+    if lead:
+        return (
+            r"\Meta{" + meta + "}\n"
+            r"{\sffamily\bfseries\color{DogeInk}\fontsize{18.5}{22.5}\selectfont " + headline + r"\par}" + "\n"
+            r"\vspace{1mm}\Deck{" + deck + r"}\vspace{2mm}" + "\n"
+            r"{\fontsize{10.7}{16.5}\selectfont " + _tex_prose(body) + "}\n"
+            r"\vspace{1.5mm}\SourceNote{" + source + r"}\vspace{2mm}\ThinRule" + "\n"
+        )
+    title_macro = r"\BriefTitle{" if block.level == "brief" else r"\ArticleTitle{"
+    body_size = r"\fontsize{9.2}{14.2}\selectfont " if block.level == "brief" else r"\fontsize{9.8}{15.2}\selectfont "
+    return (
+        r"\Meta{" + meta + "}\n"
+        + title_macro + headline + "}\n"
+        + r"\Deck{" + deck + r"}\vspace{1.2mm}" + "\n"
+        + "{" + body_size + _tex_prose(body) + "}\n"
+        + r"\vspace{1mm}\SourceNote{" + source + r"}\vspace{2mm}\ThinRule" + "\n"
+    )
 
 
-def _lead_quote(
-    block: DailyEditorialBlock,
-    evidence_by_id: dict[int, DailyTopicEvidence],
-    summary_by_id: dict[int, DailyTopicSummary],
-) -> tuple[str, str] | None:
-    candidates: list[Floor] = []
-    for tid in block.thread_ids:
-        item = evidence_by_id[tid]
-        summary = summary_by_id.get(tid)
-        floor_map = _summary_floor_map(item)
-        for floor_no in (summary.evidence_floors if summary else ()):
-            floor = floor_map.get(floor_no)
-            if floor is not None and len(_one_line(floor.text, 500)) >= 24:
-                candidates.append(floor)
-    if not candidates:
-        return None
-    floor = max(candidates, key=lambda x: len(_one_line(x.text, 500)))
-    return _one_line(floor.text, 150), f"{floor.author or '作者未标注'} · {floor.number}楼"
+def _issue_number(date: str) -> str:
+    try:
+        d = datetime.strptime(date, "%Y-%m-%d").date()
+        return d.strftime("%Y%m%d")
+    except Exception:
+        return re.sub(r"\D+", "", date) or "DAILY"
 
 
-def _render_issue_html(
+def _render_issue_tex(
     cards: list[ThreadCard],
     evidence: list[DailyTopicEvidence],
     summaries: list[DailyTopicSummary],
@@ -622,148 +680,80 @@ def _render_issue_html(
     date: str,
     source: str,
 ) -> str:
+    template_path = Path(__file__).resolve().parent / "templates" / "chaoli_daily.tex"
+    template = template_path.read_text(encoding="utf-8")
     evidence_by_id = {x.card.thread_id: x for x in evidence}
     summary_by_id = {x.thread_id: x for x in summaries}
+    lead = next((x for x in editorial.blocks if x.level == "lead"), None)
+    columns = [x for x in editorial.blocks if x.level != "lead"]
+    lead_tex = _render_story_tex(lead, evidence_by_id, summary_by_id, lead=True) if lead else ""
+    column_tex = "\n".join(_render_story_tex(x, evidence_by_id, summary_by_id) for x in columns)
     activity_count = sum(len(x.activity_floors) for x in evidence)
     active_authors = len({f.author for x in evidence for f in x.activity_floors if f.author})
     generated = datetime.now(SHANGHAI).strftime("%H:%M")
-
-    lead_blocks = [x for x in editorial.blocks if x.level == "lead"]
-    feature_blocks = [x for x in editorial.blocks if x.level == "feature"]
-    brief_blocks = [x for x in editorial.blocks if x.level == "brief"]
-
-    def meta_for(block: DailyEditorialBlock) -> str:
-        boards: list[str] = []
-        updates = 0
-        latest = ""
-        for tid in block.thread_ids:
-            item = evidence_by_id[tid]
-            if item.card.channel and item.card.channel not in boards:
-                boards.append(item.card.channel)
-            updates += len(item.activity_floors)
-            latest = max(latest, str(item.card.updated or ""))
-        parts = boards + [f"24H 更新 {updates}"]
-        if latest:
-            parts.append(f"最近 {latest}")
-        return " · ".join(parts)
-
-    def story_html(block: DailyEditorialBlock, css_class: str) -> str:
-        refs, urls = _block_source_refs(block, evidence_by_id, summary_by_id)
-        source_titles = []
-        for tid in block.thread_ids:
-            card = evidence_by_id[tid].card
-            source_titles.append(f"#{tid} {_html_text(card.title)}")
-        quote = _lead_quote(block, evidence_by_id, summary_by_id) if block.level == "lead" else None
-        quote_html = ""
-        if quote:
-            quote_html = (
-                '<aside class="pullquote"><span class="quote-mark">“</span>'
-                f'<p>{_html_text(quote[0])}</p><cite>{_html_text(quote[1])}</cite></aside>'
-            )
-        return (
-            f'<article class="story {css_class}">'
-            f'<div class="story-meta">{_html_text(meta_for(block))}</div>'
-            f'<h2>{_html_text(block.headline)}</h2>'
-            f'<div class="story-grid"><div class="story-copy"><p>{_html_text(block.body)}</p>'
-            f'<div class="source-title">{"<br>".join(source_titles)}</div>'
-            f'<div class="evidence-ref">证据 {_html_text(refs)}</div>'
-            f'<div class="url-ref">{_html_text(urls)}</div></div>{quote_html}</div>'
-            '</article>'
+    failures = sum(1 for x in evidence if x.error)
+    summary_failures = sum(1 for x in summaries if x.error or not x.text)
+    methodology = (
+        f"主题全集来自 {source}；逐帖读取公开首楼、末页及必要的前一页，近24小时楼层按绝对时间筛选。"
+        "采编正文由独立模型仅基于所列楼层生成，不读取群聊上下文或豆子人格；总编辑只决定期标题、导语和版面等级，不重写事实正文。"
+        f"主题 replies 为历史累计值。正文取证失败 {failures}/{len(evidence)}，采编稿退化 {summary_failures}/{len(summaries)}。"
+    )
+    source_rows = []
+    for item in evidence:
+        summary = summary_by_id.get(item.card.thread_id, DailyTopicSummary(item.card.thread_id, "", (), "missing"))
+        floors = ", ".join(str(n) for n in summary.evidence_floors) or "index"
+        source_rows.append(
+            r"\noindent\SourceNote{" + _tex_escape(f"#{item.card.thread_id} · {item.card.channel or '未标注板块'} · 楼层 {floors} · {item.card.title}")
+            + r" · " + _tex_url(item.card.url) + r"}\vspace{0.7mm}"
         )
-
-    lead_html = "".join(story_html(x, "lead") for x in lead_blocks)
-    features_html = "".join(story_html(x, "feature") for x in feature_blocks)
-    briefs_html = "".join(story_html(x, "brief") for x in brief_blocks)
-
-    source_note = (
-        f"主题集合：{source}。正文证据来自公开楼层并绑定作者、楼层与 permalink；"
-        "编辑摘要不读取群聊上下文或豆子人格。主题 replies 为历史累计值。"
-    )
-    error_note = ""
-    errors = sum(1 for x in evidence if x.error) + sum(1 for x in summaries if x.error)
-    if errors or editorial.error:
-        error_note = f" · 取证/编辑退化 {errors + (1 if editorial.error else 0)} 项"
-
-    css = r'''
-    @page { size: 1200px 1600px; margin: 68px 76px 76px; }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; background: #f7f4ed; color: #172129; }
-    body { font-family: "Noto Sans CJK SC", "Droid Sans", sans-serif; font-size: 20px; line-height: 1.62; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .issue { max-width: 1048px; margin: 0 auto; }
-    .masthead { display: grid; grid-template-columns: 1fr auto; align-items: end; border-top: 8px solid #173d43; border-bottom: 1px solid #9aa5a3; padding: 18px 0 16px; margin-bottom: 46px; }
-    .brand-cn { font-family: "Noto Serif CJK SC", serif; font-size: 42px; font-weight: 700; letter-spacing: .08em; line-height: 1; }
-    .brand-en { font: 600 12px/1.2 sans-serif; letter-spacing: .26em; color: #557075; margin-top: 9px; }
-    .dateline { text-align: right; font-size: 14px; line-height: 1.55; letter-spacing: .06em; color: #5f696d; }
-    .issue-head { border-bottom: 1px solid #cfd5d1; padding-bottom: 40px; margin-bottom: 42px; }
-    .issue-head h1 { font-family: "Noto Serif CJK SC", serif; font-size: 56px; line-height: 1.22; font-weight: 700; letter-spacing: -.02em; margin: 0 0 22px; max-width: 980px; }
-    .standfirst { font-family: "Noto Serif CJK SC", serif; font-size: 25px; line-height: 1.7; color: #33434a; margin: 0; max-width: 950px; }
-    .numbers { display: flex; gap: 24px; margin-top: 26px; color: #657278; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
-    .numbers b { color: #1d5158; font-size: 19px; margin-right: 5px; }
-    .story { break-inside: avoid-page; page-break-inside: avoid; }
-    .story-meta { font-size: 13px; font-weight: 600; letter-spacing: .06em; color: #577176; text-transform: uppercase; margin-bottom: 10px; }
-    .story h2 { font-family: "Noto Serif CJK SC", serif; margin: 0; color: #162a30; }
-    .story-copy > p { margin: 0; white-space: normal; }
-    .lead { border-bottom: 3px solid #173d43; padding-bottom: 44px; margin-bottom: 44px; }
-    .lead h2 { font-size: 39px; line-height: 1.28; margin-bottom: 20px; }
-    .lead .story-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(260px, .65fr); gap: 44px; align-items: start; }
-    .lead .story-copy > p { font-family: "Noto Serif CJK SC", serif; font-size: 23px; line-height: 1.75; }
-    .pullquote { margin: 0; border-left: 4px solid #3c7a7c; padding: 8px 0 8px 24px; color: #31555a; }
-    .pullquote .quote-mark { font-family: Georgia, serif; font-size: 62px; line-height: .55; color: #78a4a1; }
-    .pullquote p { font-family: "Noto Serif CJK SC", serif; font-size: 19px; line-height: 1.68; margin: 10px 0 12px; }
-    .pullquote cite { font-style: normal; font-size: 12px; color: #758183; }
-    .features { column-count: 2; column-gap: 46px; column-rule: 1px solid #d7d9d5; margin-bottom: 38px; }
-    .feature { display: inline-block; width: 100%; break-inside: avoid; padding: 0 0 34px; margin: 0 0 34px; border-bottom: 1px solid #c9cfcc; }
-    .feature h2 { font-size: 28px; line-height: 1.35; margin-bottom: 14px; }
-    .feature .story-copy > p { font-size: 18px; line-height: 1.7; color: #28373d; }
-    .feature .story-grid { display: block; }
-    .briefs { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 34px; margin-top: 10px; }
-    .brief { border-top: 2px solid #88a4a4; padding-top: 16px; }
-    .brief h2 { font-size: 21px; line-height: 1.35; margin-bottom: 9px; }
-    .brief .story-copy > p { font-size: 15px; line-height: 1.62; color: #344249; }
-    .brief .story-grid { display: block; }
-    .source-title { margin-top: 18px; font-size: 12px; line-height: 1.5; color: #526166; }
-    .evidence-ref { margin-top: 8px; font: 600 11px/1.5 monospace; color: #42696c; }
-    .url-ref { margin-top: 4px; font: 11px/1.45 monospace; color: #7a8587; word-break: break-all; }
-    .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #aeb6b3; font-size: 10.5px; line-height: 1.55; color: #778083; }
-    @media print { a { color: inherit; text-decoration: none; } }
-    '''
-    return f'''<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>超理日报 {html.escape(date)}</title><style>{css}</style></head>
-<body><main class="issue">
-<header class="masthead"><div><div class="brand-cn">超理日报</div><div class="brand-en">CHAOLI DAILY</div></div>
-<div class="dateline">{_html_text(date)}<br>北京时间 {_html_text(generated)}</div></header>
-<section class="issue-head"><h1>{_html_text(editorial.headline)}</h1><p class="standfirst">{_html_text(editorial.standfirst)}</p>
-<div class="numbers"><span><b>{len(cards)}</b> active threads</span><span><b>{activity_count}</b> 24h updates</span><span><b>{active_authors}</b> participants</span></div></section>
-{lead_html}
-<section class="features">{features_html}</section>
-<section class="briefs">{briefs_html}</section>
-<footer class="footer">{_html_text(source_note + error_note)}</footer>
-</main></body></html>'''
+    replacements = {
+        "@@DATE@@": _tex_escape(date),
+        "@@ISSUE@@": _tex_escape(_issue_number(date)),
+        "@@TIME@@": _tex_escape(generated),
+        "@@STATS@@": _tex_escape(f"{len(cards)} 主题 · {activity_count} 楼更新 · {active_authors} 位参与者"),
+        "@@ISSUE_HEADLINE@@": _tex_escape(editorial.headline),
+        "@@STANDFIRST@@": _tex_prose(editorial.standfirst),
+        "@@LEAD_STORY@@": lead_tex,
+        "@@COLUMN_STORIES@@": column_tex,
+        "@@METHODOLOGY@@": _tex_escape(methodology),
+        "@@SOURCE_INDEX@@": "\n".join(source_rows),
+    }
+    for key, value in replacements.items():
+        template = template.replace(key, value)
+    if re.search(r"@@[A-Z_]+@@", template):
+        raise RuntimeError("Chaoli TeX template contains unresolved placeholders")
+    return template
 
 
-def _render_html_pages(out: Path, html_text: str, stem: str) -> tuple[Path, ...]:
-    chromium = Path("/usr/lib64/chromium-browser/headless_shell")
-    convert = Path("/usr/bin/convert")
-    if not chromium.exists() or not convert.exists():
-        raise RuntimeError("HTML report renderer missing Chromium headless or ImageMagick")
-    html_path = out / f"{stem}.html"
-    pdf_path = out / f"{stem}.pdf"
-    html_path.write_text(html_text, encoding="utf-8")
-    subprocess.run(
-        [str(chromium), "--no-sandbox", "--disable-gpu", "--hide-scrollbars", f"--print-to-pdf={pdf_path}", "--no-pdf-header-footer", html_path.resolve().as_uri()],
-        check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60,
-    )
-    if not pdf_path.exists() or pdf_path.stat().st_size < 1000:
-        raise RuntimeError("Chromium produced no usable report PDF")
-    page_stem = out / f"{stem}-page-%02d.png"
-    subprocess.run(
-        [str(convert), "-density", "120", str(pdf_path), "-background", "white", "-alpha", "remove", "-alpha", "off", "-quality", "92", str(page_stem)],
-        check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60,
-    )
-    pages = tuple(sorted(out.glob(f"{stem}-page-*.png")))
+def _rasterize_pdf_pages(pdf_path: Path, out: Path, stem: str, *, scale: float = 2.55) -> tuple[Path, ...]:
+    try:
+        import pypdfium2 as pdfium
+    except Exception as exc:
+        raise RuntimeError("Chaoli PDF preview requires pypdfium2") from exc
+    doc = pdfium.PdfDocument(str(pdf_path))
+    pages: list[Path] = []
+    for index in range(len(doc)):
+        page = doc[index]
+        bitmap = page.render(scale=scale, rev_byteorder=True)
+        image = bitmap.to_pil().convert("RGB")
+        path = out / f"{stem}-page-{index + 1:02d}.png"
+        image.save(path, "PNG", optimize=True)
+        pages.append(path)
+        bitmap.close()
+        page.close()
+    doc.close()
     if not pages:
-        raise RuntimeError("HTML report renderer produced no PNG pages")
-    return pages
+        raise RuntimeError("Chaoli report PDF contains no pages")
+    return tuple(pages)
+
+
+def _compile_issue_tex(out: Path, tex_text: str, stem: str) -> tuple[Path, tuple[Path, ...]]:
+    generated_pdf, _caption = _render_tex_document(out, tex_text)
+    final_pdf = out / f"{stem}.pdf"
+    if generated_pdf.resolve() != final_pdf.resolve():
+        shutil.copy2(generated_pdf, final_pdf)
+    pages = _rasterize_pdf_pages(final_pdf, out, stem)
+    return final_pdf, pages
 
 def _signature(cards: list[ThreadCard], date: str, source: str) -> str:
     payload = {
@@ -789,27 +779,28 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
     evidence = await collect_daily_evidence(cards)
     summaries = await summarize_daily_topics(provider, evidence)
     editorial = await editorialize_daily(provider, evidence, summaries)
-    markdown = _report_markdown(cards, evidence, summaries, date, source)  # audit trail only; never rendered
-    html_text = _render_issue_html(cards, evidence, summaries, editorial, date, source)
+    markdown = _report_markdown(cards, evidence, summaries, date, source)  # audit trail only
+    tex_text = _render_issue_tex(cards, evidence, summaries, editorial, date, source)
     sig = _signature(cards, date, source)
     source_path = out / f"chaoli-daily-{date}-{sig}.md"
     source_path.write_text(markdown, encoding="utf-8")
-    html_path = out / f"chaoli-daily-{date}-{sig}.html"
-    html_path.write_text(html_text, encoding="utf-8")
+    tex_path = out / f"chaoli-daily-{date}-{sig}.tex"
+    tex_path.write_text(tex_text, encoding="utf-8")
 
     manifest_data = {
-        "schema": 1,
+        "schema": 2,
         "date": date,
         "generated_at": datetime.now(SHANGHAI).isoformat(),
         "source": source,
         "topic_count": len(cards),
         "signature": sig,
+        "renderer": "XeTeX/Tectonic fixed Chaoli newsroom template",
         "editorial": {
             "headline": editorial.headline,
             "standfirst": editorial.standfirst,
             "error": editorial.error,
             "blocks": [
-                {"level": x.level, "thread_ids": list(x.thread_ids), "headline": x.headline, "body": x.body}
+                {"level": x.level, "thread_ids": list(x.thread_ids), "headline": x.headline, "deck": x.deck}
                 for x in editorial.blocks
             ],
         },
@@ -825,9 +816,9 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
                 "replies": reply_count(item.card.replies),
                 "url": item.card.url,
                 "evidence_error": item.error,
-                "summary": next((x.text for x in summaries if x.thread_id == item.card.thread_id), ""),
-                "summary_evidence_floors": list(next((x.evidence_floors for x in summaries if x.thread_id == item.card.thread_id), ())),
-                "summary_error": next((x.error for x in summaries if x.thread_id == item.card.thread_id), ""),
+                "article": next((x.text for x in summaries if x.thread_id == item.card.thread_id), ""),
+                "article_evidence_floors": list(next((x.evidence_floors for x in summaries if x.thread_id == item.card.thread_id), ())),
+                "article_error": next((x.error for x in summaries if x.thread_id == item.card.thread_id), ""),
                 "first_floor": item.first_floor.number if item.first_floor else None,
                 "activity_floors_24h": [floor.number for floor in item.activity_floors],
                 "latest_floors": [floor.number for floor in item.latest_floors],
@@ -838,8 +829,9 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
     manifest = out / f"chaoli-daily-{date}-{sig}.json"
     manifest.write_text(json.dumps(manifest_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-    render_stem = f"chaoli-daily-{date}-{sig}-{hashlib.sha256(html_text.encode('utf-8')).hexdigest()[:10]}"
-    pages = await asyncio.to_thread(_render_html_pages, out, html_text, render_stem)
+    render_stem = f"chaoli-daily-{date}-{sig}-{hashlib.sha256(tex_text.encode('utf-8')).hexdigest()[:10]}"
+    pdf_path, pages = await asyncio.to_thread(_compile_issue_tex, out, tex_text, render_stem)
     return DailyReportBundle(
-        date, source, tuple(cards), tuple(evidence), tuple(summaries), editorial, markdown, html_text, tuple(pages), manifest
+        date, source, tuple(cards), tuple(evidence), tuple(summaries), editorial, markdown, tex_text, pdf_path, tuple(pages), manifest
     )
+

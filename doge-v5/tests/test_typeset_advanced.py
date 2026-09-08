@@ -67,6 +67,28 @@ A complete document.
         self.assertTrue("SSL_CERT_FILE" in cmd or "/etc/ssl/certs" in cmd)
         self.assertIn("--share-net", cmd)
 
+    @unittest.skipUnless(
+        (shutil.which("tectonic") or (Path.home()/".local/bin/tectonic").exists())
+        and shutil.which("bwrap")
+        and Path("/usr/share/fonts/google-droid/DroidSansFallback.ttf").exists(),
+        "Tectonic+bwrap+CJK font not installed",
+    )
+    def test_full_latex_document_can_read_public_cjk_font_assets(self):
+        source = r"""\documentclass{article}
+\usepackage{fontspec}
+\usepackage{xeCJK}
+\setCJKmainfont[Path=/usr/share/fonts/google-droid/]{DroidSansFallback.ttf}
+\begin{document}
+中文 TeX 沙箱字体测试。
+\end{document}"""
+        with tempfile.TemporaryDirectory() as td:
+            path, caption = asyncio.run(render_tex(Path(td), source, "doc"))
+            try:
+                self.assertTrue(path.read_bytes().startswith(b"%PDF"))
+                self.assertIn("Tectonic", caption)
+            finally:
+                path.unlink(missing_ok=True)
+
     @unittest.skipUnless((shutil.which("tectonic") or (Path.home()/".local/bin/tectonic").exists()) and shutil.which("bwrap"), "Tectonic+bwrap not installed")
     def test_full_latex_document_cannot_read_host_files(self):
         secret = Path("/tmp/doge-typeset-host-secret.tex")

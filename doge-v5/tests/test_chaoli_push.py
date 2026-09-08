@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from astrbot.api.message_components import Image, Plain
+from astrbot.api.message_components import File, Image, Node, Nodes, Plain
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
@@ -27,7 +27,7 @@ sys.modules["data.plugins"] = plugins_pkg
 
 import doge_chaoli.main as chaoli_main
 from doge_chaoli.main import DogeChaoli
-from doge_chaoli.daily_report import DailyEditorialBlock, DailyEditorialIssue, DailyReportBundle, DailyTopicEvidence, DailyTopicSummary, _render_issue_html, _report_markdown, _report_provider_json, editorialize_daily, summarize_daily_topics
+from doge_chaoli.daily_report import DailyEditorialBlock, DailyEditorialIssue, DailyReportBundle, DailyTopicEvidence, DailyTopicSummary, _render_issue_tex, _report_markdown, _report_provider_json, _tex_escape, editorialize_daily, summarize_daily_topics
 
 from doge_chaoli.push import (
     ChaoliDailyPool,
@@ -232,8 +232,10 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             page.write_bytes(b"png")
             manifest = Path(td) / "daily.json"
             manifest.write_text("{}", encoding="utf-8")
+            pdf = Path(td) / "daily.pdf"
+            pdf.write_bytes(b"%PDF-test")
             c = card(100)
-            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "正文"),)), "# report", "<html></html>", (page,), manifest)
+            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "导语句"),)), "# report", "\\documentclass{article}", pdf, (page,), manifest)
             plugin._daily_report_for_send = AsyncMock(return_value=bundle)
 
             event = type("Event", (), {
@@ -247,10 +249,51 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             plugin.context.send_message.assert_awaited_once()
             self.assertEqual(plugin.context.send_message.await_args.args[0], umo)
             chain = plugin.context.send_message.await_args.args[1]
-            self.assertIsInstance(chain.chain[0], Plain)
-            self.assertIn("超理日报", chain.chain[0].text)
-            self.assertTrue(any(isinstance(x, Image) for x in chain.chain[1:]))
+            self.assertEqual(len(chain.chain), 1)
+            self.assertIsInstance(chain.chain[0], Nodes)
+            nodes = chain.chain[0].nodes
+            self.assertEqual(len(nodes), 3)  # edition note + one page + PDF
+            self.assertIsInstance(nodes[0], Node)
+            self.assertIn("超理日报", nodes[0].content[0].text)
+            self.assertTrue(any(isinstance(x, Image) for x in nodes[1].content))
+            self.assertTrue(any(isinstance(x, File) for x in nodes[-1].content))
             self.assertEqual(plugin.push_store.daily_state(umo)["last_sent"], shanghai_date())
+
+    async def test_daily_forward_serializes_page_and_pdf_inside_nodes(self):
+        with tempfile.TemporaryDirectory() as td:
+            plugin = object.__new__(DogeChaoli)
+            plugin.context = type("Ctx", (), {})()
+            plugin.context.get_platform_inst = lambda _pid: None
+            page = Path(td) / "page.png"
+            from PIL import Image as PILImage
+            PILImage.new("RGB", (8, 8), "white").save(page, "PNG")
+            pdf = Path(td) / "daily.pdf"
+            pdf.write_bytes(b"%PDF-1.5\n%%EOF\n")
+            manifest = Path(td) / "daily.json"
+            manifest.write_text("{}", encoding="utf-8")
+            c = card(100)
+            bundle = DailyReportBundle(
+                "2026-09-07", "owner-json", (c,),
+                (DailyTopicEvidence(c, None, (), ()),),
+                (DailyTopicSummary(c.thread_id, "摘要", (1,)),),
+                DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "导语句"),)),
+                "# report", "\\documentclass{article}", pdf, (page,), manifest,
+            )
+            chain = await plugin._daily_report_chain("napcat:GroupMessage:1", bundle)
+            self.assertEqual(len(chain.chain), 1)
+            payload = await chain.chain[0].to_dict()
+            messages = payload["messages"]
+            self.assertEqual(len(messages), 3)
+            page_content = messages[1]["data"]["content"]
+            image_segments = [x for x in page_content if x.get("type") == "image"]
+            self.assertEqual(len(image_segments), 1)
+            self.assertTrue(image_segments[0]["data"]["file"].startswith("base64://"))
+            pdf_content = messages[2]["data"]["content"]
+            file_segments = [x for x in pdf_content if x.get("type") == "file"]
+            self.assertEqual(len(file_segments), 1)
+            self.assertEqual(file_segments[0]["data"]["name"], "Chaoli-Daily-2026-09-07.pdf")
+
+
 
     async def test_failed_manual_daily_push_does_not_advance_watermark(self):
         with tempfile.TemporaryDirectory() as td:
@@ -268,8 +311,10 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             page.write_bytes(b"png")
             manifest = Path(td) / "daily.json"
             manifest.write_text("{}", encoding="utf-8")
+            pdf = Path(td) / "daily.pdf"
+            pdf.write_bytes(b"%PDF-test")
             c = card(100)
-            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "正文"),)), "# report", "<html></html>", (page,), manifest)
+            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "导语句"),)), "# report", "\\documentclass{article}", pdf, (page,), manifest)
             plugin._daily_report_for_send = AsyncMock(return_value=bundle)
             event = type("Event", (), {
                 "unified_msg_origin": umo,
@@ -296,8 +341,10 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             page.write_bytes(b"png")
             manifest = Path(td) / "daily.json"
             manifest.write_text("{}", encoding="utf-8")
+            pdf = Path(td) / "daily.pdf"
+            pdf.write_bytes(b"%PDF-test")
             c = card(100)
-            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "正文"),)), "# report", "<html></html>", (page,), manifest)
+            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "导语句"),)), "# report", "\\documentclass{article}", pdf, (page,), manifest)
             build = AsyncMock(return_value=bundle)
             plugin._daily_report_for_send = build
             with patch.object(chaoli_main, "is_plugin_enabled", AsyncMock(return_value=True)):
@@ -306,8 +353,11 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(plugin.context.send_message.await_count, 2)
             for call in plugin.context.send_message.await_args_list:
                 chain = call.args[1]
-                self.assertIsInstance(chain.chain[0], Plain)
-                self.assertTrue(any(isinstance(x, Image) for x in chain.chain[1:]))
+                self.assertEqual(len(chain.chain), 1)
+                self.assertIsInstance(chain.chain[0], Nodes)
+                nodes = chain.chain[0].nodes
+                self.assertTrue(any(isinstance(x, Image) for x in nodes[1].content))
+                self.assertTrue(any(isinstance(x, File) for x in nodes[-1].content))
             for umo in ("napcat:GroupMessage:1", "napcat:GroupMessage:2"):
                 self.assertEqual(plugin.push_store.daily_state(umo)["last_sent"], shanghai_date())
 
@@ -397,7 +447,7 @@ class ChaoliEditorialIssueTests(unittest.IsolatedAsyncioTestCase):
         c1 = card(100, replies=8, title="主讨论")
         c2 = card(101, replies=1, title="轻量更新")
         provider = type("Provider", (), {})()
-        provider.text_chat = AsyncMock(return_value=type("Resp", (), {"completion_text": '{"headline":"证明细节继续收紧","standfirst":"主讨论今天出现实质推进，另一条只是轻量更新。","blocks":[{"level":"lead","thread_ids":[100],"headline":"构造从直觉走向细节","body":"主讨论围绕具体证明继续推进。"},{"level":"brief","thread_ids":[101],"headline":"另一帖只有轻量更新","body":"该主题今天没有新的实质论证。"}]}'})())
+        provider.text_chat = AsyncMock(return_value=type("Resp", (), {"completion_text": '{"headline":"证明细节继续收紧","standfirst":"主讨论今天出现实质推进，另一条只是轻量更新。","blocks":[{"level":"lead","thread_ids":[100],"headline":"构造从直觉走向细节","deck":"主讨论围绕具体证明继续推进。"},{"level":"brief","thread_ids":[101],"headline":"另一帖只有轻量更新","deck":"该主题今天没有新的实质论证。"}]}'})())
         e1 = DailyTopicEvidence(c1, None, (), ())
         e2 = DailyTopicEvidence(c2, None, (), ())
         issue = await editorialize_daily(provider, [e1, e2], [DailyTopicSummary(100, "主讨论摘要", (1,)), DailyTopicSummary(101, "轻量更新摘要", (1,))])
@@ -410,24 +460,35 @@ class ChaoliEditorialIssueTests(unittest.IsolatedAsyncioTestCase):
         c1 = card(100, replies=8, title="主讨论")
         c2 = card(101, replies=1, title="轻量更新")
         provider = type("Provider", (), {})()
-        provider.text_chat = AsyncMock(return_value=type("Resp", (), {"completion_text": '{"headline":"x","standfirst":"y","blocks":[{"level":"lead","thread_ids":[100],"headline":"a","body":"b"},{"level":"feature","thread_ids":[100],"headline":"c","body":"d"}]}'})())
+        provider.text_chat = AsyncMock(return_value=type("Resp", (), {"completion_text": '{"headline":"x","standfirst":"y","blocks":[{"level":"lead","thread_ids":[100],"headline":"a","deck":"b"},{"level":"feature","thread_ids":[100],"headline":"c","deck":"d"}]}'})())
         issue = await editorialize_daily(provider, [DailyTopicEvidence(c1, None, (), ()), DailyTopicEvidence(c2, None, (), ())], [DailyTopicSummary(100, "A", (1,)), DailyTopicSummary(101, "B", (1,))])
         self.assertTrue(issue.error)
         self.assertEqual({tid for x in issue.blocks for tid in x.thread_ids}, {100, 101})
         self.assertEqual(sum(1 for x in issue.blocks if x.level == "lead"), 1)
 
-    def test_html_is_magazine_layout_not_markdown_listing(self):
+    def test_tex_is_formal_two_column_issue_not_card_html(self):
         c = card(100, replies=8, title="主讨论")
         evidence = [DailyTopicEvidence(c, None, (), ())]
-        summary = [DailyTopicSummary(100, "这是一段经过证据校验的摘要。", (1,))]
-        issue = DailyEditorialIssue("具体的日报主标题", "这是整期导语，不是帖子列表。", (DailyEditorialBlock("lead", (100,), "真正的头条标题", "头条正文把内容组织成可以直接阅读的报道。"),))
-        rendered = _render_issue_html([c], evidence, summary, issue, "2026-09-08", "owner-json")
-        self.assertIn('<div class="brand-cn">超理日报</div>', rendered)
-        self.assertIn('真正的头条标题', rendered)
-        self.assertIn('这是整期导语', rendered)
-        self.assertIn('@page { size: 1200px 1600px;', rendered)
-        self.assertNotIn('今日概览', rendered)
-        self.assertNotIn('逐主题证据', rendered)
+        summary = [DailyTopicSummary(100, "这是一段经过证据校验的正式稿件。", (1,))]
+        issue = DailyEditorialIssue("具体的日报主标题", "这是整期导语，不是帖子列表。", (DailyEditorialBlock("lead", (100,), "真正的头条标题", "头条导语句。"),))
+        rendered = _render_issue_tex([c], evidence, summary, issue, "2026-09-08", "owner-json")
+        self.assertIn("超理日报", rendered)
+        self.assertIn("CHAOLI DAILY", rendered)
+        self.assertIn("\\begin{multicols}{2}", rendered)
+        self.assertIn("\\fancyhead", rendered)
+        self.assertIn("真正的头条标题", rendered)
+        self.assertIn("这是整期导语", rendered)
+        self.assertNotIn("<html", rendered.lower())
+        self.assertNotIn("今日概览", rendered)
+        self.assertNotIn("逐主题证据", rendered)
+
+    def test_tex_escape_neutralizes_forum_commands(self):
+        raw = r"\\input{/etc/passwd} % # $ & _ ^ ~ {x}"
+        escaped = _tex_escape(raw)
+        self.assertNotIn(r"\\input{/etc/passwd}", escaped)
+        for token in (r"\%", r"\#", r"\$", r"\&", r"\_", r"\{", r"\}"):
+            self.assertIn(token, escaped)
+
 
 if __name__ == "__main__":
     unittest.main()

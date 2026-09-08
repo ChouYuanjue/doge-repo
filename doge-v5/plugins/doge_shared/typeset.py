@@ -252,6 +252,19 @@ def _tectonic_sandbox_command(tectonic: str, work: Path) -> list[str]:
     for host_path in (Path("/etc/ssl/certs"), Path("/etc/resolv.conf"), Path("/etc/hosts")):
         if host_path.exists():
             cmd += ["--ro-bind", str(host_path), str(host_path)]
+
+    # XeTeX/fontspec needs the host fontconfig database to discover installed
+    # fonts. Keep the exposure read-only and limited to public font assets; this
+    # fixes CJK document rendering without weakening the TeX filesystem sandbox.
+    for font_path in (
+        Path("/usr/share/fonts"),
+        Path("/usr/local/share/fonts"),
+        Path("/etc/fonts"),
+        Path("/var/cache/fontconfig"),
+        Path("/usr/share/fontconfig"),
+    ):
+        if font_path.exists():
+            cmd += ["--ro-bind", str(font_path), str(font_path)]
     ca_candidates = (
         Path("/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"),
         Path("/etc/ssl/certs/ca-certificates.crt"),

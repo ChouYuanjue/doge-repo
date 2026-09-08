@@ -1,3 +1,5 @@
 curl-cffi>=0.16,<1
 beautifulsoup4>=4.12,<5
 lxml>=6,<7
+
+pypdfium2>=4.30,<5

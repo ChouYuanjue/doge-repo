@@ -3889,7 +3889,7 @@
     {
       "id": "chaoli.daily",
       "path": "chaoli daily",
-      "summary": "超理日报查看与订阅管理：日报是独立于日常人格/群聊上下文的严谨多页图片报告，主题全集来自官方 #今日活跃，逐主题补首楼与最近24小时楼层证据。空参数/now 立即发送当前报告；定时日报与实时 push 独立。",
+      "summary": "超理日报查看与订阅管理：日报是独立于日常人格/群聊上下文的正式 TeX/PDF 技术简报，主题全集来自官方 #今日活跃，逐主题补首楼与最近24小时楼层证据并生成证据约束的编辑稿；通过一个合并转发发送逐页预览和 PDF 原件。空参数/now 立即发送当前报告；定时日报与实时 push 独立。",
       "usage": "/chaoli daily [now|push|on [HH:MM]|off|status|test]",
       "aliases": [],
       "args": "optional",
@@ -3898,7 +3898,7 @@
     {
       "id": "chaoli.daily.now",
       "path": "chaoli daily now",
-      "summary": "查看超理日报：立即发送当前完整多页图片日报到当前群；报告不经过日常人格或群聊上下文，使用官方 #今日活跃主题全集和逐帖公开证据，不修改定时 last_sent。",
+      "summary": "查看超理日报：立即发送当前正式 TeX/PDF 日报到当前群；一个合并转发内包含逐页图片预览和 PDF 原件。报告不经过日常人格或群聊上下文，使用官方 #今日活跃主题全集和逐帖公开证据，不修改定时 last_sent。",
       "usage": "/chaoli daily now",
       "aliases": [],
       "args": "none",
@@ -3908,7 +3908,7 @@
     {
       "id": "chaoli.daily.push",
       "path": "chaoli daily push",
-      "summary": "主动触发超理日报推送：立即发送当前完整多页图片日报到当前群，报告独立于日常人格/群聊上下文；成功后若已启用定时日报则推进当天 last_sent，避免 23:45 重复发送。",
+      "summary": "主动触发超理日报推送：立即发送当前正式 TeX/PDF 日报到当前群，一个合并转发内包含逐页预览和 PDF 原件；报告独立于日常人格/群聊上下文；成功后若已启用定时日报则推进当天 last_sent，避免 23:45 重复发送。",
       "usage": "/chaoli daily push",
       "aliases": [
         "chaoli daily send"
