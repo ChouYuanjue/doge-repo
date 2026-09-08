@@ -27,7 +27,7 @@ sys.modules["data.plugins"] = plugins_pkg
 
 import doge_chaoli.main as chaoli_main
 from doge_chaoli.main import DogeChaoli
-from doge_chaoli.daily_report import DailyEditorialBlock, DailyEditorialIssue, DailyReportBundle, DailyTopicEvidence, DailyTopicSummary, _render_issue_tex, _report_markdown, _report_provider_json, _tex_escape, editorialize_daily, summarize_daily_topics
+from doge_chaoli.daily_report import DailyEditorialBlock, DailyEditorialIssue, DailyReportBundle, DailyTopicEvidence, DailyTopicSummary, _render_issue_tex, _report_markdown, _report_provider_json, _tex_escape, build_daily_report, editorialize_daily, summarize_daily_topics
 
 from doge_chaoli.push import (
     ChaoliDailyPool,
@@ -393,6 +393,46 @@ class ChaoliDailyReportTests(unittest.TestCase):
         self.assertIn("今天的更新", md)
 
 
+class ChaoliEditionFreezeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_same_signature_reuses_frozen_pdf_without_recollecting(self):
+        c = card(100, replies=8, title="冻结版主题")
+        evidence = [DailyTopicEvidence(c, None, (), ())]
+        summaries = [DailyTopicSummary(100, "冻结版正文。", (1,))]
+        editorial = DailyEditorialIssue(
+            "冻结版主标题",
+            "相同主题签名再次请求时，应直接复用已经完成的版次。",
+            (DailyEditorialBlock("lead", (100,), "冻结版头条", "冻结版导语"),),
+        )
+
+        def fake_compile(out: Path, tex_text: str, stem: str):
+            pdf = out / f"{stem}.pdf"
+            page = out / f"{stem}-page-01.png"
+            pdf.write_bytes(b"%PDF-1.7\n%%EOF\n")
+            page.write_bytes(b"\x89PNG\r\n\x1a\n" + b"x" * 2048)
+            return pdf, (page,)
+
+        with tempfile.TemporaryDirectory() as td, patch(
+            "doge_chaoli.daily_report.collect_daily_evidence", AsyncMock(return_value=evidence)
+        ) as collect, patch(
+            "doge_chaoli.daily_report.summarize_daily_topics", AsyncMock(return_value=summaries)
+        ) as summarize, patch(
+            "doge_chaoli.daily_report.editorialize_daily", AsyncMock(return_value=editorial)
+        ) as edit, patch(
+            "doge_chaoli.daily_report._compile_issue_tex", side_effect=fake_compile
+        ) as compile_issue:
+            first = await build_daily_report(Path(td), [c], "2026-09-09", "owner-json", provider=object())
+            second = await build_daily_report(Path(td), [c], "2026-09-09", "owner-json", provider=object())
+
+        self.assertEqual(first.manifest, second.manifest)
+        self.assertEqual(first.pdf, second.pdf)
+        self.assertEqual(first.pages, second.pages)
+        self.assertEqual(second.editorial.headline, "冻结版主标题")
+        collect.assert_awaited_once()
+        summarize.assert_awaited_once()
+        edit.assert_awaited_once()
+        compile_issue.assert_called_once()
+
+
 
 class ChaoliReportProviderPayloadTests(unittest.IsolatedAsyncioTestCase):
     async def test_openai_provider_private_query_gets_explicit_report_controls(self):
@@ -466,7 +506,7 @@ class ChaoliEditorialIssueTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({tid for x in issue.blocks for tid in x.thread_ids}, {100, 101})
         self.assertEqual(sum(1 for x in issue.blocks if x.level == "lead"), 1)
 
-    def test_tex_is_formal_two_column_issue_not_card_html(self):
+    def test_tex_is_formal_broadsheet_issue_not_card_html(self):
         c = card(100, replies=8, title="主讨论")
         evidence = [DailyTopicEvidence(c, None, (), ())]
         summary = [DailyTopicSummary(100, "这是一段经过证据校验的正式稿件。", (1,))]
@@ -475,7 +515,10 @@ class ChaoliEditorialIssueTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("超理日报", rendered)
         self.assertIn("CHAOLI DAILY", rendered)
         self.assertIn("\\begin{multicols}{2}", rendered)
+        self.assertIn("\\begin{multicols}{3}", rendered)
         self.assertIn("\\fancyhead", rendered)
+        self.assertIn("SOURCES \\& METHOD", rendered)
+        self.assertNotIn("\\vfill", rendered)
         self.assertIn("真正的头条标题", rendered)
         self.assertIn("这是整期导语", rendered)
         self.assertNotIn("<html", rendered.lower())

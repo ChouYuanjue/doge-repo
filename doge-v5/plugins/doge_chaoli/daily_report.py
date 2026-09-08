@@ -17,7 +17,7 @@ from .push import reply_count
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 REPORT_SCHEMA = 3
-REPORT_TEMPLATE_REV = "tex-institutional-v2"
+REPORT_TEMPLATE_REV = "tex-broadsheet-v3"
 
 
 @dataclass(frozen=True, slots=True)
@@ -649,18 +649,22 @@ def _render_story_tex(
     source = _source_line(item, summary)
     if lead:
         return (
+            r"\begin{minipage}{\textwidth}" + "\n"
             r"\Kicker{今日头条 · LEAD}" + "\n"
-            r"\Meta{" + meta + "}\n"
-            r"{\sffamily\bfseries\color{DogeInk}\fontsize{18.2}{21.8}\selectfont " + headline + r"\par}" + "\n"
-            r"\vspace{0.8mm}\Deck{" + deck + r"}\vspace{1.7mm}" + "\n"
-            r"{\fontsize{10.5}{16.1}\selectfont " + _tex_prose(body) + "}\n"
-            r"\vspace{1.2mm}\SourceNote{" + source + r"}\vspace{1.8mm}\ThinRule" + "\n"
+            r"\Meta{" + meta + r"}\vspace{0.6mm}" + "\n"
+            r"\LeadTitle{" + headline + r"}" + "\n"
+            r"\vspace{0.65mm}\LeadDeck{" + deck + r"}" + "\n"
+            r"\end{minipage}\par\nopagebreak[4]\vspace{0.9mm}" + "\n"
+            r"\begingroup\setlength{\columnsep}{6.6mm}\begin{multicols}{2}" + "\n"
+            r"{\fontsize{9.15}{13.25}\selectfont " + _tex_prose(body) + "}\n"
+            r"\end{multicols}\endgroup" + "\n"
+            r"\vspace{-0.4mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
         )
 
-    # Header + deck are one indivisible unit. Unlike needspace, this never asks
-    # multicol to manufacture an almost-empty intermediate page. Feature bodies
-    # remain free to flow naturally after the header. Briefs are short enough to
-    # keep the whole item together, avoiding orphan titles altogether.
+    # Header + deck are one indivisible unit.  The following hard no-break keeps
+    # the header attached to the opening body line while still allowing the body
+    # itself to flow between newspaper columns.  This is deliberately smaller
+    # and more predictable than reserving a large Needspace block.
     title_macro = r"\BriefTitle{" if block.level == "brief" else r"\FeatureTitle{"
     header = (
         r"\begin{minipage}{\columnwidth}" + "\n"
@@ -668,13 +672,13 @@ def _render_story_tex(
         r"\Meta{" + meta + "}\n"
         + title_macro + headline + "}\n"
         + r"\vspace{0.5mm}\Deck{" + deck + r"}" + "\n"
-        r"\end{minipage}\par\nopagebreak[4]\vspace{1.0mm}" + "\n"
+        r"\end{minipage}\par\nopagebreak[4]\vspace{0.45mm}" + "\n"
     )
-    body_size = r"\fontsize{9.1}{13.9}\selectfont " if block.level == "brief" else r"\fontsize{9.7}{14.8}\selectfont "
+    body_size = r"\fontsize{8.15}{11.75}\selectfont " if block.level == "brief" else r"\fontsize{8.4}{12.1}\selectfont "
     story = (
         header
         + "{" + body_size + _tex_prose(body) + "}\n"
-        + r"\vspace{0.8mm}\SourceNote{" + source + r"}\vspace{1.6mm}\ThinRule" + "\n"
+        + r"\vspace{0.45mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
     )
     return story
 
@@ -713,14 +717,6 @@ def _render_issue_tex(
         "采编正文由独立模型仅基于所列楼层生成，不读取群聊上下文或豆子人格；总编辑只决定期标题、导语和版面等级，不重写事实正文。"
         f"主题 replies 为历史累计值。正文取证失败 {failures}/{len(evidence)}，采编稿退化 {summary_failures}/{len(summaries)}。"
     )
-    source_rows = []
-    for item in evidence:
-        summary = summary_by_id.get(item.card.thread_id, DailyTopicSummary(item.card.thread_id, "", (), "missing"))
-        floors = ", ".join(str(n) for n in summary.evidence_floors) or "index"
-        source_rows.append(
-            r"\noindent\SourceNote{" + _tex_escape(f"#{item.card.thread_id} · {item.card.channel or '未标注板块'} · 楼层 {floors} · {item.card.title}")
-            + r" · " + _tex_url(item.card.url) + r"}\vspace{0.7mm}"
-        )
     replacements = {
         "@@DATE@@": _tex_escape(date),
         "@@ISSUE@@": _tex_escape(_issue_number(date)),
@@ -731,7 +727,6 @@ def _render_issue_tex(
         "@@LEAD_STORY@@": lead_tex,
         "@@COLUMN_STORIES@@": column_tex,
         "@@METHODOLOGY@@": _tex_escape(methodology),
-        "@@SOURCE_INDEX@@": "\n".join(source_rows),
     }
     for key, value in replacements.items():
         template = template.replace(key, value)
@@ -867,7 +862,7 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
         "source": source,
         "topic_count": len(cards),
         "signature": sig,
-        "renderer": "XeTeX/Tectonic fixed Chaoli newsroom template",
+        "renderer": "XeTeX/Tectonic Chaoli editorial broadsheet template",
         "editorial": {
             "headline": editorial.headline,
             "standfirst": editorial.standfirst,
