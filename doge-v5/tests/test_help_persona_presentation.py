@@ -284,7 +284,7 @@ class PersonaTests(unittest.TestCase):
             self.assertFalse(gcp_runtime.is_symlink())
             marker = json.loads((gcp_runtime / ".doge_external_patch.json").read_text(encoding="utf-8"))
             self.assertEqual(marker["managed_by"], "doge")
-            self.assertEqual(marker["runtime_version"], "V1.2.3.hotfix.2-doge.1")
+            self.assertEqual(marker["runtime_version"], "V1.2.3.hotfix.2-doge.2")
             self.assertIn("cache_aware_history_window", (gcp_runtime / "utils" / "context_manager.py").read_text(encoding="utf-8"))
             self.assertTrue((data / "plugins" / "astrbot_plugin_stealer").is_symlink())
             out = json.loads((data / "cmd_config.json").read_text(encoding="utf-8-sig"))

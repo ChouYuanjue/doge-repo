@@ -3,7 +3,7 @@
   "upstream": "https://github.com/Him666233/astrbot_plugin_group_chat_plus.git",
   "base_commit": "89ae2e1ad9c5a3e5a430a22bbd3d6e638b7f5a63",
   "patch": "doge-cache-aware-context.patch",
-  "sha256": "d6967d15901f926132aa684cde1007d423e672dffcfef2bc02905345dfdf2360",
-  "runtime_version": "V1.2.3.hotfix.2-doge.1",
+  "sha256": "09e3032eabcdf6f3f51438313187c04e1ee304c1be339af044c10af8e19df169",
+  "runtime_version": "V1.2.3.hotfix.2-doge.2",
   "purpose": "Doge cache-aware prompt layout, bounded group context, and low-overhead decision AI"
 }

@@ -247,12 +247,19 @@ index e781383ed3680d87adefafa61a953aa73cecda0e..20a19475514ea61700dbabc714e9d5d4
 -                logger.info(f"  ✅ 已追加情绪提示到 system_prompt")
 +                logger.info("  ✅ 已将情绪提示追加到当前user tail（cache-friendly）")
 diff --git a/metadata.yaml b/metadata.yaml
-index ae81b1fb6d7693ad28625cec75a0ae710553b67e..e58983f41b35910dab34cb1a1b502bc666474d61 100644
+index ae81b1fb6d7693ad28625cec75a0ae710553b67e..5f2440c3c96193710acd3cdbb9dda8585894d9a8 100644
 --- a/metadata.yaml
 +++ b/metadata.yaml
 @@ -5 +5 @@ help: 通过AI智能判断是否回复群聊消息,聊天效果增强,V1.2.3.hot
 -version: V1.2.3.hotfix.2 # 插件版本号
-+version: V1.2.3.hotfix.2-doge.1 # Doge cache-aware runtime patch
++version: V1.2.3.hotfix.2-doge.2 # Doge cache-aware runtime patch
+diff --git a/private_chat/private_chat_utils/private_chat_context_manager.py b/private_chat/private_chat_utils/private_chat_context_manager.py
+index 84abeb0d5499504effd82ad1ebf02857ae60f806..98a368e0fea2089b40c04859c5c640922a9ecb31 100644
+--- a/private_chat/private_chat_utils/private_chat_context_manager.py
++++ b/private_chat/private_chat_utils/private_chat_context_manager.py
+@@ -23 +23 @@ from datetime import datetime
+-from ._session_guard import guard_session
++from .private_chat_session_guard import guard_session
 diff --git a/private_chat/private_chat_utils/private_chat_proactive_chat_manager.py b/private_chat/private_chat_utils/private_chat_proactive_chat_manager.py
 index f1205525a707f97ee98caca028e9ae9f2898237a..0748070977b822cd42431f875257dcad5ac3f780 100644
 --- a/private_chat/private_chat_utils/private_chat_proactive_chat_manager.py
@@ -290,10 +297,10 @@ index f1205525a707f97ee98caca028e9ae9f2898237a..0748070977b822cd42431f875257dcad
 +                        f"(low={proactive_low}, high={proactive_high})"
 diff --git a/tests/test_cache_windows.py b/tests/test_cache_windows.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..89c6858520c5620bf4f146236ac1fffd4e8dbe14
+index 0000000000000000000000000000000000000000..8d3e54a07c0c7d3ede7f447ebe4006bc13d2742a
 --- /dev/null
 +++ b/tests/test_cache_windows.py
-@@ -0,0 +1,128 @@
+@@ -0,0 +1,133 @@
 +from __future__ import annotations
 +
 +import json
@@ -401,6 +408,11 @@ index 0000000000000000000000000000000000000000..89c6858520c5620bf4f146236ac1fffd
 +        self.assertIn("<group-chat-current-mood>", main)
 +        self.assertNotIn('req.system_prompt += f"\\n\\n{mood_hint}"', main)
 +        self.assertIn('req.extra_user_content_parts.append(', main)
++
++    def test_private_context_manager_imports_tracked_session_guard(self):
++        source = (ROOT / "private_chat" / "private_chat_utils" / "private_chat_context_manager.py").read_text(encoding="utf-8")
++        self.assertIn("from .private_chat_session_guard import guard_session", source)
++        self.assertNotIn("from ._session_guard import guard_session", source)
 +
 +    def test_tool_schema_order_is_canonicalized(self):
 +        main = (ROOT / "main.py").read_text(encoding="utf-8")
