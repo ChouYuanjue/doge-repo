@@ -17,7 +17,7 @@ from .push import reply_count
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 REPORT_SCHEMA = 3
-REPORT_TEMPLATE_REV = "tex-journal-v6"
+REPORT_TEMPLATE_REV = "tex-journal-v7"
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +27,7 @@ class DailyTopicEvidence:
     activity_floors: tuple[Floor, ...]
     latest_floors: tuple[Floor, ...]
     error: str = ""
+    context_floors: tuple[Floor, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,8 +114,14 @@ def _floor_excerpt(floor: Floor, limit: int) -> str:
     return body or "〔无可抽取文本，可能只有图片或附件〕"
 
 
-async def _topic_evidence(card: ThreadCard, *, recent: int = 4) -> DailyTopicEvidence:
-    """Fetch first-page context and all discoverable activity in the last 24h."""
+async def _topic_evidence(card: ThreadCard, *, recent: int = 6) -> DailyTopicEvidence:
+    """Fetch broad thread context plus all discoverable activity in the last 24h.
+
+    Short and medium threads are read page-by-page. Very long threads use a
+    deterministic stratified page sample while still walking backwards through
+    every recent page until activity leaves the 24h window. This prevents the
+    daily writer from treating a late reply as if it were the whole discussion.
+    """
     try:
         first_html, last_ref = await asyncio.gather(
             ChaoliService._get(f"/index.php/{card.thread_id}"),
@@ -127,9 +134,10 @@ async def _topic_evidence(card: ThreadCard, *, recent: int = 4) -> DailyTopicEvi
         _, last_floors = ChaoliService._parse_thread(last_html, card.thread_id)
         first = next((x for x in first_floors if not x.deleted), first_floors[0] if first_floors else None)
 
-        pages: list[list[Floor]] = [last_floors]
+        page_floors: dict[int, list[Floor]] = {1: first_floors}
         page_match = re.search(rf"/{card.thread_id}/p(\d+)(?:$|[?#])", resolved_url)
-        page_no = int(page_match.group(1)) if page_match else 1
+        last_page_no = int(page_match.group(1)) if page_match else 1
+        page_floors[last_page_no] = last_floors
         cutoff = datetime.now(SHANGHAI) - timedelta(hours=24)
 
         def floor_dt(floor: Floor) -> datetime | None:
@@ -141,27 +149,50 @@ async def _topic_evidence(card: ThreadCard, *, recent: int = 4) -> DailyTopicEvi
                     continue
             return None
 
-        # Walk backwards only while the whole current earliest page is still
-        # inside the display window. This captures all recent floors without
-        # crawling the entire historical thread.
+        async def fetch_page(page_no: int) -> None:
+            if page_no in page_floors:
+                return
+            html = await ChaoliService._get(f"/index.php/{card.thread_id}/p{page_no}")
+            _, floors = ChaoliService._parse_thread(html, card.thread_id)
+            page_floors[page_no] = floors
+
+        # Read every page for ordinary threads. On very long threads, read the
+        # beginning, the entire recent tail, and evenly spaced historical pages.
+        if last_page_no <= 20:
+            wanted = set(range(2, last_page_no))
+        else:
+            wanted = {2, 3}
+            wanted.update(range(max(2, last_page_no - 5), last_page_no))
+            interior_lo, interior_hi = 4, max(4, last_page_no - 6)
+            if interior_hi >= interior_lo:
+                samples = 10
+                span = interior_hi - interior_lo
+                for i in range(samples):
+                    wanted.add(interior_lo + round(span * i / max(1, samples - 1)))
+        for start in range(0, len(wanted), 4):
+            batch = sorted(wanted)[start : start + 4]
+            await asyncio.gather(*(fetch_page(page_no) for page_no in batch))
+
+        # Independently guarantee that all pages covering the last 24 hours are
+        # present, even when a very active long thread exceeds the tail sample.
+        page_no = last_page_no
         while page_no > 1:
-            dated = [floor_dt(x) for x in pages[-1] if floor_dt(x) is not None]
+            await fetch_page(page_no)
+            dated = [floor_dt(x) for x in page_floors[page_no] if floor_dt(x) is not None]
             if dated and min(dated) < cutoff:
                 break
             page_no -= 1
-            prev_html = await ChaoliService._get(f"/index.php/{card.thread_id}/p{page_no}")
-            _, prev_floors = ChaoliService._parse_thread(prev_html, card.thread_id)
-            pages.append(prev_floors)
 
         merged: dict[str, Floor] = {}
-        for floors in reversed(pages):
+        for page_no in sorted(page_floors):
+            floors = page_floors[page_no]
             for floor in floors:
                 merged[floor.url] = floor
         chronological = sorted(merged.values(), key=lambda x: x.number)
         available = [x for x in chronological if not x.deleted]
         activity = tuple(x for x in available if (floor_dt(x) is not None and floor_dt(x) >= cutoff))
-        latest = tuple(available[-max(1, min(int(recent), 6)):])
-        return DailyTopicEvidence(card, first, activity, latest)
+        latest = tuple(available[-max(1, min(int(recent), 10)):])
+        return DailyTopicEvidence(card, first, activity, latest, "", tuple(available))
     except Exception as exc:
         # Never drop the topic selected by #今日活跃 merely because enrichment
         # failed. The index row remains authoritative and the report records the
@@ -181,16 +212,50 @@ async def collect_daily_evidence(cards: list[ThreadCard], *, concurrency: int = 
 
 
 def _summary_evidence_payload(item: DailyTopicEvidence) -> dict:
-    floors: list[Floor] = []
-    if item.first_floor is not None:
-        floors.append(item.first_floor)
+    context = list(item.context_floors)
+    if not context:
+        context = [x for x in ([item.first_floor] if item.first_floor is not None else []) + list(item.activity_floors) + list(item.latest_floors) if x is not None]
+
+    chosen: dict[str, Floor] = {}
+
+    def keep(floor: Floor | None) -> None:
+        if floor is not None:
+            chosen[floor.url] = floor
+
+    for floor in context[:4]:
+        keep(floor)
     for floor in item.activity_floors:
-        if all(floor.url != old.url for old in floors):
-            floors.append(floor)
-    if len(floors) == (1 if item.first_floor is not None else 0):
-        for floor in item.latest_floors[-2:]:
-            if all(floor.url != old.url for old in floors):
-                floors.append(floor)
+        keep(floor)
+    for floor in context[-8:]:
+        keep(floor)
+
+    # Fill remaining budget with evenly spaced historical context. This gives
+    # the model a view of how the thread evolved instead of only seeing endpoints.
+    budget = 48
+    remaining = [floor for floor in context if floor.url not in chosen]
+    slots = max(0, budget - len(chosen))
+    if slots and remaining:
+        if len(remaining) <= slots:
+            for floor in remaining:
+                keep(floor)
+        else:
+            for i in range(slots):
+                keep(remaining[round((len(remaining) - 1) * i / max(1, slots - 1))])
+    floors = sorted(chosen.values(), key=lambda x: x.number)
+    recent_numbers = {x.number for x in item.activity_floors}
+    evidence_chars = sum(len(_one_line(floor.text, 720)) for floor in floors)
+    if evidence_chars >= 2800:
+        recommended_chars = "800-1050"
+    elif evidence_chars >= 2000:
+        recommended_chars = "650-900"
+    elif evidence_chars >= 1200:
+        recommended_chars = "500-750"
+    elif evidence_chars >= 700:
+        recommended_chars = "350-550"
+    elif evidence_chars >= 350:
+        recommended_chars = "200-350"
+    else:
+        recommended_chars = "140-260"
     return {
         "thread_id": item.card.thread_id,
         "title": item.card.title,
@@ -200,12 +265,16 @@ def _summary_evidence_payload(item: DailyTopicEvidence) -> dict:
         "last_author": item.card.last_author,
         "updated": item.card.updated,
         "cumulative_replies": reply_count(item.card.replies),
+        "context_floor_count": len(context),
+        "provided_floor_count": len(floors),
+        "recommended_chars": recommended_chars,
         "floors": [
             {
                 "floor": floor.number,
                 "author": floor.author,
                 "time": floor.time,
-                "text": _one_line(floor.text, 900),
+                "recent_24h": floor.number in recent_numbers,
+                "text": _one_line(floor.text, 720),
             }
             for floor in floors
         ],
@@ -263,7 +332,7 @@ def _extract_json_object(raw: str) -> dict:
     return value
 
 
-async def summarize_daily_topics(provider, evidence: list[DailyTopicEvidence], *, batch_size: int = 3) -> list[DailyTopicSummary]:
+async def summarize_daily_topics(provider, evidence: list[DailyTopicEvidence], *, batch_size: int = 2) -> list[DailyTopicSummary]:
     """Write evidence-grounded newsroom copy for every active forum topic.
 
     This is direct provider work: no chat history, no persona, no Agent tools.
@@ -275,9 +344,12 @@ async def summarize_daily_topics(provider, evidence: list[DailyTopicEvidence], *
 
     system = (
         "你是严肃技术社区日报的采编记者。仅依据输入中的论坛楼层证据写中文稿件，不能使用群聊上下文、人物设定、外部知识或常识补全。"
-        "每个主题都要写成一篇可以直接刊登的小稿，而不是标题列表或三句摘要。先用自然语言交代讨论对象和必要背景，再写最近24小时真正出现的推进、论证、反例、修正、分歧或结果；"
+        "每个主题都要写成一篇可以直接刊登的小稿，而不是标题列表或三句摘要。输入会尽量包含整帖历史上下文，并用 recent_24h 标记最近更新。"
+        "先读历史楼层确认此前已经提出、否定或修正过什么，再写最近24小时真正出现的推进、论证、反例、修正、分歧或结果；绝不能把某条晚近回复误写成整帖共识或最终结论。"
+        "论坛楼层本身只是讨论证据，不等于外部事实已经成立。若楼主或回复者声称某论文、AI、实验已经解决或证明某事，而输入没有独立楼层核实，只能写成‘发帖者称/帖子引用/讨论中提出’，不得把帖内主张改写成事实断言。"
         "如果某条更新只是在顶帖、征求意见或补链接，就如实写短，不制造进展。数学/物理/语言学等技术内容尽量保留具体对象、条件、数值、构造或结论，但不要伪造公式。"
-        "根据证据量写2到5个自然段；实质内容丰富时约350到750中文字符，证据稀薄时可以更短。不要使用‘主题概述/今日进展/关键观点/待解决问题’之类模板小标题，"
+        "每个主题输入都给出 recommended_chars。只要证据支持，就按该范围充分写清背景、演变和最近进展；不要为了省字把长讨论压成三句话，也不要为了凑字数重复同一信息。"
+        "通常写2到6个自然段；证据稀薄时可以低于建议长度。不要使用‘主题概述/今日进展/关键观点/待解决问题’之类模板小标题，"
         "不要寒暄，不使用第一人称，不评价坛友人格。若证据无法支持某一点，直接不写；若整帖证据不足，明确写证据不足。"
         "每条稿件必须列出支撑它的楼层号，楼层号只能来自输入。返回严格 JSON："
         "{\"topics\":[{\"thread_id\":123,\"article\":\"多段正文\",\"evidence_floors\":[1,5]}]}。"
@@ -294,7 +366,7 @@ async def summarize_daily_topics(provider, evidence: list[DailyTopicEvidence], *
         prompt = "按输入顺序撰写可直接刊登的日报稿件，不遗漏 thread_id。\n\n" + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
         try:
             resp = await _report_provider_json(
-                provider, system, prompt, max_tokens=min(5200, 900 + 1100 * len(batch))
+                provider, system, prompt, max_tokens=min(6200, 1200 + 1400 * len(batch))
             )
             root = _extract_json_object(resp.completion_text or "")
             rows = root.get("topics")
@@ -394,7 +466,8 @@ async def editorialize_daily(provider, evidence: list[DailyTopicEvidence], summa
         "你是一份正式学术技术社区 bulletin 的总编辑。输入中的 article 已经逐楼层校验，是最终事实正文；你绝对不能重写、扩写或补充正文事实。"
         "你的工作只包括：给整期拟一个具体、克制、有信息量的期标题；写一段80到180字的整期导语，说明今天主要研究议题及其关系；"
         "为每个 thread 单独决定 lead/feature/brief 版面等级，并拟一个学术简报式稿件标题和一句很短的 deck。"
-        "期标题和稿件标题都要像学会 newsletter 或研究简报：优先准确概括对象、问题和新进展，避免‘热议/引爆/震撼/焦点/重磅’等媒体化措辞。"
+        "期标题和稿件标题都要像学术期刊目录或研究简报：优先准确概括对象、问题和新进展，避免‘热议/引爆/震撼/焦点/重磅’等媒体化措辞。"
+        "标题必须继承正文的证据强度：正文若只是‘楼主声称/帖子引用/尚未核实’，标题也必须保留这种不确定性，绝不能升级成‘已经解决/已经证明/正式完成’之类事实断言。"
         "必须根据实际信息量拉开主次：真正有推导、实验、计算、争论或结论推进的可以做专题；只有轻量更新的必须降为简讯。"
         "不要写‘今日看点/精彩回顾/值得关注/社区动态’等空标题，不要为了叙事强行关联无关主题。"
         "每个 thread_id 必须且只能出现一次，每个 block 只能包含一个 thread_id，整期恰好一个 lead。"
@@ -461,6 +534,8 @@ def _summary_floor_map(item: DailyTopicEvidence) -> dict[int, Floor]:
     rows: dict[int, Floor] = {}
     if item.first_floor is not None:
         rows[item.first_floor.number] = item.first_floor
+    for floor in item.context_floors:
+        rows[floor.number] = floor
     for floor in item.activity_floors:
         rows[floor.number] = floor
     for floor in item.latest_floors:
@@ -589,9 +664,23 @@ def _tex_escape(value: str) -> str:
     return "".join(mapping.get(ch, ch) for ch in text)
 
 
+def _tex_inline(value: str) -> str:
+    """Escape prose while keeping public URLs breakable inside narrow columns."""
+    text = str(value or "")
+    parts: list[str] = []
+    cursor = 0
+    url_re = re.compile(r"https?://[^\s，。；！？、）》」】]+", re.I)
+    for match in url_re.finditer(text):
+        parts.append(_tex_escape(text[cursor : match.start()]))
+        parts.append(_tex_url(match.group(0)))
+        cursor = match.end()
+    parts.append(_tex_escape(text[cursor:]))
+    return "".join(parts)
+
+
 def _tex_prose(value: str) -> str:
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n+", str(value or "")) if p.strip()]
-    return "\n\n".join(_tex_escape(p) + r"\par" for p in paragraphs)
+    return "\n\n".join(_tex_inline(p) + r"\par" for p in paragraphs)
 
 
 def _tex_url(value: str) -> str:
@@ -639,31 +728,15 @@ def _render_story_tex(
     meta = _tex_escape(_story_meta(item))
     headline = _tex_escape(block.headline)
     source = _source_line(item, summary)
-    if lead:
-        return (
-            r"\Needspace{15\baselineskip}" + "\n"
-            r"\begin{minipage}{\textwidth}" + "\n"
-            r"\Meta{" + meta + r"}\vspace{1.35mm}" + "\n"
-            r"\MainTitle{" + headline + r"}" + "\n"
-            r"\end{minipage}\par\nopagebreak[4]\vspace{2.9mm}" + "\n"
-            r"\begingroup\begin{multicols}{2}" + "\n"
-            r"{\sloppy\fontsize{9.55}{14.2}\selectfont " + _tex_prose(body) + "}\n"
-            r"\end{multicols}\endgroup" + "\n"
-            r"\vspace{0.9mm}\Source{" + source + r"}\ArticleRule" + "\n"
-        )
-
-    story = (
-        r"\Needspace{12\baselineskip}" + "\n"
-        r"\begin{minipage}{\textwidth}" + "\n"
-        r"\Meta{" + meta + r"}\vspace{1.15mm}" + "\n"
-        r"\StoryTitle{" + headline + "}\n"
-        r"\end{minipage}\par\nopagebreak[4]\vspace{2.7mm}" + "\n"
-        r"\begingroup\begin{multicols}{2}" + "\n"
-        r"{\sloppy\fontsize{9.55}{14.2}\selectfont " + _tex_prose(body) + "}\n"
-        r"\end{multicols}\endgroup" + "\n"
-        r"\vspace{0.9mm}\Source{" + source + r"}\ArticleRule" + "\n"
+    title = (r"\LeadTitle{" if lead else r"\StoryTitle{") + headline + "}"
+    return (
+        (r"\Needspace{8\baselineskip}" if lead else r"\Needspace{6\baselineskip}") + "\n"
+        + r"\Meta{" + meta + r"}\vspace{1.2mm}" + "\n"
+        + title + "\n"
+        + r"\vspace{2.05mm}" + "\n"
+        + r"{\fontsize{9.9}{15.0}\selectfont " + _tex_prose(body) + "}\n"
+        + r"\vspace{1.15mm}\Source{" + source + r"}\ArticleRule" + "\n"
     )
-    return story
 
 
 def _issue_number(date: str) -> str:
@@ -686,50 +759,21 @@ def _render_issue_tex(
     template = template_path.read_text(encoding="utf-8")
     evidence_by_id = {x.card.thread_id: x for x in evidence}
     summary_by_id = {x.thread_id: x for x in summaries}
-    lead = next((x for x in editorial.blocks if x.level == "lead"), None)
-    columns = [x for x in editorial.blocks if x.level != "lead"]
-    lead_tex = _render_story_tex(lead, evidence_by_id, summary_by_id, lead=True) if lead else ""
-    secondary_tex = ""
-    if columns:
-        # Pages are composed from whole article units. For ordinary small issues
-        # natural flow is sufficient; once there are at least five topics,
-        # choose a single page break by estimated article height so page two is
-        # not left as a sparse tail. The article order and editorial hierarchy
-        # remain unchanged.
-        if len(cards) >= 6 and len(columns) >= 5 and lead is not None:
-            def layout_weight(block: DailyEditorialBlock) -> int:
-                tid = block.thread_ids[0]
-                summary = summary_by_id.get(tid, DailyTopicSummary(tid, "", (), "missing"))
-                return len(_article_body(evidence_by_id[tid], summary)) + 110
-
-            lead_weight = layout_weight(lead) + 40
-            total_weight = lead_weight + sum(layout_weight(x) for x in columns)
-            target = total_weight * 0.46
-            running = lead_weight
-            candidates: list[tuple[float, int]] = []
-            # Keep at least two complete stories for page two.
-            max_first = max(1, len(columns) - 2)
-            for count in range(1, max_first + 1):
-                running += layout_weight(columns[count - 1])
-                candidates.append((abs(running - target), count))
-            split = min(candidates)[1]
-            first_tex = "\n".join(
-                _render_story_tex(x, evidence_by_id, summary_by_id) for x in columns[:split]
-            )
-            rest_tex = "\n".join(
-                _render_story_tex(x, evidence_by_id, summary_by_id) for x in columns[split:]
-            )
-            secondary_tex = first_tex + "\n" + r"\newpage" + "\n" + rest_tex + "\n"
-        else:
-            story_tex = "\n".join(_render_story_tex(x, evidence_by_id, summary_by_id) for x in columns)
-            secondary_tex = story_tex + "\n"
+    story_flow = "\n".join(
+        _render_story_tex(
+            block,
+            evidence_by_id,
+            summary_by_id,
+            lead=(block.level == "lead"),
+        )
+        for block in editorial.blocks
+    )
     generated = datetime.now(SHANGHAI).strftime("%H:%M")
     replacements = {
         "@@DATE@@": _tex_escape(date),
         "@@ISSUE@@": _tex_escape(_issue_number(date)),
         "@@TIME@@": _tex_escape(generated),
-        "@@LEAD_STORY@@": lead_tex,
-        "@@SECONDARY_SECTION@@": secondary_tex,
+        "@@STORY_FLOW@@": story_flow,
     }
     for key, value in replacements.items():
         template = template.replace(key, value)
@@ -893,6 +937,7 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
                 "first_floor": item.first_floor.number if item.first_floor else None,
                 "activity_floors_24h": [floor.number for floor in item.activity_floors],
                 "latest_floors": [floor.number for floor in item.latest_floors],
+                "context_floors": [floor.number for floor in item.context_floors],
             }
             for item in evidence
         ],
