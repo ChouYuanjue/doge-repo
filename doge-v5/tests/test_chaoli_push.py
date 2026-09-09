@@ -506,13 +506,19 @@ class ChaoliEditorialIssueTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({tid for x in issue.blocks for tid in x.thread_ids}, {100, 101})
         self.assertEqual(sum(1 for x in issue.blocks if x.level == "lead"), 1)
 
-    def test_tex_is_formal_multi_page_review_not_card_html(self):
+    def test_tex_is_formal_academic_bulletin_not_card_html(self):
         c1 = card(100, replies=8, title="主讨论")
         c2 = card(101, replies=2, title="次要讨论")
-        evidence = [DailyTopicEvidence(c1, None, (), ()), DailyTopicEvidence(c2, None, (), ())]
+        c3 = card(102, replies=1, title="轻量讨论")
+        evidence = [
+            DailyTopicEvidence(c1, None, (), ()),
+            DailyTopicEvidence(c2, None, (), ()),
+            DailyTopicEvidence(c3, None, (), ()),
+        ]
         summary = [
             DailyTopicSummary(100, "这是一段经过证据校验的正式稿件。", (1,)),
             DailyTopicSummary(101, "这是第二篇经过证据校验的正式稿件。", (1,)),
+            DailyTopicSummary(102, "这是一条经过证据校验的简讯。", (1,)),
         ]
         issue = DailyEditorialIssue(
             "具体的日报主标题",
@@ -520,25 +526,55 @@ class ChaoliEditorialIssueTests(unittest.IsolatedAsyncioTestCase):
             (
                 DailyEditorialBlock("lead", (100,), "真正的头条标题", "头条导语句。"),
                 DailyEditorialBlock("feature", (101,), "第二篇标题", "第二篇导语句。"),
+                DailyEditorialBlock("brief", (102,), "第三篇标题", "第三篇导语句。"),
             ),
         )
-        rendered = _render_issue_tex([c1, c2], evidence, summary, issue, "2026-09-08", "owner-json")
+        rendered = _render_issue_tex([c1, c2, c3], evidence, summary, issue, "2026-09-08", "owner-json")
         self.assertIn("超理日报", rendered)
-        self.assertIn("CHAOLI DAILY", rendered)
+        self.assertIn("TECHNICAL \\& ACADEMIC BULLETIN", rendered)
         self.assertIn("\\begin{multicols}{2}", rendered)
         self.assertNotIn("\\begin{multicols}{3}", rendered)
-        self.assertIn("\\newpage", rendered)
-        self.assertIn("研究与讨论", rendered)
-        self.assertIn("本期其余", rendered)
+        self.assertIn("研究简报", rendered)
+        self.assertIn("本期导读", rendered)
+        self.assertIn("专题讨论", rendered)
+        self.assertNotIn("\\newpage", rendered)
+        self.assertNotIn("本期索引", rendered)
+        self.assertNotIn("\\IndexItem{", rendered)
+        self.assertNotIn("本期其余", rendered)
         self.assertIn("\\fancyhead", rendered)
-        self.assertIn("SOURCES \\& METHOD", rendered)
-        self.assertLess(rendered.index("SOURCES \\& METHOD"), rendered.index("\\newpage"))
+        self.assertIn("\\MethodNote", rendered)
+        self.assertNotIn("ContentsItem", rendered)
         self.assertNotIn("\\vfill", rendered)
         self.assertIn("真正的头条标题", rendered)
         self.assertIn("这是整期导语", rendered)
         self.assertNotIn("<html", rendered.lower())
         self.assertNotIn("今日概览", rendered)
         self.assertNotIn("逐主题证据", rendered)
+
+    def test_medium_bulletin_balances_pages_and_keeps_evidence_index(self):
+        cards = [card(100 + i, replies=8 - i, title=f"讨论{i}") for i in range(5)]
+        evidence = [DailyTopicEvidence(c, None, (), ()) for c in cards]
+        summary = [
+            DailyTopicSummary(c.thread_id, "经过证据校验的正文。" * (12 if i < 2 else 5), (1,))
+            for i, c in enumerate(cards)
+        ]
+        issue = DailyEditorialIssue(
+            "期标题",
+            "整期导语。",
+            (
+                DailyEditorialBlock("lead", (100,), "专题标题", "专题导语。"),
+                DailyEditorialBlock("feature", (101,), "研究札记", "札记导语。"),
+                DailyEditorialBlock("brief", (102,), "简讯二", "简讯导语。"),
+                DailyEditorialBlock("brief", (103,), "简讯三", "简讯导语。"),
+                DailyEditorialBlock("brief", (104,), "简讯四", "简讯导语。"),
+            ),
+        )
+        rendered = _render_issue_tex(cards, evidence, summary, issue, "2026-09-08", "owner-json")
+        self.assertIn("\\newpage", rendered)
+        self.assertIn("研究简报", rendered)
+        self.assertIn("本期索引", rendered)
+        self.assertIn("\\IndexItem", rendered)
+        self.assertNotIn("\\begin{multicols}{3}", rendered)
 
     def test_tex_escape_neutralizes_forum_commands(self):
         raw = r"\\input{/etc/passwd} % # $ & _ ^ ~ {x}"

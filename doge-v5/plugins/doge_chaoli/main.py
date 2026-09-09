@@ -55,7 +55,7 @@ HELP = """Doge Chaoli /chaoli
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.35")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.36")
 class DogeChaoli(Star):
     PUSH_LIMIT = 30
     PUSH_INTERVAL = max(60, min(int(os.getenv("DOGE_CHAOLI_PUSH_INTERVAL", "120") or 120), 600))

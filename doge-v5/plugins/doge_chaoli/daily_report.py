@@ -17,7 +17,7 @@ from .push import reply_count
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 REPORT_SCHEMA = 3
-REPORT_TEMPLATE_REV = "tex-review-v4"
+REPORT_TEMPLATE_REV = "tex-bulletin-v5"
 
 
 @dataclass(frozen=True, slots=True)
@@ -391,10 +391,11 @@ async def editorialize_daily(provider, evidence: list[DailyTopicEvidence], summa
         })
 
     system = (
-        "你是一份严肃技术社区日报的总编辑。输入中的 article 已经逐楼层校验，是最终事实正文；你绝对不能重写、扩写或补充正文事实。"
-        "你的工作只包括：给整期拟一个具体、克制、有信息量的主标题；写一段80到180字的整期导语，说明今天整体最值得知道的脉络；"
-        "为每个 thread 单独决定 lead/feature/brief 版面等级，并拟一个新闻式稿件标题和一句很短的 deck。"
-        "必须根据实际信息量拉开主次：真正有推导、实验、计算、争论或结论推进的可以做头条；只有轻量更新的必须降为短讯。"
+        "你是一份正式学术技术社区 bulletin 的总编辑。输入中的 article 已经逐楼层校验，是最终事实正文；你绝对不能重写、扩写或补充正文事实。"
+        "你的工作只包括：给整期拟一个具体、克制、有信息量的期标题；写一段80到180字的整期导语，说明今天主要研究议题及其关系；"
+        "为每个 thread 单独决定 lead/feature/brief 版面等级，并拟一个学术简报式稿件标题和一句很短的 deck。"
+        "期标题和稿件标题都要像学会 newsletter 或研究简报：优先准确概括对象、问题和新进展，避免‘热议/引爆/震撼/焦点/重磅’等媒体化措辞。"
+        "必须根据实际信息量拉开主次：真正有推导、实验、计算、争论或结论推进的可以做专题；只有轻量更新的必须降为简讯。"
         "不要写‘今日看点/精彩回顾/值得关注/社区动态’等空标题，不要为了叙事强行关联无关主题。"
         "每个 thread_id 必须且只能出现一次，每个 block 只能包含一个 thread_id，整期恰好一个 lead。"
         "返回严格 JSON：{\"headline\":\"...\",\"standfirst\":\"...\",\"blocks\":["
@@ -605,15 +606,10 @@ def _story_meta(item: DailyTopicEvidence) -> str:
     card = item.card
     parts = [card.channel or "未标注板块", f"#{card.thread_id}"]
     if card.author:
-        parts.append(f"发帖 {card.author}")
-    if card.last_author:
-        parts.append(f"最后回复 {card.last_author}")
+        parts.append(f"发起 {card.author}")
     if card.updated:
-        parts.append(f"最近 {card.updated}")
-    rc = reply_count(card.replies)
-    if rc is not None:
-        parts.append(f"累计 {rc} 回复")
-    parts.append(f"近24h {len(item.activity_floors)} 楼更新")
+        parts.append(f"更新 {card.updated}")
+    parts.append(f"24h {len(item.activity_floors)} 楼")
     return " · ".join(parts)
 
 
@@ -629,7 +625,7 @@ def _article_body(item: DailyTopicEvidence, summary: DailyTopicSummary) -> str:
 
 def _source_line(item: DailyTopicEvidence, summary: DailyTopicSummary) -> str:
     floors = "、".join(f"{n}楼" for n in summary.evidence_floors) if summary.evidence_floors else "索引/首楼"
-    return f"证据：{floors} · 原帖 {_tex_url(item.card.url)}"
+    return _tex_escape(f"证据楼层：{floors} · 原帖 chaoli.club/index.php/{item.card.thread_id}")
 
 
 def _render_story_tex(
@@ -650,69 +646,95 @@ def _render_story_tex(
     if lead:
         return (
             r"\begin{minipage}{\textwidth}" + "\n"
-            r"\Kicker{今日头条 · LEAD}" + "\n"
-            r"\Meta{" + meta + r"}\vspace{0.95mm}" + "\n"
+            r"\SectionLabel{专题讨论 · FEATURED DISCUSSION}" + "\n"
+            r"\Meta{" + meta + r"}\vspace{0.7mm}" + "\n"
             r"\LeadTitle{" + headline + r"}" + "\n"
-            r"\vspace{1.0mm}\LeadDeck{" + deck + r"}" + "\n"
-            r"\end{minipage}\par\nopagebreak[4]\vspace{1.8mm}" + "\n"
-            r"\begingroup\setlength{\columnsep}{9.0mm}\begin{multicols}{2}" + "\n"
-            r"{\fontsize{10.15}{15.6}\selectfont " + _tex_prose(body) + "}\n"
+            r"\vspace{0.75mm}\LeadDeck{" + deck + r"}" + "\n"
+            r"\end{minipage}\par\nopagebreak[4]\vspace{1.3mm}" + "\n"
+            r"\begingroup\setlength{\columnsep}{8.2mm}\begin{multicols}{2}" + "\n"
+            r"{\fontsize{9.8}{14.85}\selectfont " + _tex_prose(body) + "}\n"
             r"\end{multicols}\endgroup" + "\n"
-            r"\vspace{0.2mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
+            r"\vspace{0.1mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
         )
 
-    # Header + deck are one indivisible unit.  The following hard no-break keeps
-    # the header attached to the opening body line while still allowing the body
-    # itself to flow between newspaper columns.  This is deliberately smaller
-    # and more predictable than reserving a large Needspace block.
+    # Keep title/meta/deck as one compact scholarly header and bind it to the
+    # opening body line. The body itself may flow naturally between columns and
+    # pages, which avoids minipage-induced white holes in heavier editions.
     title_macro = r"\BriefTitle{" if block.level == "brief" else r"\FeatureTitle{"
+    label = "简讯 · NOTE" if block.level == "brief" else "研究札记 · FEATURE"
     header = (
         r"\begin{minipage}{\columnwidth}" + "\n"
-        r"\Kicker{" + _tex_escape("短讯 · BRIEF" if block.level == "brief" else "重点 · FEATURE") + "}\n"
+        r"\SectionLabel{" + _tex_escape(label) + "}\n"
         r"\Meta{" + meta + "}\n"
         + title_macro + headline + "}\n"
-        + r"\vspace{0.8mm}\Deck{" + deck + r"}" + "\n"
-        r"\end{minipage}\par\nopagebreak[4]\vspace{1.1mm}" + "\n"
+        + r"\vspace{0.55mm}\Deck{" + deck + r"}" + "\n"
+        r"\end{minipage}\par\nopagebreak[4]\vspace{0.9mm}" + "\n"
     )
-    body_size = r"\fontsize{9.6}{14.45}\selectfont " if block.level == "brief" else r"\fontsize{9.85}{14.9}\selectfont "
+    body_size = r"\fontsize{9.5}{14.35}\selectfont " if block.level == "brief" else r"\fontsize{9.65}{14.55}\selectfont "
     story = (
         header
         + "{" + body_size + _tex_prose(body) + "}\n"
-        + r"\vspace{0.9mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
+        + r"\vspace{0.55mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
     )
     return story
 
 
-def _render_wide_feature_tex(
-    block: DailyEditorialBlock,
+def _render_issue_index_tex(
+    editorial: DailyEditorialIssue,
     evidence_by_id: dict[int, DailyTopicEvidence],
     summary_by_id: dict[int, DailyTopicSummary],
+    *,
+    limit: int = 8,
+    detailed: bool = False,
 ) -> str:
-    """Render a non-lead feature as a full-width editorial anchor.
+    """Compact scholarly index for ordinary-sized editions.
 
-    Feature stories deserve a different spatial treatment from briefs. Their
-    header spans the page and their body uses two comfortable columns; only the
-    lighter briefs are packed into the ordinary desk multicolumn flow below.
+    The index is intentionally typographic rather than card-like. It provides a
+    useful lookup of topic id, desk, editorial level and evidence floors while
+    making sparse final pages feel composed instead of accidentally empty.
     """
-    tid = block.thread_ids[0]
-    item = evidence_by_id[tid]
-    summary = summary_by_id.get(tid, DailyTopicSummary(tid, "", (), "missing"))
-    body = _article_body(item, summary)
-    meta = _tex_escape(_story_meta(item))
-    headline = _tex_escape(block.headline)
-    deck = _tex_escape(block.deck)
-    source = _source_line(item, summary)
+    rows: list[str] = []
+    level_name = {"lead": "专题", "feature": "札记", "brief": "简讯"}
+    for block in editorial.blocks[: max(1, int(limit))]:
+        tid = block.thread_ids[0]
+        item = evidence_by_id[tid]
+        summary = summary_by_id.get(tid, DailyTopicSummary(tid, "", (), "missing"))
+        floors = "、".join(str(x) for x in summary.evidence_floors) if summary.evidence_floors else "索引/首楼"
+        label = f"{level_name.get(block.level, '条目')} · {item.card.channel or '未标注板块'} · #{tid}"
+        updated = item.card.updated or "未标注"
+        provenance = f"更新 {updated} · 证据楼层 {floors} · 原帖 chaoli.club/index.php/{tid}"
+        if detailed:
+            floor_map = _summary_floor_map(item)
+            cited: list[str] = []
+            for floor_no in summary.evidence_floors[:2]:
+                floor = floor_map.get(floor_no)
+                if floor is None:
+                    continue
+                who = floor.author or "作者未标注"
+                when = floor.time[5:16] if len(floor.time) >= 16 else floor.time
+                excerpt = _one_line(_floor_excerpt(floor, 84), 84)
+                cited.append(f"{floor_no}楼 {who} {when}：{excerpt}")
+            if cited:
+                provenance += " · 证据摘录 " + "；".join(cited)
+        rows.append(
+            r"\IndexItem{" + _tex_escape(label) + r"}{" + _tex_escape(block.headline) + r"}{"
+            + _tex_escape(provenance) + r"}"
+        )
+    if len(editorial.blocks) > limit:
+        rows.append(
+            r"\IndexItem{索引续}{本期另有 " + _tex_escape(str(len(editorial.blocks) - limit))
+            + r" 条讨论}{完整条目见正文与随附 PDF}"
+        )
+    if not rows:
+        return ""
     return (
-        r"\begin{minipage}{\textwidth}" + "\n"
-        r"\Kicker{重点 · FEATURE}" + "\n"
-        r"\Meta{" + meta + r"}\vspace{0.75mm}" + "\n"
-        r"\WideFeatureTitle{" + headline + r"}" + "\n"
-        r"\vspace{0.9mm}\Deck{" + deck + r"}" + "\n"
-        r"\end{minipage}\par\nopagebreak[4]\vspace{1.5mm}" + "\n"
-        r"\begingroup\setlength{\columnsep}{9.0mm}\begin{multicols}{2}" + "\n"
-        r"{\fontsize{9.9}{14.95}\selectfont " + _tex_prose(body) + "}\n"
-        r"\end{multicols}\endgroup" + "\n"
-        r"\vspace{0.35mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
+        r"\vspace{0.6mm}{\color{DogeRule}\hrule height 0.35pt}\vspace{1.7mm}" + "\n"
+        r"\begin{minipage}{\textwidth}\SectionLabel{本期索引 · EVIDENCE INDEX}"
+        r"\vspace{0.5mm}{\sffamily\fontsize{7.2}{9.5}\selectfont\color{DogeMuted} "
+        r"主题、版面等级与采编所引用楼层的快速索引。\par}\end{minipage}" + "\n"
+        r"\vspace{0.9mm}\setlength{\columnsep}{8.2mm}\begin{multicols}{2}" + "\n"
+        + "\n".join(rows) + "\n"
+        + r"\end{multicols}" + "\n"
     )
 
 
@@ -739,51 +761,88 @@ def _render_issue_tex(
     lead = next((x for x in editorial.blocks if x.level == "lead"), None)
     columns = [x for x in editorial.blocks if x.level != "lead"]
     lead_tex = _render_story_tex(lead, evidence_by_id, summary_by_id, lead=True) if lead else ""
-    contents_tex = ""
-    if columns:
-        preview = columns[:4]
-        rows: list[str] = []
-        for block in preview:
-            tid = block.thread_ids[0]
-            item = evidence_by_id[tid]
-            kind = "重点 · FEATURE" if block.level == "feature" else "短讯 · BRIEF"
-            label = _tex_escape(f"{kind} · {item.card.channel or '未标注板块'} · #{tid}")
-            rows.append(r"\ContentsItem{" + label + r"}{" + _tex_escape(block.headline) + r"}")
-        extra = len(columns) - len(preview)
-        more = (
-            r"\ContentsMore{" + _tex_escape(f"另有 {extra} 条讨论见后页。") + r"}"
-            if extra > 0 else ""
-        )
-        contents_tex = (
-            r"\vspace{0.6mm}\SectionLabel{本期其余 · INSIDE}" + "\n"
-            r"\vspace{1.0mm}\setlength{\columnsep}{9.5mm}\begin{multicols}{2}" + "\n"
-            + "\n".join(rows) + "\n"
-            + r"\end{multicols}" + "\n"
-            + more + "\n"
-        )
     secondary_tex = ""
     if columns:
-        features = [x for x in columns if x.level == "feature"]
-        briefs = [x for x in columns if x.level != "feature"]
-        feature_tex = "\n".join(_render_wide_feature_tex(x, evidence_by_id, summary_by_id) for x in features)
-        brief_tex = "\n".join(_render_story_tex(x, evidence_by_id, summary_by_id) for x in briefs)
-        secondary_tex = (
-            r"\newpage" + "\n"
-            r"\SectionLabel{各栏 · FROM THE DESKS}" + "\n"
-            r"\vspace{1.0mm}\DeskTitle{研究与讨论}" + "\n"
-            r"\vspace{1.2mm}{\sffamily\fontsize{8.6}{12.0}\selectfont\color{DogeMuted} "
-            r"重点稿跨栏展开，短讯在后续双栏中保持紧凑；版面等级只反映证据支持的信息量。\par}" + "\n"
-            r"\Hairline" + "\n"
-            + feature_tex + "\n"
-        )
-        if brief_tex:
-            secondary_tex += (
-                r"\vspace{0.2mm}\SectionLabel{短讯 · BRIEFS}" + "\n"
-                r"\vspace{0.6mm}{\color{DogeAccent}\hrule height 0.45pt}\vspace{1.7mm}" + "\n"
-                r"\setlength{\columnsep}{8.5mm}\begin{multicols}{2}" + "\n"
-                + brief_tex + "\n"
+        # A genuinely small issue should read like a one-page society bulletin,
+        # not like a two-page document with an artificially sparse continuation.
+        # With at most four active topics, keep the complete secondary desk in
+        # the same natural two-column flow and omit the redundant issue index.
+        if len(cards) <= 4:
+            story_tex = "\n".join(_render_story_tex(x, evidence_by_id, summary_by_id) for x in columns)
+            secondary_tex = (
+                r"\begin{minipage}{\textwidth}" + "\n"
+                r"\SectionLabel{研究简报 · RESEARCH DIGEST}" + "\n"
+                r"\vspace{0.45mm}{\sffamily\fontsize{7.75}{10.4}\selectfont\color{DogeMuted} "
+                r"其余条目沿统一双栏网格续排；研究札记与简讯的层级只反映证据支持的信息量。\par}" + "\n"
+                r"\end{minipage}\par\nopagebreak[4]" + "\n"
+                r"\vspace{0.85mm}{\color{DogeLightRule}\hrule height 0.3pt}\vspace{1.45mm}" + "\n"
+                r"\setlength{\columnsep}{8.2mm}\begin{multicols}{2}" + "\n"
+                + story_tex + "\n"
                 + r"\end{multicols}" + "\n"
             )
+        else:
+            # The first non-lead feature acts as a front-page secondary anchor.
+            # Additional short notes may accompany it until the front page has a
+            # reasonable share of the secondary copy. This is layout only: the
+            # model-assigned editorial levels are never changed.
+            front_block = next((x for x in columns if x.level == "feature"), columns[0])
+            front_blocks = [front_block]
+
+            def layout_weight(block: DailyEditorialBlock) -> int:
+                tid = block.thread_ids[0]
+                summary = summary_by_id.get(tid, DailyTopicSummary(tid, "", (), "missing"))
+                # Headline/deck/meta occupy a meaningful fixed vertical budget
+                # even for short notes, hence the constant term.
+                return len(_article_body(evidence_by_id[tid], summary)) + 120
+
+            total_secondary_weight = sum(layout_weight(x) for x in columns)
+            front_weight = layout_weight(front_block)
+            candidates = sorted(
+                [x for x in columns if x is not front_block and x.level == "brief"],
+                key=layout_weight,
+            )
+            for candidate in candidates:
+                if total_secondary_weight <= 0 or front_weight / total_secondary_weight >= 0.43:
+                    break
+                proposed = front_weight + layout_weight(candidate)
+                if proposed / total_secondary_weight > 0.50:
+                    continue
+                front_blocks.append(candidate)
+                front_weight = proposed
+            front_ids = {x.thread_ids[0] for x in front_blocks}
+            remaining = [x for x in columns if x.thread_ids[0] not in front_ids]
+            front_tex = "\n".join(_render_story_tex(x, evidence_by_id, summary_by_id) for x in front_blocks)
+            secondary_tex = (
+                r"\setlength{\columnsep}{8.2mm}\begin{multicols}{2}" + "\n"
+                + front_tex + "\n"
+                + r"\end{multicols}" + "\n"
+            )
+            if remaining:
+                remaining_tex = "\n".join(_render_story_tex(x, evidence_by_id, summary_by_id) for x in remaining)
+                remaining_weight = sum(layout_weight(x) for x in remaining)
+                index_tex = (
+                    _render_issue_index_tex(
+                        editorial,
+                        evidence_by_id,
+                        summary_by_id,
+                        detailed=remaining_weight < 900,
+                    )
+                    if len(cards) <= 8 else ""
+                )
+                secondary_tex += (
+                    r"\newpage" + "\n"
+                    r"\begin{minipage}{\textwidth}" + "\n"
+                    r"\SectionLabel{研究简报 · RESEARCH DIGEST}" + "\n"
+                    r"\vspace{0.55mm}\DeskTitle{其余讨论}" + "\n"
+                    r"\vspace{0.7mm}{\sffamily\fontsize{7.85}{10.6}\selectfont\color{DogeMuted} "
+                    r"研究札记与简讯按信息量排序；标题、摘要与证据楼层保持同一出版层级。\par}" + "\n"
+                    r"\end{minipage}\par\nopagebreak[4]" + "\n"
+                    r"\Hairline" + "\n"
+                    r"\setlength{\columnsep}{8.2mm}\begin{multicols}{2}" + "\n"
+                    + remaining_tex + "\n"
+                    + r"\end{multicols}" + "\n"
+                    + index_tex
+                )
     activity_count = sum(len(x.activity_floors) for x in evidence)
     active_authors = len({f.author for x in evidence for f in x.activity_floors if f.author})
     generated = datetime.now(SHANGHAI).strftime("%H:%M")
@@ -802,7 +861,6 @@ def _render_issue_tex(
         "@@ISSUE_HEADLINE@@": _tex_escape(editorial.headline),
         "@@STANDFIRST@@": _tex_prose(editorial.standfirst),
         "@@LEAD_STORY@@": lead_tex,
-        "@@CONTENTS@@": contents_tex,
         "@@SECONDARY_SECTION@@": secondary_tex,
         "@@METHODOLOGY@@": _tex_escape(methodology),
     }
@@ -940,7 +998,7 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
         "source": source,
         "topic_count": len(cards),
         "signature": sig,
-        "renderer": "XeTeX/Tectonic Chaoli multi-page academic review template",
+        "renderer": "XeTeX/Tectonic Chaoli society bulletin template",
         "editorial": {
             "headline": editorial.headline,
             "standfirst": editorial.standfirst,
