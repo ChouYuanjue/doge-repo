@@ -5,118 +5,73 @@
 \usepackage{multicol}
 \usepackage{xcolor}
 \usepackage{fancyhdr}
-\usepackage{url}
+\usepackage{needspace}
 
-% Chinese remains on the existing deterministic Noto CJK TTC path used by
-% production Tectonic. Latin keeps XeTeX's bundled defaults so the template does
-% not depend on host fontconfig state.
 \setCJKmainfont[Path=/usr/share/fonts/google-noto-cjk/,FontIndex=2,BoldFont=NotoSerifCJK-Bold.ttc,BoldFeatures={FontIndex=2}]{NotoSerifCJK-Regular.ttc}
 \setCJKsansfont[Path=/usr/share/fonts/google-noto-cjk/,FontIndex=2,BoldFont=NotoSansCJK-Bold.ttc,BoldFeatures={FontIndex=2}]{NotoSansCJK-Regular.ttc}
 
-% Society-bulletin proportions: a stable scholarly measure with a single
-% two-column grid. Ordinary editions flow naturally across pages rather than
-% reserving one page for a cover or packing a newspaper front page.
-\geometry{top=15mm,bottom=15mm,left=19mm,right=19mm,headheight=11pt,headsep=4.5mm,footskip=8mm}
-\definecolor{DogeInk}{HTML}{181818}
-\definecolor{DogeAccent}{HTML}{6B343B}
-\definecolor{DogeMuted}{HTML}{646464}
-\definecolor{DogeRule}{HTML}{BDB8B2}
-\definecolor{DogeLightRule}{HTML}{E2DFDB}
-\urlstyle{same}
+\geometry{top=15mm,bottom=16mm,left=20mm,right=20mm,headheight=10pt,headsep=4mm,footskip=8mm}
+\definecolor{Ink}{HTML}{161616}
+\definecolor{Muted}{HTML}{686868}
+\definecolor{Rule}{HTML}{B8B8B8}
+\definecolor{LightRule}{HTML}{DEDEDE}
+
 \frenchspacing
-\setlength{\parindent}{1.7em}
+\setlength{\parindent}{2em}
 \setlength{\parskip}{0pt}
-\setlength{\columnseprule}{0pt}
-\setlength{\columnsep}{8.2mm}
-\setlength{\multicolsep}{2.4mm}
-\emergencystretch=1.15em
-\tolerance=1800
+\setlength{\columnsep}{10mm}
+\setlength{\columnseprule}{0.32pt}
+\def\columnseprulecolor{\color{Rule}}
+\setlength{\multicolsep}{0pt}
+\emergencystretch=3em
+\tolerance=2200
+\hbadness=2200
 \clubpenalty=10000
 \widowpenalty=10000
 \displaywidowpenalty=10000
-\brokenpenalty=9000
+\brokenpenalty=10000
 \raggedbottom
 
-% From page two onward the running furniture behaves like a scholarly society
-% bulletin: issue identity and date are present but visually subordinate.
-\fancypagestyle{publication}{%
+\fancypagestyle{inside}{%
   \fancyhf{}%
-  \fancyhead[L]{\sffamily\fontsize{7.05}{8.5}\selectfont\bfseries\color{DogeMuted} CHAOLI CLUB · TECHNICAL \& ACADEMIC BULLETIN}%
-  \fancyhead[R]{\sffamily\fontsize{7.05}{8.5}\selectfont\color{DogeMuted} @@DATE@@ · NO. @@ISSUE@@}%
-  \fancyfoot[L]{\sffamily\fontsize{6.7}{8.1}\selectfont\color{DogeMuted} chaoli.club · evidence-grounded community digest}%
-  \fancyfoot[R]{\sffamily\fontsize{6.7}{8.1}\selectfont\color{DogeMuted} @@ISSUE@@ / \thepage}%
+  \fancyhead[L]{\sffamily\fontsize{7.0}{8.5}\selectfont\bfseries\color{Muted} 超理日报}%
+  \fancyhead[R]{\sffamily\fontsize{7.0}{8.5}\selectfont\color{Muted} @@DATE@@ \quad NO. @@ISSUE@@}%
+  \fancyfoot[L]{\sffamily\fontsize{6.4}{8}\selectfont\color{Muted} chaoli.club}%
+  \fancyfoot[R]{\sffamily\fontsize{6.4}{8}\selectfont\color{Muted} \thepage}%
   \renewcommand{\headrulewidth}{0.28pt}%
   \renewcommand{\footrulewidth}{0pt}%
 }
-\fancypagestyle{frontpage}{%
+\fancypagestyle{first}{%
   \fancyhf{}%
-  \fancyfoot[L]{\sffamily\fontsize{6.7}{8.1}\selectfont\color{DogeMuted} chaoli.club · evidence-grounded community digest}%
-  \fancyfoot[R]{\sffamily\fontsize{6.7}{8.1}\selectfont\color{DogeMuted} @@ISSUE@@ / \thepage}%
+  \fancyfoot[L]{\sffamily\fontsize{6.4}{8}\selectfont\color{Muted} chaoli.club}%
+  \fancyfoot[R]{\sffamily\fontsize{6.4}{8}\selectfont\color{Muted} \thepage}%
   \renewcommand{\headrulewidth}{0pt}%
   \renewcommand{\footrulewidth}{0pt}%
 }
-\pagestyle{publication}
+\pagestyle{inside}
 
-% Typographic system. Differences between lead / feature / note are deliberate
-% but modest; the grid and baseline rhythm stay constant across the issue.
-\newcommand{\Hairline}{\par\vspace{1.7mm}{\color{DogeLightRule}\hrule height 0.3pt}\vspace{2.15mm}}
-\newcommand{\StoryRule}{\par\vspace{1.65mm}{\color{DogeRule}\hrule height 0.28pt}\vspace{2.55mm}}
-\newcommand{\SectionLabel}[1]{{\sffamily\fontsize{7.0}{8.5}\selectfont\bfseries\color{DogeAccent}\MakeUppercase{#1}\par}}
-\newcommand{\Meta}[1]{{\sffamily\fontsize{6.35}{7.8}\selectfont\color{DogeMuted} #1\par}}
-\newcommand{\Deck}[1]{{\sffamily\fontsize{8.45}{11.7}\selectfont\color{DogeMuted} #1\par}}
-\newcommand{\LeadDeck}[1]{{\sffamily\fontsize{9.0}{12.55}\selectfont\color{DogeMuted} #1\par}}
-\newcommand{\LeadTitle}[1]{{\bfseries\color{DogeInk}\fontsize{16.8}{20.4}\selectfont #1\par}}
-\newcommand{\FeatureTitle}[1]{{\bfseries\color{DogeInk}\fontsize{12.3}{15.0}\selectfont #1\par}}
-\newcommand{\BriefTitle}[1]{{\bfseries\color{DogeInk}\fontsize{11.15}{13.7}\selectfont #1\par}}
-\newcommand{\IssueTitle}[1]{{\bfseries\color{DogeInk}\fontsize{18.4}{22.5}\selectfont #1\par}}
-\newcommand{\DeskTitle}[1]{{\bfseries\color{DogeInk}\fontsize{13.4}{16.4}\selectfont #1\par}}
-\newcommand{\SourceNote}[1]{{\sffamily\fontsize{6.15}{7.65}\selectfont\color{DogeMuted} #1\par}}
-\newcommand{\MethodNote}[1]{{\sffamily\fontsize{6.35}{8.35}\selectfont\color{DogeMuted} #1\par}}
-\newcommand{\IndexItem}[3]{%
-  \noindent{\sffamily\fontsize{6.15}{7.6}\selectfont\bfseries\color{DogeAccent} #1}\par
-  \vspace{0.35mm}
-  \noindent{\bfseries\fontsize{9.0}{11.5}\selectfont\color{DogeInk} #2}\par
-  \vspace{0.35mm}
-  \noindent{\sffamily\fontsize{6.0}{7.65}\selectfont\color{DogeMuted} #3}\par
-  \vspace{1.95mm}%
-}
+\newcommand{\Masthead}[1]{{\rmfamily\bfseries\fontsize{20}{23}\selectfont\color{Ink} #1}}
+\newcommand{\MainTitle}[1]{{\rmfamily\bfseries\fontsize{16.8}{20.8}\selectfont\color{Ink} #1\par}}
+\newcommand{\StoryTitle}[1]{{\rmfamily\bfseries\fontsize{12.8}{16.0}\selectfont\color{Ink} #1\par}}
+\newcommand{\Meta}[1]{{\sffamily\fontsize{6.5}{8.2}\selectfont\color{Muted} #1\par}}
+\newcommand{\Source}[1]{{\sffamily\fontsize{6.05}{7.6}\selectfont\color{Muted} #1\par}}
+\newcommand{\ArticleRule}{\par\vspace{2.8mm}{\color{LightRule}\hrule height 0.35pt}\vspace{3.2mm}}
 
 \begin{document}
-\thispagestyle{frontpage}
+\thispagestyle{first}
 
-% --- Issue identity ---------------------------------------------------------
-\noindent\begin{minipage}[b]{0.61\textwidth}
-{\sffamily\fontsize{7.1}{8.6}\selectfont\bfseries\color{DogeAccent} CHAOLI CLUB}\par
-\vspace{0.6mm}
-{\bfseries\fontsize{28.5}{31.5}\selectfont\color{DogeInk} 超理日报}\par
-\vspace{0.7mm}
-{\sffamily\fontsize{7.35}{9.0}\selectfont\color{DogeMuted} TECHNICAL \& ACADEMIC BULLETIN}
+\noindent\begin{minipage}[b]{0.58\textwidth}
+\Masthead{超理日报}
 \end{minipage}\hfill
-\begin{minipage}[b]{0.35\textwidth}\raggedleft
-{\sffamily\fontsize{7.0}{8.6}\selectfont\bfseries\color{DogeInk} @@DATE@@}\par
-\vspace{0.55mm}
-{\sffamily\fontsize{6.4}{8.0}\selectfont\color{DogeMuted} NO. @@ISSUE@@ · 截至 @@TIME@@}\par
-\vspace{1.0mm}
-{\sffamily\fontsize{6.85}{8.5}\selectfont\bfseries\color{DogeInk} @@STATS@@}
+\begin{minipage}[b]{0.38\textwidth}\raggedleft
+{\sffamily\fontsize{7.0}{8.6}\selectfont\bfseries\color{Ink} @@DATE@@}\par
+\vspace{0.7mm}
+{\sffamily\fontsize{6.35}{8.0}\selectfont\color{Muted} NO. @@ISSUE@@ \quad @@TIME@@}
 \end{minipage}
-\vspace{1.5mm}
-{\color{DogeInk}\hrule height 0.85pt}\vspace{0.55mm}
-{\color{DogeAccent}\hrule height 0.34pt}\vspace{2.8mm}
+\vspace{2.4mm}
+{\color{Ink}\hrule height 0.65pt}\vspace{4.0mm}
 
-% --- Editor's overview ------------------------------------------------------
-\SectionLabel{本期导读 · EDITOR'S NOTE}
-\vspace{0.8mm}
-\IssueTitle{@@ISSUE_HEADLINE@@}
-\vspace{1.25mm}
-\noindent{\fontsize{9.85}{14.75}\selectfont\color{DogeInk} @@STANDFIRST@@\par}
-\vspace{1.25mm}
-\MethodNote{@@METHODOLOGY@@}
-\Hairline
-
-% --- Featured discussion ----------------------------------------------------
 @@LEAD_STORY@@
-
-% --- Remaining research digest ---------------------------------------------
 @@SECONDARY_SECTION@@
 
 \end{document}

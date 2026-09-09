@@ -531,28 +531,31 @@ class ChaoliEditorialIssueTests(unittest.IsolatedAsyncioTestCase):
         )
         rendered = _render_issue_tex([c1, c2, c3], evidence, summary, issue, "2026-09-08", "owner-json")
         self.assertIn("超理日报", rendered)
-        self.assertIn("TECHNICAL \\& ACADEMIC BULLETIN", rendered)
         self.assertIn("\\begin{multicols}{2}", rendered)
         self.assertNotIn("\\begin{multicols}{3}", rendered)
-        self.assertIn("研究简报", rendered)
-        self.assertIn("本期导读", rendered)
-        self.assertIn("专题讨论", rendered)
         self.assertNotIn("\\newpage", rendered)
         self.assertNotIn("本期索引", rendered)
         self.assertNotIn("\\IndexItem{", rendered)
         self.assertNotIn("本期其余", rendered)
         self.assertIn("\\fancyhead", rendered)
-        self.assertIn("\\MethodNote", rendered)
-        self.assertNotIn("ContentsItem", rendered)
+        self.assertNotIn("MethodNote", rendered)
+        self.assertNotIn("研究简报", rendered)
+        self.assertNotIn("专题讨论", rendered)
+        self.assertNotIn("EDITOR'S NOTE", rendered)
+        self.assertNotIn("EVIDENCE INDEX", rendered)
         self.assertNotIn("\\vfill", rendered)
         self.assertIn("真正的头条标题", rendered)
-        self.assertIn("这是整期导语", rendered)
+        self.assertNotIn("这是整期导语", rendered)
+        self.assertIn("\\Needspace{12\\baselineskip}", rendered)
+        self.assertIn("\\ArticleRule", rendered)
+        self.assertIn("\\setlength{\\columnseprule}{0.32pt}", rendered)
+        self.assertNotIn("\\Deck{", rendered)
         self.assertNotIn("<html", rendered.lower())
         self.assertNotIn("今日概览", rendered)
         self.assertNotIn("逐主题证据", rendered)
 
-    def test_medium_bulletin_balances_pages_and_keeps_evidence_index(self):
-        cards = [card(100 + i, replies=8 - i, title=f"讨论{i}") for i in range(5)]
+    def test_medium_bulletin_balances_whole_article_units_across_pages(self):
+        cards = [card(100 + i, replies=9 - i, title=f"讨论{i}") for i in range(6)]
         evidence = [DailyTopicEvidence(c, None, (), ()) for c in cards]
         summary = [
             DailyTopicSummary(c.thread_id, "经过证据校验的正文。" * (12 if i < 2 else 5), (1,))
@@ -567,14 +570,16 @@ class ChaoliEditorialIssueTests(unittest.IsolatedAsyncioTestCase):
                 DailyEditorialBlock("brief", (102,), "简讯二", "简讯导语。"),
                 DailyEditorialBlock("brief", (103,), "简讯三", "简讯导语。"),
                 DailyEditorialBlock("brief", (104,), "简讯四", "简讯导语。"),
+                DailyEditorialBlock("brief", (105,), "简讯五", "简讯导语。"),
             ),
         )
         rendered = _render_issue_tex(cards, evidence, summary, issue, "2026-09-08", "owner-json")
         self.assertIn("\\newpage", rendered)
-        self.assertIn("研究简报", rendered)
-        self.assertIn("本期索引", rendered)
-        self.assertIn("\\IndexItem", rendered)
+        self.assertNotIn("研究简报", rendered)
+        self.assertNotIn("本期索引", rendered)
+        self.assertNotIn("\\IndexItem", rendered)
         self.assertNotIn("\\begin{multicols}{3}", rendered)
+        self.assertGreaterEqual(rendered.count("\\StoryTitle{"), 4)
 
     def test_tex_escape_neutralizes_forum_commands(self):
         raw = r"\\input{/etc/passwd} % # $ & _ ^ ~ {x}"
