@@ -17,7 +17,7 @@ from .push import reply_count
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 REPORT_SCHEMA = 3
-REPORT_TEMPLATE_REV = "tex-broadsheet-v3"
+REPORT_TEMPLATE_REV = "tex-review-v4"
 
 
 @dataclass(frozen=True, slots=True)
@@ -651,14 +651,14 @@ def _render_story_tex(
         return (
             r"\begin{minipage}{\textwidth}" + "\n"
             r"\Kicker{今日头条 · LEAD}" + "\n"
-            r"\Meta{" + meta + r"}\vspace{0.6mm}" + "\n"
+            r"\Meta{" + meta + r"}\vspace{0.95mm}" + "\n"
             r"\LeadTitle{" + headline + r"}" + "\n"
-            r"\vspace{0.65mm}\LeadDeck{" + deck + r"}" + "\n"
-            r"\end{minipage}\par\nopagebreak[4]\vspace{0.9mm}" + "\n"
-            r"\begingroup\setlength{\columnsep}{6.6mm}\begin{multicols}{2}" + "\n"
-            r"{\fontsize{9.15}{13.25}\selectfont " + _tex_prose(body) + "}\n"
+            r"\vspace{1.0mm}\LeadDeck{" + deck + r"}" + "\n"
+            r"\end{minipage}\par\nopagebreak[4]\vspace{1.8mm}" + "\n"
+            r"\begingroup\setlength{\columnsep}{9.0mm}\begin{multicols}{2}" + "\n"
+            r"{\fontsize{10.15}{15.6}\selectfont " + _tex_prose(body) + "}\n"
             r"\end{multicols}\endgroup" + "\n"
-            r"\vspace{-0.4mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
+            r"\vspace{0.2mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
         )
 
     # Header + deck are one indivisible unit.  The following hard no-break keeps
@@ -671,16 +671,49 @@ def _render_story_tex(
         r"\Kicker{" + _tex_escape("短讯 · BRIEF" if block.level == "brief" else "重点 · FEATURE") + "}\n"
         r"\Meta{" + meta + "}\n"
         + title_macro + headline + "}\n"
-        + r"\vspace{0.5mm}\Deck{" + deck + r"}" + "\n"
-        r"\end{minipage}\par\nopagebreak[4]\vspace{0.45mm}" + "\n"
+        + r"\vspace{0.8mm}\Deck{" + deck + r"}" + "\n"
+        r"\end{minipage}\par\nopagebreak[4]\vspace{1.1mm}" + "\n"
     )
-    body_size = r"\fontsize{8.15}{11.75}\selectfont " if block.level == "brief" else r"\fontsize{8.4}{12.1}\selectfont "
+    body_size = r"\fontsize{9.6}{14.45}\selectfont " if block.level == "brief" else r"\fontsize{9.85}{14.9}\selectfont "
     story = (
         header
         + "{" + body_size + _tex_prose(body) + "}\n"
-        + r"\vspace{0.45mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
+        + r"\vspace{0.9mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
     )
     return story
+
+
+def _render_wide_feature_tex(
+    block: DailyEditorialBlock,
+    evidence_by_id: dict[int, DailyTopicEvidence],
+    summary_by_id: dict[int, DailyTopicSummary],
+) -> str:
+    """Render a non-lead feature as a full-width editorial anchor.
+
+    Feature stories deserve a different spatial treatment from briefs. Their
+    header spans the page and their body uses two comfortable columns; only the
+    lighter briefs are packed into the ordinary desk multicolumn flow below.
+    """
+    tid = block.thread_ids[0]
+    item = evidence_by_id[tid]
+    summary = summary_by_id.get(tid, DailyTopicSummary(tid, "", (), "missing"))
+    body = _article_body(item, summary)
+    meta = _tex_escape(_story_meta(item))
+    headline = _tex_escape(block.headline)
+    deck = _tex_escape(block.deck)
+    source = _source_line(item, summary)
+    return (
+        r"\begin{minipage}{\textwidth}" + "\n"
+        r"\Kicker{重点 · FEATURE}" + "\n"
+        r"\Meta{" + meta + r"}\vspace{0.75mm}" + "\n"
+        r"\WideFeatureTitle{" + headline + r"}" + "\n"
+        r"\vspace{0.9mm}\Deck{" + deck + r"}" + "\n"
+        r"\end{minipage}\par\nopagebreak[4]\vspace{1.5mm}" + "\n"
+        r"\begingroup\setlength{\columnsep}{9.0mm}\begin{multicols}{2}" + "\n"
+        r"{\fontsize{9.9}{14.95}\selectfont " + _tex_prose(body) + "}\n"
+        r"\end{multicols}\endgroup" + "\n"
+        r"\vspace{0.35mm}\SourceNote{" + source + r"}\StoryRule" + "\n"
+    )
 
 
 def _issue_number(date: str) -> str:
@@ -706,7 +739,51 @@ def _render_issue_tex(
     lead = next((x for x in editorial.blocks if x.level == "lead"), None)
     columns = [x for x in editorial.blocks if x.level != "lead"]
     lead_tex = _render_story_tex(lead, evidence_by_id, summary_by_id, lead=True) if lead else ""
-    column_tex = "\n".join(_render_story_tex(x, evidence_by_id, summary_by_id) for x in columns)
+    contents_tex = ""
+    if columns:
+        preview = columns[:4]
+        rows: list[str] = []
+        for block in preview:
+            tid = block.thread_ids[0]
+            item = evidence_by_id[tid]
+            kind = "重点 · FEATURE" if block.level == "feature" else "短讯 · BRIEF"
+            label = _tex_escape(f"{kind} · {item.card.channel or '未标注板块'} · #{tid}")
+            rows.append(r"\ContentsItem{" + label + r"}{" + _tex_escape(block.headline) + r"}")
+        extra = len(columns) - len(preview)
+        more = (
+            r"\ContentsMore{" + _tex_escape(f"另有 {extra} 条讨论见后页。") + r"}"
+            if extra > 0 else ""
+        )
+        contents_tex = (
+            r"\vspace{0.6mm}\SectionLabel{本期其余 · INSIDE}" + "\n"
+            r"\vspace{1.0mm}\setlength{\columnsep}{9.5mm}\begin{multicols}{2}" + "\n"
+            + "\n".join(rows) + "\n"
+            + r"\end{multicols}" + "\n"
+            + more + "\n"
+        )
+    secondary_tex = ""
+    if columns:
+        features = [x for x in columns if x.level == "feature"]
+        briefs = [x for x in columns if x.level != "feature"]
+        feature_tex = "\n".join(_render_wide_feature_tex(x, evidence_by_id, summary_by_id) for x in features)
+        brief_tex = "\n".join(_render_story_tex(x, evidence_by_id, summary_by_id) for x in briefs)
+        secondary_tex = (
+            r"\newpage" + "\n"
+            r"\SectionLabel{各栏 · FROM THE DESKS}" + "\n"
+            r"\vspace{1.0mm}\DeskTitle{研究与讨论}" + "\n"
+            r"\vspace{1.2mm}{\sffamily\fontsize{8.6}{12.0}\selectfont\color{DogeMuted} "
+            r"重点稿跨栏展开，短讯在后续双栏中保持紧凑；版面等级只反映证据支持的信息量。\par}" + "\n"
+            r"\Hairline" + "\n"
+            + feature_tex + "\n"
+        )
+        if brief_tex:
+            secondary_tex += (
+                r"\vspace{0.2mm}\SectionLabel{短讯 · BRIEFS}" + "\n"
+                r"\vspace{0.6mm}{\color{DogeAccent}\hrule height 0.45pt}\vspace{1.7mm}" + "\n"
+                r"\setlength{\columnsep}{8.5mm}\begin{multicols}{2}" + "\n"
+                + brief_tex + "\n"
+                + r"\end{multicols}" + "\n"
+            )
     activity_count = sum(len(x.activity_floors) for x in evidence)
     active_authors = len({f.author for x in evidence for f in x.activity_floors if f.author})
     generated = datetime.now(SHANGHAI).strftime("%H:%M")
@@ -725,7 +802,8 @@ def _render_issue_tex(
         "@@ISSUE_HEADLINE@@": _tex_escape(editorial.headline),
         "@@STANDFIRST@@": _tex_prose(editorial.standfirst),
         "@@LEAD_STORY@@": lead_tex,
-        "@@COLUMN_STORIES@@": column_tex,
+        "@@CONTENTS@@": contents_tex,
+        "@@SECONDARY_SECTION@@": secondary_tex,
         "@@METHODOLOGY@@": _tex_escape(methodology),
     }
     for key, value in replacements.items():
@@ -862,7 +940,7 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
         "source": source,
         "topic_count": len(cards),
         "signature": sig,
-        "renderer": "XeTeX/Tectonic Chaoli editorial broadsheet template",
+        "renderer": "XeTeX/Tectonic Chaoli multi-page academic review template",
         "editorial": {
             "headline": editorial.headline,
             "standfirst": editorial.standfirst,

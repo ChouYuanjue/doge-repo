@@ -1,4 +1,4 @@
-\documentclass[9pt,a4paper]{article}
+\documentclass[10pt,a4paper]{article}
 \usepackage{fontspec}
 \usepackage{xeCJK}
 \usepackage{geometry}
@@ -7,129 +7,126 @@
 \usepackage{fancyhdr}
 \usepackage{url}
 
-% The daily is rendered inside a Tectonic sandbox. Direct TTC loading keeps the
-% build deterministic and avoids fontconfig scans; FontIndex=2 is Simplified CJK.
+% Deterministic font loading inside the Tectonic sandbox. FontIndex=2 is
+% Simplified Chinese in the installed Noto CJK TTC collection.
 \setCJKmainfont[Path=/usr/share/fonts/google-noto-cjk/,FontIndex=2,BoldFont=NotoSerifCJK-Bold.ttc,BoldFeatures={FontIndex=2}]{NotoSerifCJK-Regular.ttc}
 \setCJKsansfont[Path=/usr/share/fonts/google-noto-cjk/,FontIndex=2,BoldFont=NotoSansCJK-Bold.ttc,BoldFeatures={FontIndex=2}]{NotoSansCJK-Regular.ttc}
 
-% Compact broadsheet proportions: a generous text block, but enough outer air
-% for a real folio and running furniture. No boxes or dashboard panels.
-\geometry{top=10.8mm,bottom=11.8mm,left=12.6mm,right=12.6mm,headheight=10pt,headsep=3.2mm,footskip=6.6mm}
+% This is intentionally not a one-page newspaper. Ordinary editions may occupy
+% two or three pages so type can breathe and the hierarchy remains legible.
+\geometry{top=16mm,bottom=16mm,left=17mm,right=17mm,headheight=12pt,headsep=4.8mm,footskip=8mm}
 \definecolor{DogeInk}{HTML}{171717}
 \definecolor{DogeAccent}{HTML}{73323A}
 \definecolor{DogeMuted}{HTML}{686561}
 \definecolor{DogeRule}{HTML}{BDB7B0}
-\definecolor{DogeLightRule}{HTML}{DDD8D1}
+\definecolor{DogeLightRule}{HTML}{E1DDD7}
 \urlstyle{same}
 \frenchspacing
-\setlength{\parindent}{1.75em}
+\setlength{\parindent}{1.65em}
 \setlength{\parskip}{0pt}
 \setlength{\columnseprule}{0pt}
-\setlength{\multicolsep}{1.5mm}
-\emergencystretch=1.0em
-\tolerance=1700
+\setlength{\multicolsep}{3.0mm}
+\emergencystretch=1.1em
+\tolerance=1800
 \clubpenalty=10000
 \widowpenalty=10000
 \displaywidowpenalty=10000
 \brokenpenalty=9000
 \raggedbottom
 
-% A quiet folio is used from page two onward. Page one owns its masthead and
-% therefore suppresses the running head while retaining the publication footer.
 \fancypagestyle{publication}{%
   \fancyhf{}%
-  \fancyhead[L]{\sffamily\fontsize{6.8}{8.2}\selectfont\bfseries\color{DogeMuted} CHAOLI DAILY REVIEW · TECHNICAL \& ACADEMIC COMMUNITY}%
-  \fancyhead[R]{\sffamily\fontsize{6.8}{8.2}\selectfont\color{DogeMuted} @@DATE@@ · NO. @@ISSUE@@}%
-  \fancyfoot[L]{\sffamily\fontsize{6.7}{8}\selectfont\color{DogeMuted} chaoli.club · 公开讨论证据采编}%
-  \fancyfoot[R]{\sffamily\fontsize{6.7}{8}\selectfont\color{DogeMuted} @@ISSUE@@ / \thepage}%
-  \renewcommand{\headrulewidth}{0.25pt}%
+  \fancyhead[L]{\sffamily\fontsize{7.2}{8.8}\selectfont\bfseries\color{DogeMuted} CHAOLI DAILY REVIEW · TECHNICAL \& ACADEMIC COMMUNITY}%
+  \fancyhead[R]{\sffamily\fontsize{7.2}{8.8}\selectfont\color{DogeMuted} @@DATE@@ · NO. @@ISSUE@@}%
+  \fancyfoot[L]{\sffamily\fontsize{6.9}{8.4}\selectfont\color{DogeMuted} chaoli.club · 公开讨论证据采编}%
+  \fancyfoot[R]{\sffamily\fontsize{6.9}{8.4}\selectfont\color{DogeMuted} @@ISSUE@@ / \thepage}%
+  \renewcommand{\headrulewidth}{0.28pt}%
   \renewcommand{\footrulewidth}{0pt}%
 }
 \fancypagestyle{frontpage}{%
   \fancyhf{}%
-  \fancyfoot[L]{\sffamily\fontsize{6.7}{8}\selectfont\color{DogeMuted} chaoli.club · 公开讨论证据采编}%
-  \fancyfoot[R]{\sffamily\fontsize{6.7}{8}\selectfont\color{DogeMuted} @@ISSUE@@ / \thepage}%
+  \fancyfoot[L]{\sffamily\fontsize{6.9}{8.4}\selectfont\color{DogeMuted} chaoli.club · 公开讨论证据采编}%
+  \fancyfoot[R]{\sffamily\fontsize{6.9}{8.4}\selectfont\color{DogeMuted} @@ISSUE@@ / \thepage}%
   \renewcommand{\headrulewidth}{0pt}%
   \renewcommand{\footrulewidth}{0pt}%
 }
 \pagestyle{publication}
 
-% Publication vocabulary. Hierarchy is carried by type, rules and white space,
-% not by cards, shaded panels or UI-like badges.
-\newcommand{\Hairline}{\par\vspace{0.75mm}{\color{DogeLightRule}\hrule height 0.3pt}\vspace{0.95mm}}
-\newcommand{\StoryRule}{\par\vspace{0.75mm}{\color{DogeRule}\hrule height 0.3pt}\vspace{0.95mm}}
-\newcommand{\Kicker}[1]{{\sffamily\fontsize{6.55}{7.8}\selectfont\bfseries\color{DogeAccent}\MakeUppercase{#1}\par}}
-\newcommand{\Meta}[1]{{\sffamily\fontsize{5.95}{7.2}\selectfont\color{DogeMuted} #1\par}}
-\newcommand{\Deck}[1]{{\sffamily\fontsize{7.3}{9.6}\selectfont\color{DogeMuted} #1\par}}
-\newcommand{\LeadDeck}[1]{{\sffamily\fontsize{8.5}{11.2}\selectfont\color{DogeMuted} #1\par}}
-\newcommand{\LeadTitle}[1]{{\bfseries\color{DogeInk}\fontsize{17.2}{20.8}\selectfont #1\par}}
-\newcommand{\SourceNote}[1]{{\sffamily\fontsize{5.65}{6.9}\selectfont\color{DogeMuted} #1\par}}
-\newcommand{\FeatureTitle}[1]{{\bfseries\color{DogeInk}\fontsize{11.25}{13.6}\selectfont #1\par}}
-\newcommand{\BriefTitle}[1]{{\bfseries\color{DogeInk}\fontsize{9.7}{11.8}\selectfont #1\par}}
-\newcommand{\SectionLabel}[1]{{\sffamily\fontsize{6.55}{7.8}\selectfont\bfseries\color{DogeAccent}\MakeUppercase{#1}\par}}
+% Typographic vocabulary. Hierarchy comes from scale, measure, rules and white
+% space; there are no cards, dashboards or compressed three-column gutters.
+\newcommand{\Hairline}{\par\vspace{2.1mm}{\color{DogeLightRule}\hrule height 0.34pt}\vspace{2.5mm}}
+\newcommand{\StoryRule}{\par\vspace{2.0mm}{\color{DogeRule}\hrule height 0.34pt}\vspace{3.0mm}}
+\newcommand{\Kicker}[1]{{\sffamily\fontsize{7.25}{8.8}\selectfont\bfseries\color{DogeAccent}\MakeUppercase{#1}\par}}
+\newcommand{\Meta}[1]{{\sffamily\fontsize{6.45}{8.1}\selectfont\color{DogeMuted} #1\par}}
+\newcommand{\Deck}[1]{{\sffamily\fontsize{8.9}{12.4}\selectfont\color{DogeMuted} #1\par}}
+\newcommand{\LeadDeck}[1]{{\sffamily\fontsize{9.5}{13.2}\selectfont\color{DogeMuted} #1\par}}
+\newcommand{\LeadTitle}[1]{{\bfseries\color{DogeInk}\fontsize{20.0}{24.0}\selectfont #1\par}}
+\newcommand{\SourceNote}[1]{{\sffamily\fontsize{6.15}{7.7}\selectfont\color{DogeMuted} #1\par}}
+\newcommand{\WideFeatureTitle}[1]{{\bfseries\color{DogeInk}\fontsize{15.4}{18.6}\selectfont #1\par}}
+\newcommand{\FeatureTitle}[1]{{\bfseries\color{DogeInk}\fontsize{13.2}{16.0}\selectfont #1\par}}
+\newcommand{\BriefTitle}[1]{{\bfseries\color{DogeInk}\fontsize{11.4}{14.0}\selectfont #1\par}}
+\newcommand{\SectionLabel}[1]{{\sffamily\fontsize{7.25}{8.8}\selectfont\bfseries\color{DogeAccent}\MakeUppercase{#1}\par}}
+\newcommand{\DeskTitle}[1]{{\bfseries\color{DogeInk}\fontsize{18.0}{21.8}\selectfont #1\par}}
+\newcommand{\ContentsItem}[2]{%
+  \noindent{\sffamily\fontsize{6.55}{8.0}\selectfont\bfseries\color{DogeAccent} #1}\par
+  \vspace{0.55mm}
+  \noindent{\bfseries\fontsize{10.8}{13.4}\selectfont\color{DogeInk} #2}\par
+  \vspace{2.4mm}%
+}
+\newcommand{\ContentsMore}[1]{%
+  \noindent{\sffamily\fontsize{7.1}{9.2}\selectfont\color{DogeMuted} #1}\par
+}
 
 \begin{document}
 \thispagestyle{frontpage}
 
-% --- Masthead / folio -------------------------------------------------------
-\noindent\begin{minipage}[t]{0.58\textwidth}
-{\sffamily\fontsize{7.1}{8.5}\selectfont\bfseries\color{DogeAccent} CHAOLI CLUB}\par
-{\sffamily\fontsize{6.5}{8}\selectfont\color{DogeMuted} TECHNICAL \& ACADEMIC COMMUNITY}
+% --- Masthead ---------------------------------------------------------------
+\noindent\begin{minipage}[b]{0.64\textwidth}
+{\sffamily\fontsize{7.5}{9}\selectfont\bfseries\color{DogeAccent} CHAOLI CLUB}\par
+\vspace{0.9mm}
+{\bfseries\fontsize{38}{40}\selectfont\color{DogeInk} 超理日报}\par
+\vspace{0.9mm}
+{\sffamily\fontsize{8.1}{9.8}\selectfont\color{DogeMuted} C H A O L I\quad D A I L Y\quad R E V I E W}
 \end{minipage}\hfill
-\begin{minipage}[t]{0.38\textwidth}\raggedleft
-{\sffamily\fontsize{6.6}{8}\selectfont\bfseries\color{DogeInk} @@DATE@@}\par
-{\sffamily\fontsize{6.15}{7.5}\selectfont\color{DogeMuted} NO. @@ISSUE@@ · 截至 @@TIME@@}
-\end{minipage}
-\vspace{1.3mm}
-{\color{DogeInk}\hrule height 1.1pt}\vspace{0.7mm}
-{\color{DogeAccent}\hrule height 0.38pt}\vspace{2.25mm}
-
-\noindent\begin{minipage}[b]{0.61\textwidth}
-{\bfseries\fontsize{30.5}{32}\selectfont\color{DogeInk} 超理日报}\par
+\begin{minipage}[b]{0.32\textwidth}\raggedleft
+{\sffamily\fontsize{7.1}{8.8}\selectfont\bfseries\color{DogeInk} @@DATE@@}\par
 \vspace{0.7mm}
-{\sffamily\fontsize{7.5}{9}\selectfont\color{DogeMuted} C H A O L I\quad D A I L Y\quad R E V I E W}
-\end{minipage}\hfill
-\begin{minipage}[b]{0.35\textwidth}\raggedleft
-{\sffamily\fontsize{6.65}{8.4}\selectfont\color{DogeMuted} 每日公开讨论采编}\par
-\vspace{0.5mm}
-{\sffamily\fontsize{7.1}{8.8}\selectfont\bfseries\color{DogeInk} @@STATS@@}
+{\sffamily\fontsize{6.55}{8.2}\selectfont\color{DogeMuted} NO. @@ISSUE@@ · 截至 @@TIME@@}\par
+\vspace{1.4mm}
+{\sffamily\fontsize{7.25}{9.0}\selectfont\bfseries\color{DogeInk} @@STATS@@}
 \end{minipage}
-\vspace{1.1mm}
-{\color{DogeInk}\hrule height 0.72pt}\vspace{1.9mm}
+\vspace{2.0mm}
+{\color{DogeInk}\hrule height 1.05pt}\vspace{0.75mm}
+{\color{DogeAccent}\hrule height 0.42pt}\vspace{4.2mm}
 
 % --- Issue thesis -----------------------------------------------------------
 \SectionLabel{本期 · THE ISSUE}
-\vspace{0.8mm}
-{\bfseries\color{DogeInk}\fontsize{20.3}{24.8}\selectfont @@ISSUE_HEADLINE@@\par}
-\vspace{1.05mm}
-\noindent{\fontsize{9.55}{14.2}\selectfont\color{DogeInk} @@STANDFIRST@@\par}
-\vspace{1.15mm}
+\vspace{1.1mm}
+{\bfseries\color{DogeInk}\fontsize{24.0}{29.0}\selectfont @@ISSUE_HEADLINE@@\par}
+\vspace{2.0mm}
+\noindent{\fontsize{10.65}{16.2}\selectfont\color{DogeInk} @@STANDFIRST@@\par}
 \Hairline
 
-% --- Lead -------------------------------------------------------------------
+% --- Lead story -------------------------------------------------------------
 @@LEAD_STORY@@
 
-% --- Secondary desk ---------------------------------------------------------
-\vspace{0.2mm}
-\SectionLabel{各栏 · FROM THE DESKS}
-\vspace{0.3mm}
-{\color{DogeAccent}\hrule height 0.55pt}
-\vspace{1.5mm}
-\setlength{\columnsep}{4.8mm}
-\begin{multicols}{3}
-@@COLUMN_STORIES@@
-\end{multicols}
+% A short magazine-style contents rail uses the remaining first-page space
+% without squeezing article bodies. It previews at most four later stories.
+@@CONTENTS@@
 
-% --- Publication colophon ---------------------------------------------------
-% Per-story evidence floors and permalinks are printed with each article above.
-% The final colophon therefore records method/provenance once instead of repeating
-% a second source index, which keeps ordinary editions from spilling onto a nearly
-% empty last page.
-\vspace{0.35mm}
-{\color{DogeInk}\hrule height 0.7pt}\vspace{0.75mm}
+% --- Provenance -------------------------------------------------------------
+% Provenance belongs to the front matter. Keeping this compact note on page one
+% prevents a heavy edition from creating an otherwise empty final page solely
+% for the methodology line.
+\vspace{1.0mm}
+{\color{DogeInk}\hrule height 0.72pt}\vspace{1.5mm}
 \SectionLabel{资料与方法 · SOURCES \& METHOD}
-\vspace{0.35mm}
-{\sffamily\fontsize{5.9}{7.8}\selectfont\color{DogeMuted} @@METHODOLOGY@@\par}
-\vspace{0.25mm}
+\vspace{0.7mm}
+{\sffamily\fontsize{6.45}{8.8}\selectfont\color{DogeMuted} @@METHODOLOGY@@\par}
+\vspace{0.5mm}
+
+% Secondary stories deliberately begin on a fresh page whenever they exist.
+% This is the key anti-crowding rule: page one is allowed to breathe.
+@@SECONDARY_SECTION@@
 
 \end{document}

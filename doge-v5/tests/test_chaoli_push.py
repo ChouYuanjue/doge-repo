@@ -506,18 +506,33 @@ class ChaoliEditorialIssueTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({tid for x in issue.blocks for tid in x.thread_ids}, {100, 101})
         self.assertEqual(sum(1 for x in issue.blocks if x.level == "lead"), 1)
 
-    def test_tex_is_formal_broadsheet_issue_not_card_html(self):
-        c = card(100, replies=8, title="主讨论")
-        evidence = [DailyTopicEvidence(c, None, (), ())]
-        summary = [DailyTopicSummary(100, "这是一段经过证据校验的正式稿件。", (1,))]
-        issue = DailyEditorialIssue("具体的日报主标题", "这是整期导语，不是帖子列表。", (DailyEditorialBlock("lead", (100,), "真正的头条标题", "头条导语句。"),))
-        rendered = _render_issue_tex([c], evidence, summary, issue, "2026-09-08", "owner-json")
+    def test_tex_is_formal_multi_page_review_not_card_html(self):
+        c1 = card(100, replies=8, title="主讨论")
+        c2 = card(101, replies=2, title="次要讨论")
+        evidence = [DailyTopicEvidence(c1, None, (), ()), DailyTopicEvidence(c2, None, (), ())]
+        summary = [
+            DailyTopicSummary(100, "这是一段经过证据校验的正式稿件。", (1,)),
+            DailyTopicSummary(101, "这是第二篇经过证据校验的正式稿件。", (1,)),
+        ]
+        issue = DailyEditorialIssue(
+            "具体的日报主标题",
+            "这是整期导语，不是帖子列表。",
+            (
+                DailyEditorialBlock("lead", (100,), "真正的头条标题", "头条导语句。"),
+                DailyEditorialBlock("feature", (101,), "第二篇标题", "第二篇导语句。"),
+            ),
+        )
+        rendered = _render_issue_tex([c1, c2], evidence, summary, issue, "2026-09-08", "owner-json")
         self.assertIn("超理日报", rendered)
         self.assertIn("CHAOLI DAILY", rendered)
         self.assertIn("\\begin{multicols}{2}", rendered)
-        self.assertIn("\\begin{multicols}{3}", rendered)
+        self.assertNotIn("\\begin{multicols}{3}", rendered)
+        self.assertIn("\\newpage", rendered)
+        self.assertIn("研究与讨论", rendered)
+        self.assertIn("本期其余", rendered)
         self.assertIn("\\fancyhead", rendered)
         self.assertIn("SOURCES \\& METHOD", rendered)
+        self.assertLess(rendered.index("SOURCES \\& METHOD"), rendered.index("\\newpage"))
         self.assertNotIn("\\vfill", rendered)
         self.assertIn("真正的头条标题", rendered)
         self.assertIn("这是整期导语", rendered)
