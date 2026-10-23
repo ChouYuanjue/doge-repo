@@ -328,7 +328,7 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertIn('initiative="social"', close)
         self.assertIn('initiative="social"', invited)
         policy = runtime.static_policy()
-        self.assertIn("Never ask the user a question", policy)
+        self.assertIn("follow-up", policy)
         self.assertIn("customer-service reflex", policy)
         self.assertIn("never permits interrogating the user", policy)
         self.assertIn("rhythm=", ordinary)
@@ -349,7 +349,7 @@ class PersonaRuntimeTests(unittest.TestCase):
         policy = runtime.static_policy("research")
         self.assertIn("same person as normal Doge", policy)
         self.assertIn("relationship facts", policy)
-        self.assertIn("Never ask the user a question", policy)
+        self.assertIn("follow-up", policy)
 
     def test_zero_token_casual_gate_is_conservative_and_hard_capped(self):
         affect = TransientAffect()
@@ -367,9 +367,43 @@ class PersonaRuntimeTests(unittest.TestCase):
         self.assertEqual(research.max_total_chars, 70)
         long_text = "第一段" * 40 + "\n\n" + "第二段" * 40 + "\n\n" + "第三段" * 40
         clipped = runtime.enforce_reply_budget(long_text, casual)
-        self.assertLessEqual(len(clipped), 180)
+        self.assertLessEqual(len(clipped), 120)
         self.assertLessEqual(len(clipped.split("\n\n")), 2)
         self.assertEqual(runtime.pre_llm_refusal("g|sender:x", "讲个笑话", mode="research"), "科研模式，不聊这个。")
+
+    def test_edited_persona_examples_and_identity_banter_are_active(self):
+        runtime = PersonaRuntime(TransientAffect())
+        casual = runtime.reply_budget("你不是住在服务器上吗")
+        self.assertTrue(casual.limited)
+        self.assertEqual((casual.max_single_chars, casual.max_total_chars), (80, 120))
+
+        for message, label in (
+            ("你不是住在服务器上吗", "identity_bot"),
+            ("你不就是个 bot", "identity_bot"),
+            ("你住哪儿呀", "identity_place"),
+            ("你还用大模型写代码啊", "identity_tool"),
+        ):
+            state = runtime.affect.observe(message, message, now=100.0)
+            tags = set(runtime.cue(message, message, state).tags)
+            self.assertIn(label, tags, message)
+            self.assertNotIn("serious", tags, message)
+            ids = runtime._retrieve_example_ids(tags, False)
+            from doge_shared.persona_runtime import _EXAMPLES
+            self.assertIn(label, _EXAMPLES[ids[0]][0], (message, ids))
+
+        serious_text = "帮我分析生产服务器部署故障的日志"
+        state = runtime.affect.observe("server_task", serious_text, now=100.0)
+        self.assertIn("serious", runtime.cue("server_task", serious_text, state).tags)
+        self.assertFalse(runtime.reply_budget(serious_text).limited)
+
+        policy = runtime.static_policy()
+        self.assertIn("呃，没有日志的话我能看出个鬼啊（）", policy)
+        self.assertIn("你才是笨蛋", policy)
+        self.assertIn("也许（？）感觉好肉麻啊", policy)
+        research = runtime.static_policy("research")
+        self.assertIn("想法有点意思，但我似乎没看出来", research)
+        self.assertIn("你又在乱想什么（", research)
+        self.assertIn("rhetorical teasing", research)
 
     def test_normal_casual_phone_chat_drops_only_terminal_full_stop(self):
         affect = TransientAffect()

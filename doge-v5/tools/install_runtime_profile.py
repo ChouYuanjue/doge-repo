@@ -298,12 +298,12 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     # Keep the always-sent chat context deliberately small.  The durable group
     # ledger remains searchable on demand, so paying to replay a six-figure
     # token transcript on every ordinary turn is wasteful. AstrBot's LLM
-    # compressor triggers at ~82% of this value, i.e. around 16.4k tokens.
+    # compressor triggers at ~82% of this value, i.e. around 11.5k tokens.
     # Apply the same ceiling to the normal text-chat fallbacks so a provider
     # failover cannot silently restore a huge context bill.
     provider_settings = cfg.setdefault("provider_settings", {})
     provider_settings["context_limit_reached_strategy"] = "llm_compress"
-    provider_settings["llm_compress_keep_recent_ratio"] = 0.08
+    provider_settings["llm_compress_keep_recent_ratio"] = 0.12
     provider_settings["llm_compress_provider_id"] = ""
     provider_settings["llm_compress_instruction"] = (
         "Create a terse working-memory checkpoint for this long-lived group chat, target <=1200 tokens. "
@@ -318,7 +318,7 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     chat_provider_ids.discard("")
     for provider in cfg.get("provider", []):
         if str(provider.get("id") or "").strip() in chat_provider_ids:
-            provider["max_context_tokens"] = 20000
+            provider["max_context_tokens"] = 14000
     write_json_preserve_bom(config_path, cfg)
 
     # Group Chat Plus bypasses AstrBot's normal conversation compressor by
@@ -328,10 +328,10 @@ def install(runtime: Path, *, backup: bool = True) -> None:
     # intentionally left unchanged.
     group_cfg_path = runtime / "data" / "config" / GROUP_CHAT_CONFIG_NAME
     group_cache_profile = {
-        "max_context_messages": 72,
+        "max_context_messages": 36,
         "enable_cache_aware_context": True,
-        "cache_context_low_messages": 48,
-        "cache_context_high_messages": 72,
+        "cache_context_low_messages": 24,
+        "cache_context_high_messages": 36,
         "decision_context_high_messages": 18,
     }
     if group_cfg_path.exists():

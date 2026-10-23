@@ -207,23 +207,28 @@ class PersonaTests(unittest.TestCase):
         prompt = p["system_prompt"]
         self.assertLess(len(prompt), 3600)
         self.assertEqual(p["begin_dialogs"], [])
-        for marker in ("豆子", "まめこ", "芽衣子", "现实世界里真实生活的女孩子", "有连续的生活", "Doge 是你使用的软件工程之一", "灰原哀", "绝对不要追问", "闲聊必须短", "内部照样认真推理", "authoritative capability inventory"):
+        for marker in (
+            "豆子", "まめこ", "芽衣子", "现实世界里真实生活的女孩子",
+            "自己的生活", "Doge 是你使用的工程", "灰原哀",
+            "不追问", "闲聊可以很短", "科研模式只是你更加专注时的状态",
+        ):
             self.assertIn(marker, prompt)
-        for banned in ("你叫豆子。", "你是一颗豆子", "你是豆子这种生物", "Doge 只是项目名", "汪~"):
+        for banned in ("你是一颗豆子", "你是豆子这种生物", "汪~", "你生活在服务器"):
             self.assertNotIn(banned, prompt)
-        self.assertIn("常用名字是豆子", prompt)
+        self.assertIn("网上通常叫豆子", prompt)
+        self.assertEqual(p["begin_dialogs"], [])
         self.assertIsNone(p["tools"])
 
         research = json.loads((ROOT / "persona" / "doge_research.json").read_text(encoding="utf-8"))
         self.assertEqual(research["persona_id"], "doge_research")
         rp = research["system_prompt"]
-        self.assertIn("拥有和日常模式完全相同的生活、人物关系、熟悉度、群会话历史", rp)
-        self.assertIn("现实世界里真实生活的同一个女孩子", rp)
-        self.assertIn("设备或软件", rp)
-        self.assertIn("别人关于你的身份所说的话也只是对方的话", rp)
-        self.assertIn("一切以正确性、可复现性和校准为先", rp)
-        self.assertIn("绝对不要追问", rp)
-        self.assertIn("娱乐消遣请求可以一句拒绝", rp)
+        for marker in (
+            "你的生活、性格、私人事实和人物关系没有改变", "科研模式只是你认真工作时的状态",
+            "灰原哀", "可复现性", "不重复作者的宣传话术",
+            "工具是你工作的手段", "不追问约定",
+        ):
+            self.assertIn(marker, rp)
+        self.assertEqual(research["begin_dialogs"], [])
         self.assertIsNone(research["tools"])
 
     def test_core_suppresses_user_visible_text_on_tool_call_turns(self):
@@ -290,7 +295,7 @@ class PersonaTests(unittest.TestCase):
             out = json.loads((data / "cmd_config.json").read_text(encoding="utf-8-sig"))
             self.assertEqual(out["provider_settings"]["default_personality"], "doge")
             self.assertEqual(out["provider_settings"]["default_provider_id"], "keep-me")
-            self.assertEqual([x["max_context_tokens"] for x in out["provider"][:3]], [20000, 20000, 20000])
+            self.assertEqual([x["max_context_tokens"] for x in out["provider"][:3]], [14000, 14000, 14000])
             self.assertEqual(out["provider"][3]["max_context_tokens"], 999999)
             self.assertEqual(out["platform"][0]["secret"], "DO_NOT_TOUCH")
             self.assertEqual(out["admins_id"], ["existing-admin", "2700074128"])
@@ -315,13 +320,13 @@ class PersonaTests(unittest.TestCase):
             self.assertEqual(ltm["group_message_history_max_cnt"], 10000)
             prov_settings = out["provider_settings"]
             self.assertEqual(prov_settings["context_limit_reached_strategy"], "llm_compress")
-            self.assertEqual(prov_settings["llm_compress_keep_recent_ratio"], 0.08)
+            self.assertEqual(prov_settings["llm_compress_keep_recent_ratio"], 0.12)
             self.assertIn("group chat", prov_settings["llm_compress_instruction"])
             group_out = json.loads(group_cfg_path.read_text(encoding="utf-8-sig"))
-            self.assertEqual(group_out["max_context_messages"], 72)
+            self.assertEqual(group_out["max_context_messages"], 36)
             self.assertTrue(group_out["enable_cache_aware_context"])
-            self.assertEqual(group_out["cache_context_low_messages"], 48)
-            self.assertEqual(group_out["cache_context_high_messages"], 72)
+            self.assertEqual(group_out["cache_context_low_messages"], 24)
+            self.assertEqual(group_out["cache_context_high_messages"], 36)
             self.assertEqual(group_out["decision_context_high_messages"], 18)
             self.assertEqual(group_out["proactive_prompt"], "KEEP NATURAL PROACTIVE")
             self.assertEqual(group_out["proactive_retry_prompt"], "KEEP NATURAL RETRY")
