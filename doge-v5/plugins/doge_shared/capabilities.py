@@ -332,6 +332,6 @@ def agent_capability_prompt() -> str:
     lines += [
         "",
         "Examples of discovery: search ‘西夏文 翻译’ before Tangut work; ‘RRPL 语法’; ‘符号积分’; ‘生命游戏 GIF’; ‘CIF 晶体’; ‘Lean 形式化’.",
-        "When users ask what Doge can do broadly, summarize categories from this map. When they ask about one concrete ability, search rather than dumping the entire registry.",
+        "List modules only for explicit Doge /help or command-catalog requests. Casual 你会做哪些事 is personal talk; avoid slash commands and task invitations. For work, search relevant tools.",
     ]
     return "\n".join(lines)

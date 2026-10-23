@@ -127,6 +127,18 @@ class TransportMarkdownTests(unittest.TestCase):
         self.assertNotIn("？", strip_unsolicited_followup(src, "帮我修"))
         self.assertEqual(strip_unsolicited_followup("缺少环境信息。哪个版本？", "帮我修"), "缺少环境信息")
 
+    def test_casual_rhetorical_replies_survive_without_reopening_interview(self):
+        self.assertEqual(
+            strip_unsolicited_followup("……你用电脑的时候也住电脑里吗？", "你不是住在服务器上吗"),
+            "……你用电脑的时候也住电脑里吗？",
+        )
+        self.assertEqual(
+            strip_unsolicited_followup("你该不会真信这个吧？", "你不就是个 bot"),
+            "你该不会真信这个吧？",
+        )
+        self.assertEqual(strip_unsolicited_followup("那你今天最想聊什么？", "陪我聊一会儿"), "")
+        self.assertEqual(strip_unsolicited_followup("修好了。要不要我继续测？", "帮我修代码"), "修好了")
+
     def test_multi_plain_model_result_becomes_one_nodes_component(self):
         from astrbot.api import message_components as Comp
         result = self._run("aiocqhttp", True, [Comp.Plain("第一段。\n\n第二段。")])

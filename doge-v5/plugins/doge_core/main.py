@@ -60,6 +60,21 @@ _DIRECTED_QUESTION_RE = re.compile(
 )
 _QUESTION_SENTENCE_RE = re.compile(r"(?s)(^|(?<=[。！!？?\n]))([^。！!？?\n]{1,180}[？?])")
 
+# Only preserve unmistakable rhetorical teasing in genuine casual exchanges.
+# Real clarification questions and routine assistant follow-ups remain forbidden.
+_RHETORICAL_TEASE_RE = re.compile(
+    r"(?:难不成|难道|你该不会|不会真|你用.{0,24}也住|"
+    r"你.{0,12}也住.{0,12}吗|这也能|这都能|我还能|有这种道理|哪有这样的)"
+)
+
+
+def _is_casual_rhetorical(sentence: str, user_text: str) -> bool:
+    return bool(
+        _RHETORICAL_TEASE_RE.search(str(sentence or ""))
+        and PersonaRuntime.is_high_confidence_casual(str(user_text or ""))
+    )
+
+
 def strip_unsolicited_followup(text: str, user_text: str = "") -> str:
     """Remove user-directed follow-up questions; Doge never asks for another turn."""
     original = str(text or "").rstrip()
@@ -71,6 +86,8 @@ def strip_unsolicited_followup(text: str, user_text: str = "") -> str:
         if not matches:
             break
         m = matches[-1]
+        if "你该不会" in m.group(0) and _is_casual_rhetorical(out[m.start():], user_text):
+            break
         prefix = out[:m.start()].rstrip()
         cut = m.start()
         boundary = max(prefix.rfind("\n"), prefix.rfind("。"), prefix.rfind("！"), prefix.rfind("？"), prefix.rfind("!"), prefix.rfind("?"))
@@ -82,7 +99,7 @@ def strip_unsolicited_followup(text: str, user_text: str = "") -> str:
     changed=False
     for qm in _QUESTION_SENTENCE_RE.finditer(out):
         sentence=qm.group(2).strip()
-        if _DIRECTED_QUESTION_RE.search(sentence) is None:
+        if _DIRECTED_QUESTION_RE.search(sentence) is None or _is_casual_rhetorical(sentence, user_text):
             continue
         pieces.append(out[cursor:qm.start(1)])
         cursor=qm.end(2)
@@ -94,7 +111,7 @@ def strip_unsolicited_followup(text: str, user_text: str = "") -> str:
     # the final sentence. Remove a trailing question even when it omits an
     # explicit second-person pronoun (e.g. “哪个版本？”).
     trailing = re.search(r"(?s)(^|(?<=[。！!？?\n]))[^。！!？?\n]{1,180}[？?]\s*$", out)
-    if trailing:
+    if trailing and not _is_casual_rhetorical(trailing.group(0), user_text):
         out = out[:trailing.start()].rstrip(" \t\n，,。；;：:")
     out=re.sub(r"[ \t]+\n", "\n", out)
     out=re.sub(r"\n{3,}", "\n\n", out).strip()
