@@ -28,6 +28,7 @@ from typing import Any
 from urllib import request
 
 from .free_capacity import estimate_capacity
+from .project_usage import deployment_profile, configured_context
 
 FREELLM_DB = Path("/var/lib/freellmapi-lab/freeapi.db")
 WORKBUDDY_LOG = Path("/var/lib/workbuddy-lab/usage/usage.jsonl")
@@ -166,7 +167,7 @@ def workbuddy_account_pool(
     )
 
 
-def freeapi_pool(path: Path = FREELLM_DB) -> dict | None:
+def freeapi_pool(path: Path = FREELLM_DB, *, profile: dict | None = None) -> dict | None:
     """All-time free-routed use + native FreeLLM-style optimistic monthly budget.
 
     Enabled healthy keys and active-profile models reproduce the UI's same
@@ -197,7 +198,8 @@ def freeapi_pool(path: Path = FREELLM_DB) -> dict | None:
                 models = db.execute("""
                     SELECT rowid AS _model_db_id,platform,key_id,model_id,enabled,
                            rpm_limit,rpd_limit,tpm_limit,tpd_limit,context_window,
-                           monthly_token_budget,paid_input_per_m
+                           monthly_token_budget,paid_input_per_m,
+                           paid_output_per_m
                       FROM models WHERE enabled=1
                 """).fetchall()
             except sqlite3.OperationalError:
@@ -206,7 +208,8 @@ def freeapi_pool(path: Path = FREELLM_DB) -> dict | None:
                     SELECT rowid AS _model_db_id,platform,key_id,model_id,enabled,
                            rpm_limit,rpd_limit,tpm_limit,tpd_limit,
                            NULL AS context_window,monthly_token_budget,
-                           paid_input_per_m
+                           paid_input_per_m,
+                           NULL AS paid_output_per_m
                       FROM models WHERE enabled=1
                 """).fetchall()
             try:
@@ -229,6 +232,21 @@ def freeapi_pool(path: Path = FREELLM_DB) -> dict | None:
                     " AND lower(COALESCE(label,'')) LIKE '%agentrouter%'"
                 ).fetchall()
             ]
+            # Volcengine documents a one-time 500K-token new-user grant.
+            # Its OpenAI-compatible key cannot read the actual Ark account
+            # balance. Preserve this as an *unverified estimate* and subtract
+            # locally observed provider usage without touching credentials.
+            volc_enabled = db.execute("""
+                SELECT EXISTS(SELECT 1 FROM api_keys
+                  WHERE platform='volcengine' AND enabled=1
+                    AND status IN ('healthy','unknown'))
+            """).fetchone()[0] == 1
+            volc_used = db.execute("""
+                SELECT COALESCE(SUM(COALESCE(input_tokens,0)
+                          + COALESCE(output_tokens,0)),0)
+                  FROM requests
+                 WHERE platform='volcengine' AND status='success'
+            """).fetchone()[0]
     except (sqlite3.Error, OSError):
         return None
 
@@ -315,6 +333,7 @@ def freeapi_pool(path: Path = FREELLM_DB) -> dict | None:
                 monthly[source]=int(Decimal(10_000_000)/min(prices))
 
     cap = estimate_capacity(active,dict(key_counts),
+                            profile=profile,
                             current_month_usage=current_month_usage)
     remaining_today = sum(
         max(0,limit-by_provider.get(provider,{}).get("last24h",0))
@@ -322,8 +341,7 @@ def freeapi_pool(path: Path = FREELLM_DB) -> dict | None:
     )
     rate_only = [source for source,info in active.items()
                  if info["models"] and source not in daily
-                 and source not in monthly
-                 and source not in cap["derived"]]
+                 and source not in monthly]
     # ModelScope's daily free credits are never treated as an unlimited pool.
     # In minimal/older catalogs lacking a context field, report the credit
     # unit alone instead of inventing a per-token conversion.
@@ -338,13 +356,17 @@ def freeapi_pool(path: Path = FREELLM_DB) -> dict | None:
         mapped_sources=sum(bool(v["models"]) for v in active.values()),
         renewable_daily=daily,renewable_monthly=monthly,
         remaining_today=remaining_today,
-        forecast_30d=cap["optimistic_monthly"],
+        forecast_30d=cap["forecast_30d"],
         native_model_monthly=cap["native_model_monthly"],
         native_pool_dedup_monthly=cap["native_pool_dedup_monthly"],
-        native_month_used=cap["current_month_used"],
-        optimistic_month_remaining=cap["optimistic_remaining_current_month"],
-        conditional_free_30d=cap["conditional_or_upgrade_total"],
-        rate_only_monthly_throughput=cap["rate_only_throughput_monthly"],
+        native_month_used=cap["month_used"],
+        optimistic_month_remaining=cap["remaining_month"],
+        conditional_free_30d=cap["forecast_30d"],
+        rate_only_monthly_throughput=0,
+        volcengine_grant_tokens=(500000 if volc_enabled else None),
+        volcengine_remaining_tokens=(max(0,500000-nat(volc_used))
+                                     if volc_enabled else None),
+        volcengine_balance_verified=False,
         capacity=cap,
         rate_only=rate_only,unpriced_credit=unpriced_credit,unmapped=unmapped,
         unavailable_charity=inactive,
@@ -363,23 +385,17 @@ def _balance_fallback(key: str) -> Decimal | None:
 
 
 def workbuddy_price_basis(usage: dict | None) -> tuple[Decimal,str]:
-    """Use low-decile *actual Flash* costs for an optimistic credit estimate.
+    """Use *all* historical DeepSeek Flash charges, including cache savings.
 
-    Flash prompt caching causes the cost/token ratio to vary substantially.
-    A positive-sample decile is more defensible than either the weighted
-    average (too conservative for this user's goal) or the single minimum.
+    Real aggregate paid credits divided by recorded Flash tokens captures the
+    deployment-wide input/output/cache mix without selecting cherry-picked
+    low-cost or single-model extreme prompts.
     """
-    candidates = sorted((usage or {}).get("flash_sample_rates") or [])
-    if len(candidates) >= 5:
-        idx = (len(candidates) - 1) // 10
-        per_m = candidates[idx]
-        return per_m, ("历史 DeepSeek Flash 单次有效单价的低10%区间"
-                       f"（{len(candidates)}条≥1000token样本，已考虑缓存）")
     tokens = nat((usage or {}).get("flash_tokens"))
     spent = (usage or {}).get("flash_credit") or Decimal(0)
     if tokens and spent > 0:
         per_m = spent * Decimal(1_000_000) / Decimal(tokens)
-        return per_m, "历史 DeepSeek Flash 平均实付比例（样本不足）"
+        return per_m, "历史 DeepSeek Flash 全部调用的实际平均信用成本"
     return Decimal(12), "Flash历史账本缺失，暂用12 credit/百万token"
 
 
@@ -391,7 +407,9 @@ def collect(
     # No paid-direct providers, not even if provider_stats contains billions.
     usage = wblog(wb_log)
     pool = workbuddy_account_pool(accounts_dir, activity_file)
-    free = freeapi_pool(free_db)
+    context_cap = configured_context(data_dir / "cmd_config.json")
+    profile = deployment_profile(data_dir / "data_v4.db", context_limit=context_cap)
+    free = freeapi_pool(free_db,profile=profile)
     if pool is None:
         # WorkBuddy exposes only the currently selected realm. This fallback
         # must be marked partial and may omit other free accounts.
@@ -405,19 +423,26 @@ def collect(
                     native_model_monthly=0,native_pool_dedup_monthly=0,
                     native_month_used=0,optimistic_month_remaining=0,
                     conditional_free_30d=0,rate_only_monthly_throughput=0,
-                    capacity=dict(sources={},derived={},rate_only_estimates={},
-                                  model_count=0))
+                    capacity=dict(model_count=0),
+                    volcengine_grant_tokens=None,
+                    volcengine_remaining_tokens=None,
+                    volcengine_balance_verified=False)
     balance = pool.get("balance")
     per_m, price_note = workbuddy_price_basis(usage)
     now_equiv = int(balance * 1000000 / per_m) if balance is not None else None
     future_credit = pool["daily_bonus"] * FREE_30_DAYS
     future_equiv = int(future_credit * 1000000 / per_m)
     free30 = free.get("forecast_30d", 0)
-    used_total = (usage or {}).get("tokens", 0) + (free.get("tokens") or 0)
-    finite_now = ((now_equiv or 0) + free.get("remaining_today", 0)) if now_equiv is not None else None
-    forecast_30d = ((now_equiv or 0) + future_equiv + free30) if now_equiv is not None else None
-    conditional_30d = ((now_equiv or 0) + future_equiv + free.get("conditional_free_30d",free30)) if now_equiv is not None else None
-    rate_ceiling = free.get("rate_only_monthly_throughput",0)
+    used_total = ((usage or {}).get("tokens",0)+(free.get("tokens") or 0)
+                  if usage is not None or free.get("tokens") is not None else None)
+    # Monthly *renewable* supply and once-only balances must be separate.
+    # WorkBuddy gift packages must not be rolled into every future month.
+    forecast_30d = (future_equiv + free30) if (usage is not None or not free.get("unreadable")) else None
+    volc_remaining = free.get("volcengine_remaining_tokens")
+    fixed_now = (now_equiv+nat(volc_remaining)
+                 if now_equiv is not None else None)
+    conditional_30d = forecast_30d
+    rate_ceiling = 0
     return dict(
         used_total=used_total,
         free=free,
@@ -437,7 +462,10 @@ def collect(
             rate_credit_per_m=str(per_m),
             partial=pool.get("partial", False),
         ),
-        finite_now=finite_now,
+        finite_now=fixed_now,
+        fixed_remaining=fixed_now,
+        fixed_volcengine=volc_remaining,
+        project_profile=profile,
         forecast_30d=forecast_30d,
         conditional_30d=conditional_30d,
         rate_only_throughput_30d=rate_ceiling,
@@ -462,89 +490,35 @@ def compact(value: int | None) -> str:
 
 
 def render(snapshot: dict, *, detail: bool = False) -> str:
-    """Small QQ-first overview; full source arithmetic in admin detail."""
-    wb, free = snapshot["wb"], snapshot["free"]
-    c = free.get("capacity") or {}
-    month = snapshot.get("forecast_30d")
-    lines = [
-        "豆子 · 免费模型额度总账",
-        f"累计已用：{snapshot['used_total']:,} tokens（全部已记录历史）",
-        f"现有可折算额度：约 {compact(wb['remaining_tokens_now'])} tokens（WorkBuddy已到账免费包）",
-        f"未来30天乐观总量：约 {compact(month)} tokens",
-        "",
-        f"WorkBuddy：已用 {exact(wb['used_tokens'])} tokens；"
-        f"固定/赠送包余额 {wb.get('credit_balance') or '未知'} credit，"
-        f"折合 {compact(wb['remaining_tokens_now'])}",
-        f"  每日签到/活动预计 +{wb['credit_daily']} credit，"
-        f"30天再增加 {compact(wb['additional_tokens_30d'])} tokens",
-        f"FreeLLMAPI：模型面板标称 {compact(free.get('native_model_monthly'))}/月；"
-        f"补算免费额度后 {compact(free.get('forecast_30d'))}/月",
-        f"  当前成功请求累计已用 {exact(free.get('tokens'))} tokens；"
-        f"活跃可映射来源 {free.get('mapped_sources',0)} 个",
+    """Three short numbers for both the /quota command and the agent."""
+    wb,free=snapshot["wb"],snapshot["free"]
+    volc=free.get("volcengine_remaining_tokens")
+    volc_txt=(f"火山约{compact(volc)} tokens" if volc is not None else "火山无余额记录")
+    lines=[
+        "豆子 · 免费模型额度",
+        f"消耗：{exact(snapshot['used_total'])} tokens",
+        f"每月预估：约 {compact(snapshot['forecast_30d'])} tokens",
+        f"固定额度剩余：约 {compact(snapshot.get('fixed_remaining'))} tokens"
+        f"（WorkBuddy {wb.get('credit_balance') or '未知'} credit；{volc_txt}）",
     ]
-    derived=c.get("derived") or {}
-    for source,label in (("openrouter","OpenRouter免费模型"),
-                         ("modelscope","ModelScope免费体验")):
-        item=derived.get(source)
-        if item and item.get("increment",0)>0:
-            lines.append(f"  {label}补算：{compact(item['increment'])}/月（极乐观满上下文）")
-    if snapshot.get("rate_only_throughput_30d"):
-        lines.append(f"另有限频可续用的公益池：{len(c.get('rate_only_estimates') or {})} 个；"
-                     "按满窗口连续调用计算吞吐，未当成余额累加")
     if detail:
-        lines.extend(["", "计算依据（同一共享池可能在模型总额内重复）"])
+        prof=snapshot.get("project_profile") or {}
         lines.append(
-            f"  FreeLLM原生逐模型预算：{exact(free.get('native_model_monthly'))} tokens/月；"
-            f"共享池去重：{exact(free.get('native_pool_dedup_monthly'))} tokens/月；"
-            f"活跃模型 {c.get('model_count',0)} 个"
+            f"估算依据：部署以来 {prof.get('requests',0)} 次调用，"
+            f"均长 {int(prof.get('avg_request_tokens') or 0):,} tokens，"
+            f"上下文限 {int(prof.get('context_limit') or 0):,}，"
+            f"输入 {100*prof.get('input_share',0):.1f}% / 输出 {100*prof.get('output_share',0):.1f}%"
         )
         lines.append(
-            f"  WorkBuddy当前{wb.get('credit_balance') or '未知'} credit已包含体验包、运营赠送包和免费订阅；"
-            f"未来30天签到预计再领{wb['credit_future30']} credit，"
-            f"按{wb['price_basis']}换算 {Decimal(wb['rate_credit_per_m']):.2f} credit/百万 token"
+            f"月额：FreeLLM免费池约 {compact(free.get('forecast_30d'))} + "
+            f"WorkBuddy每日领取约 {compact(wb.get('additional_tokens_30d'))} tokens；"
+            f"换算 {Decimal(wb['rate_credit_per_m']):.2f} credit/百万tokens"
         )
-        for source,v in sorted((c.get("sources") or {}).items(),
-                               key=lambda pair: pair[1].get("monthly_optimistic",0),reverse=True):
-            if v["monthly_optimistic"]<=0:
-                continue
-            suffix=(f"（额外补 {compact(v['extra_monthly'])}）"
-                    if v["extra_monthly"] else "")
-            lines.append(f"  {source}：月名义 {compact(v['nominal_monthly'])} → "
-                         f"乐观 {compact(v['monthly_optimistic'])}{suffix}")
-        for source, data in sorted(derived.items()):
-            lines.append("  推算：" + str(data.get("basis") or source))
-        if free.get("renewable_daily"):
-            lines.append("  明确日限额："+"、".join(
-                f"{k} {compact(v)}/天" for k,v in sorted(free["renewable_daily"].items())
-            ))
-        if free.get("rate_only_monthly_throughput"):
-            lines.append(
-                f"  仅限频池24×7满上下文理论吞吐：{compact(free['rate_only_monthly_throughput'])}/30天"
-                "（另计，不当作储值）"
-            )
-            for source,data in sorted((c.get("rate_only_estimates") or {}).items()):
-                lines.append(
-                    f"    {source} {data['basis']} × {data['largest_context']:,} 上下文 ≈ "
-                    f"{compact(data['monthly'])}/30天"
-                )
-        if snapshot.get("conditional_30d") is not None and (
-                snapshot["conditional_30d"] > (month or 0)):
-            lines.append(
-                f"  如果FreeLLM所用OpenRouter密钥拥有充值后1000次/天免费请求资格，"
-                f"30天条件上界 ≈ {compact(snapshot['conditional_30d'])} tokens"
-                "（该密钥资格尚未核验）"
-            )
-        if free.get("unpriced_credit"):
-            lines.append("  积分换算尚未核实：" + "、".join(sorted(free["unpriced_credit"])))
-        if free.get("unmapped"):
-            lines.append("  已配置但无模型映射：" + "、".join(sorted(free["unmapped"])))
-        if free.get("unavailable_charity"):
-            lines.append("  失效公益站：" + "、".join(sorted(free["unavailable_charity"])))
-        lines.append("  FreeLLM→WorkBuddy的请求只归WorkBuddy计数；付费DeepSeek/OpenRouter均未列入")
+        if volc is not None:
+            lines.append("火山按文档一次性50万新户赠额减本地消耗估算；"
+                         "当前账户余额无法通过该API核验。")
     if snapshot["unreadable"]:
-        lines.append("部分账本不可读，只显示已知用量：" + "、".join(snapshot["unreadable"]))
-    lines.append("注：乐观总量包含共享模型额度的重复展示和满上下文推算；"
-                 "续领、限流、调用长度及账户有效性会影响真实可用量。")
+        lines.append("部分账本不可读："+",".join(snapshot["unreadable"]))
     return "\n".join(lines)
 
 

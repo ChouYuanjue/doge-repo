@@ -166,12 +166,14 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertEqual(s["wb"]["credit_future30"], "4500")
         self.assertEqual(s["free"]["remaining_today"], 1599875)
         self.assertEqual(s["forecast_30d"],
-                         s["wb"]["remaining_tokens_now"]
-                         + s["wb"]["additional_tokens_30d"]
-                         + 48000000)
+                         s["wb"]["additional_tokens_30d"] + 48000000)
+        self.assertEqual(s["fixed_remaining"],s["wb"]["remaining_tokens_now"])
+        self.assertEqual(s["fixed_volcengine"],None)
         report = render(s, detail=True)
-        self.assertIn("累计已用：355 tokens", report)
-        self.assertIn("AnyRouter", report)
+        self.assertIn("消耗：355 tokens", report)
+        self.assertIn("每月预估：", report)
+        self.assertIn("固定额度剩余：", report)
+        self.assertNotIn("AnyRouter", report)
         self.assertNotIn("999999999", report)
         self.assertNotIn("secret-account", report)
         self.assertNotIn("very-secret", report)
@@ -217,7 +219,7 @@ class FreeQuotaLedgerTests(unittest.TestCase):
                                wb_log=self.wb, accounts_dir=self.accounts,
                                activity_file=self.activity))
         self.assertIn("部分账本不可读", report)
-        self.assertIn("WorkBuddy：已用 不可读", report)
+        self.assertIn("消耗：不可读 tokens", report)
 
     def test_freellm_monthly_only_includes_active_profile_models(self):
         self._free()
@@ -237,7 +239,7 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertEqual(r["forecast_30d"],15_000_000)
         self.assertEqual(r["tokens"],175)  # old successful routes still count
 
-    def test_workbuddy_optimistic_flash_price_uses_real_low_decile(self):
+    def test_workbuddy_flash_price_uses_all_real_historical_samples(self):
         rows=[]
         for rate in range(2,22):
             # 100K tokens per call, rate/10 credit per request
@@ -252,8 +254,8 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         )
         usage=wblog(self.wb)
         price, basis=workbuddy_price_basis(usage)
-        self.assertEqual(price,3)
-        self.assertIn("低10%",basis)
+        self.assertEqual(price,11.5)
+        self.assertIn("全部调用",basis)
         self.assertEqual(usage["flash_tokens"],2_000_000)
 
     def test_fixed_free_account_packs_not_added_twice_to_balance(self):
@@ -269,6 +271,37 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         result=workbuddy_account_pool(self.accounts,self.activity)
         self.assertEqual(result["balance"],300)
         self.assertEqual(result["cn_daily"],100)
+
+    def test_volcengine_one_time_grant_and_local_usage_only(self):
+        self._account("cn",remain=110,daily=100)
+        self._wb()
+        self._free()
+        with sqlite3.connect(self.free) as db:
+            db.execute("INSERT INTO api_keys VALUES(?,?,?,?,?,?)",
+                       (11,"volcengine","Ark new-user","",1,"healthy"))
+            db.execute("INSERT INTO requests VALUES(?,?,?,?,?,?,?)",
+                       ("volcengine",11,"doubao",datetime.now(timezone.utc).isoformat(),
+                        "success",10000,1000))
+        s=collect(self.data,free_db=self.free,wb_log=self.wb,
+                  accounts_dir=self.accounts,activity_file=self.activity)
+        self.assertEqual(s["fixed_volcengine"],489_000)
+        self.assertEqual(s["fixed_remaining"],s["wb"]["remaining_tokens_now"]+489_000)
+        self.assertEqual(s["used_total"],180+175+11000)
+        self.assertEqual(s["forecast_30d"],48000000+s["wb"]["additional_tokens_30d"])
+        self.assertIn("火山",render(s))
+
+    def test_short_quota_output_three_main_values_and_no_model_list(self):
+        self._account("cn",remain=300,daily=100)
+        self._wb()
+        self._free()
+        s=collect(self.data,free_db=self.free,wb_log=self.wb,
+                  accounts_dir=self.accounts,activity_file=self.activity)
+        content=render(s)
+        self.assertEqual(len(content.splitlines()),4)
+        for name in ("消耗：","每月预估：","固定额度剩余："):
+            self.assertIn(name,content)
+        self.assertNotIn("openrouter",content.lower())
+        self.assertNotIn("单模型",content)
 
     def test_registered_command_and_capability(self):
         op=match_invocation("/quota")

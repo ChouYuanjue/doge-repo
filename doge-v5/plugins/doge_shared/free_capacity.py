@@ -1,11 +1,9 @@
-"""Optimistic monthly free-model capacity, aligned with FreeLLMAPI's UI.
+"""Monthly free-provider budget, based on FreeLLM's native model labels.
 
-The Fallback Models page adds the documented monthly budget of *each* model;
-the Free Tier page collapses shared provider pools. Both views are useful, but
-they must not be presented as equivalent spendable balances.
-
-Requests × maximum free-model context yields a speculative *upper bound*, not
-a provider guarantee. It is displayed separately from confirmed credit grants.
+Use one deployment-wide observed request length and the bot's configured
+context limit when translating request-rate limits into monthly tokens.
+No per-model forecasting, million-token full-context speculation, or 24/7
+rate-limit saturation. Credit balances that run out are handled separately.
 """
 from __future__ import annotations
 
@@ -13,220 +11,147 @@ from decimal import Decimal, InvalidOperation
 import re
 from typing import Any
 
-DAYS = 30
+DAYS=30
 
 
-def _nat(v: Any) -> int:
+def nonneg(v: Any) -> int:
     try:
-        return max(0, int(v or 0))
-    except (TypeError, ValueError, OverflowError):
+        return max(0,int(v or 0))
+    except (TypeError,ValueError,OverflowError):
         return 0
-
-
-def _money(v: Any) -> Decimal | None:
-    try:
-        x = Decimal(str(v))
-        return x if x.is_finite() and x >= 0 else None
-    except (TypeError, ValueError, InvalidOperation):
-        return None
 
 
 def parse_budget(label: str | None) -> int:
-    """Python port of FreeLLMAPI server/src/lib/budget.ts parseBudget."""
+    """Matching FreeLLMAPI's current parseBudget, including upper label ranges."""
     if not label:
         return 0
-    head = re.sub(r"\([^)]*\)", "", str(label).lower()).strip()
-    match = re.search(r"~?([\d.]+)(?:-([\d.]+))?([mk])(?![a-z])", head)
+    head=re.sub(r"\([^)]*\)","",str(label).lower()).strip()
+    match=re.search(r"~?([\d.]+)(?:-([\d.]+))?([mk])(?![a-z])",head)
     if not match:
         return 0
-    tail = head[match.end():]
-    if re.match(r"\s*(?:rpd|rpm|rph|rps|req|requests?|calls?|messages?|prompts?|neurons?)\b", tail):
+    tail=head[match.end():]
+    if re.match(r"\s*(?:rpd|rpm|rph|rps|req|requests?|calls?|messages?|prompts?|neurons?)\b",tail):
         return 0
     try:
-        x = Decimal(match.group(2) or match.group(1))
+        amount=Decimal(match.group(2) or match.group(1))
     except InvalidOperation:
         return 0
-    if x < 0:
+    if not amount.is_finite() or amount<0:
         return 0
-    tokens = x * (1_000_000 if match.group(3) == "m" else 1_000)
-    period = re.split(r"[,·;]", tail)[0]
-    if re.search(r"\b(?:per\s*)?days?\b|\bdaily\b|\b24\s*h(?:rs?|ours?)?\b", period):
-        tokens *= DAYS
-    return int(tokens)
-
-
-def _widest(models: list[dict]) -> tuple[int, str]:
-    context, model = 0, ""
-    for m in models:
-        size = _nat(m.get("context_window"))
-        if size > context:
-            context, model = size, str(m.get("model_id") or "")
-    return context, model
+    amount*=1_000_000 if match.group(3)=="m" else 1_000
+    period=re.split(r"[,·;]",tail)[0]
+    if re.search(r"\b(?:per\s*)?days?\b|\bdaily\b|\b24\s*h(?:rs?|ours?)?\b",period):
+        amount*=DAYS
+    return int(amount)
 
 
 def estimate_capacity(
-    active: dict[str, dict],
-    key_counts: dict[str, int],
-    *,
-    current_month_usage: dict[str, int] | None = None,
+    active: dict[str,dict], key_counts: dict[str,int], *,
+    profile: dict | None = None,
+    current_month_usage: dict[str,int] | None = None,
 ) -> dict:
-    """Estimate a configured and healthy catalog, without any paid models."""
-    current_month_usage = current_month_usage or {}
-    rows: dict[str, dict] = {}
-    native_total = 0
-    dedup: dict[str, int] = {}
+    """Use native whole-model monthly total + deployment-wide request samples.
 
-    for source, info in active.items():
-        all_models = info["models"]
-        if not all_models:
-            continue
-        platform = str(info["platform"])
-        models = ([m for m in all_models
-                   if str(m.get("model_id") or "").endswith(":free")]
-                  if platform == "openrouter" else all_models)
+    Native model budgets retain the provider's own global dashboard convention.
+    Request-limited free sources only get additional monthly capacity if their
+    historical-global request-rate estimate exceeds their existing label; one
+    shared allowance is never added once per model or per model alias.
+    """
+    profile=profile or {}
+    context=nonneg(profile.get("context_limit")) or 14000
+    average=min(context,max(0,float(profile.get("avg_request_tokens") or 0)))
+    daily_load=max(0,float(profile.get("requests_per_day") or 0))
+
+    per_source: dict[str,int]={}
+    native=0
+    pools: dict[str,int]={}
+    model_count=0
+    for source,info in active.items():
+        platform=info["platform"]
+        models=info["models"]
+        if platform=="openrouter":
+            models=[m for m in models if str(m.get("model_id") or "").endswith(":free")]
         if not models:
             continue
-        count = max(1, _nat(key_counts.get(platform)))
-        model_budget = []
-        for m in models:
-            mid = str(m.get("model_id") or "")
-            cap = parse_budget(m.get("monthly_token_budget")) * count
-            model_budget.append((cap, mid))
-            pool = ("openrouter::free" if platform == "openrouter" else platform + "::account")
-            dedup[pool] = max(dedup.get(pool, 0), cap)
-        if not model_budget:
+        count=max(1,nonneg(key_counts.get(platform)))
+        values=[parse_budget(m.get("monthly_token_budget"))*count for m in models]
+        amount=sum(values)
+        native+=amount
+        per_source[source]=amount
+        pools[source]=max(values,default=0)
+        model_count+=len(models)
+
+    # All explicit request grants and observed account-wide IP rate gates
+    # use ONE historical global avg; no model-specific context length / price.
+    max_daily_requests={
+        "openrouter":50,     # :free, account-wide, regardless of model
+        "modelscope":200,    # daily free experience; conversion unverified
+        "kilo":200*24,       # rate-only, bound by actual deployment-wide demand
+        "ovh":2*60*24,
+        "unorouter":60*24,   # observed shared account rather than per-model
+    }
+    adjustments={}
+    for source, daily_requests in max_daily_requests.items():
+        if source not in per_source or not daily_load or not average:
             continue
-        native = sum(amount for amount, _ in model_budget)
-        native_total += native
-        largest_context, largest_model = _widest(models)
-        rows[source] = {
-            "platform": platform,
-            "models": len(model_budget),
-            "nominal_monthly": native,
-            "monthly_optimistic": native,
-            "extra_monthly": 0,
-            "largest_context": largest_context,
-            "context_model": largest_model,
-            "budget_model": max(model_budget)[1],
-            "basis": "FreeLLM模型月度标签逐模型累加，共享池可能重叠",
-            "rate_only_throughput": 0,
-        }
+        expected=int(min(daily_requests,daily_load)*DAYS*average)
+        before=per_source[source]
+        if expected>before:
+            per_source[source]=expected
+            adjustments[source]=expected-before
 
-    supplement: dict[str, dict] = {}
+    # Recurring free USD grants (e.g., Mistral $10/month) use the cheapest
+    # listed model, weighted by this deployment's *global* input/output
+    # ratio. One grant per account, never per model and never a fixed balance.
+    if "mistral" in per_source:
+        models=active["mistral"]["models"]
+        if any("$10/month" in str(m.get("monthly_token_budget"))
+               for m in models):
+            from decimal import Decimal, InvalidOperation
+            share_in=max(0,float(profile.get("input_share") or 0.93))
+            share_out=max(0,float(profile.get("output_share") or 0.07))
+            prices=[]
+            for m in models:
+                try:
+                    inp=Decimal(str(m.get("paid_input_per_m")))
+                    output=Decimal(str(m.get("paid_output_per_m")))
+                except (TypeError,InvalidOperation):
+                    try:
+                        inp=Decimal(str(m.get("paid_input_per_m")))
+                        output=inp   # one known input tariff; safe fallback
+                    except (TypeError,InvalidOperation):
+                        continue
+                blended=inp*Decimal(str(share_in))+output*Decimal(str(share_out))
+                if blended.is_finite() and blended>0:
+                    prices.append(blended)
+            if prices:
+                equivalent=int(Decimal(10_000_000)/min(prices))
+                if equivalent>per_source["mistral"]:
+                    adjustments["mistral"]=equivalent-per_source["mistral"]
+                    per_source["mistral"]=equivalent
 
-    def replace_with_larger(source: str, proposed: int, note: str, model: str = "") -> None:
-        row = rows.get(source)
-        if not row or proposed <= 0:
-            return
-        row["monthly_optimistic"] = max(row["nominal_monthly"], proposed)
-        row["extra_monthly"] = row["monthly_optimistic"] - row["nominal_monthly"]
-        if row["extra_monthly"] > 0:
-            row["basis"] = note
-        supplement[source] = {
-            "monthly": proposed, "increment": row["extra_monthly"],
-            "basis": note, "model": model,
-        }
-
-    # FreeLLM's parseBudget cannot parse comma-delimited 100,000 tokens/day.
-    if "llm7" in rows and any(
+    # The comma-delimited daily quota is ignored by FreeLLM's own K/M parser.
+    if "llm7" in per_source and any(
         "100,000 tokens/24h" in str(m.get("monthly_token_budget"))
         for m in active["llm7"]["models"]
     ):
-        replace_with_larger("llm7", 100_000 * DAYS,
-                            "LLM7共享100,000 token/24h，按30日")
+        amount=100_000*DAYS
+        if amount>per_source["llm7"]:
+            adjustments["llm7"]=amount-per_source["llm7"]
+            per_source["llm7"]=amount
 
-    # OpenRouter :free requests. Every model is $0; choose the widest context.
-    # 50 req/day is the documented default. After $10 of cumulative top-ups,
-    # 1000 req/day is a *conditional* scenario, never presumed in the main sum.
-    or_conditional = 0
-    if "openrouter" in rows:
-        models = [m for m in active["openrouter"]["models"]
-                  if str(m.get("model_id") or "").endswith(":free")]
-        per_day = max((_nat(m.get("rpd_limit")) for m in models), default=0)
-        window, model = _widest(models)
-        if per_day and window:
-            month = per_day * DAYS * window
-            note = (f"OpenRouter :free 每日{per_day}次，免费模型{model}最大上下文"
-                    f"{window:,} token/次，按满窗的极端理论上界")
-            replace_with_larger("openrouter", month, note, model)
-            or_conditional = max(per_day, 1000) * DAYS * window
-            supplement["openrouter"].update(
-                requests_per_day=per_day,
-                conditional_month_if_eligible=or_conditional,
-            )
-
-    # ModelScope's documented free experience has 200 daily credits; RPD
-    # model metadata independently lists 200 requests. No known exchange
-    # rate: this is explicitly an unverified 1 credit = 1 request scenario.
-    if "modelscope" in rows:
-        models = active["modelscope"]["models"]
-        per_day = max((_nat(m.get("rpd_limit")) for m in models), default=0)
-        window, model = _widest(models)
-        if per_day and window:
-            replace_with_larger(
-                "modelscope", per_day * DAYS * window,
-                f"ModelScope每日{per_day}次×最宽上下文{window:,}，"
-                "假设免费积分可支持相应请求，未经实际核验",
-                model,
-            )
-
-    # Native FreeLLM model budget can exceed a paid-input conversion.
-    # Currency grant must be counted once, with the cheapest listed model.
-    if "mistral" in rows:
-        models = active["mistral"]["models"]
-        has_grant = any("$10/month" in str(m.get("monthly_token_budget"))
-                        for m in models)
-        choices = [(_money(m.get("paid_input_per_m")), m.get("model_id"))
-                   for m in models]
-        priced = [(v, m) for v, m in choices if v is not None and v > 0]
-        if has_grant and priced:
-            low, mid = min(priced, key=lambda x: x[0])
-            month = int(Decimal(10_000_000) / low)
-            replace_with_larger(
-                "mistral", month,
-                f"Mistral每月赠送$10按模型{mid}最低输入价USD {low}/百万",
-                str(mid),
-            )
-
-    # Rate-only gateways: a speed ceiling over 30 days, never money balances.
-    # Treat all free models as sharing the source's rate cap (avoids multiplying
-    # account-wide or per-IP limits by the number of catalog models).
-    speed = {}
-    rate_limits = {
-        "kilo": ("200次/小时/IP", 200 * 24),
-        "ovh": ("2次/分钟/IP", 2 * 60 * 24),
-        "unorouter": ("1次/分钟共享", 60 * 24),
-    }
-    for source, (label, per_day) in rate_limits.items():
-        row = rows.get(source)
-        if not row or not row["largest_context"]:
-            continue
-        throughput = per_day * DAYS * row["largest_context"]
-        row["rate_only_throughput"] = throughput
-        speed[source] = {
-            "monthly": throughput, "requests_per_day": per_day,
-            "largest_context": row["largest_context"],
-            "model": row["context_model"], "basis": label,
-        }
-
-    month = sum(v["monthly_optimistic"] for v in rows.values())
-    current_month_used = sum(_nat(v) for v in current_month_usage.values())
-    conditional_delta = 0
-    if or_conditional and "openrouter" in rows:
-        conditional_delta = max(
-            0, or_conditional - rows["openrouter"]["monthly_optimistic"]
-        )
+    monthly=sum(per_source.values())
+    month_used=sum(nonneg(v) for v in (current_month_usage or {}).values())
     return {
-        "native_model_monthly": native_total,
-        "native_pool_dedup_monthly": sum(dedup.values()),
-        "optimistic_monthly": month,
-        "optimistic_remaining_current_month": max(0, month - current_month_used),
-        "current_month_used": current_month_used,
-        "conditional_or_upgrade_delta": conditional_delta,
-        "conditional_or_upgrade_total": month + conditional_delta,
-        "rate_only_throughput_monthly": sum(v["monthly"] for v in speed.values()),
-        "sources": rows,
-        "derived": supplement,
-        "rate_only_estimates": speed,
-        "model_count": sum(r["models"] for r in rows.values()),
+        "native_model_monthly":native,
+        "native_pool_dedup_monthly":sum(pools.values()),
+        "forecast_30d":monthly,
+        "month_used":month_used,
+        "remaining_month":max(0,monthly-month_used),
+        "adjustments_total":sum(adjustments.values()),
+        "request_budget_contributions":adjustments,
+        "model_count":model_count,
+        "historical_requests_per_day":daily_load,
+        "historical_avg_tokens_per_request":average,
+        "context_limit":context,
     }
