@@ -32,7 +32,7 @@ class CapabilityRegistryTests(unittest.TestCase):
         r = registry()
         commands = set(r["commands"])
         expected = {
-            "help", "ver", "status", "statics", "admin",
+            "help", "ver", "status", "statics", "quota", "admin",
             "math", "util", "paper", "bio", "chem", "mat", "astro", "trial",
             "lab", "fourier", "tex", "typst", "md", "snippet", "game", "fuse", "arena", "social",
             "lang", "media", "run", "lookup", "chaoli", "pixiv", "meme", "music", "mc", "diagram", "ai", "cs", "eng",
@@ -41,7 +41,7 @@ class CapabilityRegistryTests(unittest.TestCase):
         listed = {c for cat in r["categories"] for c in cat["commands"]}
         self.assertEqual(listed, expected)
         c = counts()
-        self.assertEqual(c["top_level"], 36)
+        self.assertEqual(c["top_level"], 37)
         self.assertEqual(c["functions"], len(r["operations"]))
         self.assertEqual(c["forms"], c["functions"] + c["aliases"])
         self.assertEqual(c["aliases"], sum(len(op.get("aliases", [])) for op in r["operations"]))

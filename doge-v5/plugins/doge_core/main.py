@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
+import asyncio
 import re
 
 import astrbot.api.message_components as Comp
@@ -14,7 +15,7 @@ from astrbot.core.agent.message import TextPart
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 from data.plugins.doge_shared.agent_bridge import DogeCapabilitySearchTool, DogeCapabilityTool, DogeMessageHistoryTool, DogePresentTool
-from data.plugins.doge_shared.agent_tools import DogeWeatherTool, register_domain_tools
+from data.plugins.doge_shared.agent_tools import DogeWeatherTool, DogeQuotaTool, register_domain_tools
 from data.plugins.doge_shared.affect import TransientAffect
 from data.plugins.doge_shared.capabilities import agent_capability_prompt, capability_display, current_capability_context
 from data.plugins.doge_shared.help_live import (
@@ -27,6 +28,7 @@ from data.plugins.doge_shared.help_live import (
 from data.plugins.doge_shared.module_control import disabled_plugins, filter_toolset_for_session
 from data.plugins.doge_shared.materials import MATERIALS
 from data.plugins.doge_shared.persona_runtime import PersonaRuntime, ReplyBudget
+from data.plugins.doge_shared.quota_ledger import get_quota_ledger
 from data.plugins.doge_shared.parallel_agent import install_parallel_agent_patch
 from data.plugins.doge_shared.presentation import image_result, markdown_to_plain, text_result
 from data.plugins.doge_shared.session_control import RESEARCH_PERSONA_ID, get_session_persona_id, is_agent_enabled
@@ -177,6 +179,7 @@ class DogeCore(Star):
             context,
             "doge_core",
             DogeWeatherTool(),
+            DogeQuotaTool(),
             DogeMessageHistoryTool(),
             DogeCapabilitySearchTool(),
             DogeCapabilityTool(),
@@ -608,6 +611,24 @@ class DogeCore(Star):
             f"AstrBot WebUI 6185 {'UP' if ports[6185] else 'DOWN'}",
         ]
         yield text_result(event, "\n".join(lines), markdown=False)
+
+    @filter.command("quota")
+    async def quota(self, event: AstrMessageEvent, mode: str = ""):
+        """Global all-time model consumption and remaining balance estimates."""
+        mode = str(mode or "").strip().lower()
+        if mode and mode not in ("detail", "详细"):
+            yield text_result(event, "用法：/quota 或 /quota detail（管理员查看原始余额）", markdown=False)
+            return
+        detail = mode in ("detail", "详细")
+        if detail and not event.is_admin():
+            yield text_result(event, "余额原始明细仅管理员可查看；/quota 可查看总量。", markdown=False)
+            return
+        try:
+            service = get_quota_ledger(self.data_root)
+            report = await asyncio.to_thread(service.display, detail=detail)
+        except Exception:
+            report = "模型额度统计暂时不可用"
+        yield text_result(event, report, markdown=False)
 
     @filter.command("statics")
     async def statics(self, event: AstrMessageEvent):

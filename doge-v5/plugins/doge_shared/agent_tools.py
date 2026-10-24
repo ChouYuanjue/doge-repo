@@ -1,17 +1,52 @@
 from __future__ import annotations
 
+import asyncio
 import json
+from pathlib import Path
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.tool import FunctionTool, ToolExecResult
 from astrbot.core.astr_agent_context import AstrAgentContext
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 from .academic import AstroService, BioService, MaterialService, PaperService, ResearchChemService, TrialService
 from .services import BingService, ChartService, ChemService, CodecService, MathService, NasaService
 from .weather import WeatherService
 from .lookup import LookupService
 from .chaoli import ChaoliService
+from .quota_ledger import get_quota_ledger
 from .agent_bridge import DogePresentTool, execute_formal_command
+
+@dataclass
+class DogeQuotaTool(FunctionTool[AstrAgentContext]):
+    name: str = "doge_quota"
+    description: str = (
+        "读取全部模型来源的累计Token消耗和可用余额的乐观Token折算。"
+        "涵盖FreeLLMAPI、WorkBuddy、DeepSeek和OpenRouter；"
+        "默认只返回不含凭据和账户金额的总体统计。"
+    )
+    parameters: dict = Field(default_factory=lambda: {
+        "type": "object",
+        "properties": {
+            "detail": {
+                "type": "boolean",
+                "description": "只有管理员需要了解原始金额/credits和折算依据时才设true",
+            },
+        },
+    })
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> str:
+        event = context.context.event
+        is_admin = False
+        try:
+            is_admin = bool(event.is_admin())
+        except Exception:
+            pass
+        if bool(kwargs.get("detail")) and not is_admin:
+            return "原始余额明细仅管理员可查看。可查询总体Token已用和剩余估算。"
+        service = get_quota_ledger(Path(get_astrbot_data_path()))
+        return await asyncio.to_thread(service.display, detail=bool(kwargs.get("detail")) and is_admin)
+
 
 @dataclass
 class DogeMathTool(FunctionTool[AstrAgentContext]):

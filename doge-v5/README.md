@@ -107,7 +107,7 @@ RRPL 也按同样原则从“一个 renderer”升级为可理解能力：`/lang
 
 当前默认 profile 包括：
 
-- `doge_core`：Help、版本、状态、统计、Agent foundation；
+- `doge_core`：Help、版本、状态、统计、全局免费模型额度 /quota 与 doge_quota、Agent foundation；
 - `doge_admin`：AstrBot 框架命令与群模块开关；
 - `doge_math` / `doge_ai` / `doge_cs` / `doge_code`；
 - `doge_typeset` / `doge_diagrams` / `doge_playground` / `doge_engineering`；
@@ -117,6 +117,16 @@ RRPL 也按同样原则从“一个 renderer”升级为可理解能力：`/lang
 - `doge_media` / `doge_misc` / `doge_lookup`。
 
 以 `plugin_manifest.json` 为最终准绳，不要根据目录名猜生产加载状态。
+
+### 免费模型额度总账
+
+/quota 汇总**全部已记录历史**的免费模型 token 消耗与剩余乐观折算；/quota detail 允许管理员查看分站点额度依据。Bot 也可自主调用 doge_quota 工具回答累计用量或剩余免费配额。
+
+- **可积累额度**：WorkBuddy 读取全部免费账号余额，并按实际 DeepSeek Flash 消费比例折算；国内签到 daily_credit 由账号状态读取，国际日活按有近期成功记录时的 50 credit/天乐观估计。未来30天的增量与已经到账的额度分开。
+- **会重置的额度**：FreeLLMAPI 的 Groq、LLM7、xKiro、智谱等日限额和 Ollama、Mistral 等月额度/粗估。计算未来30天的理论可用量，不伪装成当前余额。
+- **限速或尚无可信兑换率**：Kilo、OVH、UnoRouter 等限制请求频率却没有有限总 token 额度；ModelScope 每日赠送 credit，但不把 credit 编造成 token。AnyRouter 当前无可用模型映射、AgentRouter 当前配置失效，因此不纳入可用量。
+
+所有来源合计**不包含 DeepSeek 官方付费 API、OpenRouter 付费模型和付费账户余额**；FreeLLMAPI 经 WorkBuddy 转发时以 WorkBuddy 的原始用量为准，不再在路由层重复累计。统计只读服务自己的已有日志、模型目录及账户余额字段，不留 API 密钥、原始对话或用户标识；失效或不可读的数据单独标明。平均 Flash credit 单价和站点额度会随平台政策变化，估算允许乐观但始终保留可核验的计算依据。
 
 ## 8. 部署
 

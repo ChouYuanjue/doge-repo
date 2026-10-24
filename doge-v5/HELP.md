@@ -11,7 +11,7 @@ USAGE
   /help <command> <subcommand>
 
 GROUPS
-  system       4  系统 / 状态
+  system       5  系统 / 状态
              认识当前实例、查看运行状态与使用统计。
   research    64  检索 / 科研
              论文、知识检索，以及生化环材、天文和临床数据。
@@ -40,9 +40,9 @@ QUICK START
   /help legacy          历史功能状态
 
 SCALE
-  顶层指令       36
-  正式叶子功能   281
-  正式调用形式   576  （含 295 个兼容别名）
+  顶层指令       37
+  正式叶子功能   282
+  正式调用形式   577  （含 295 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -124,6 +124,30 @@ USAGE
 
 ABOUT
   查看真实使用统计、功能规模和 LLM 用量。
+
+BACK
+  /help
+```
+
+### `/quota`
+
+```text
+COMMAND  /quota
+免费模型用量和剩余额度。
+
+USAGE
+  /quota [detail]
+
+PARAMETERS
+  [detail]
+    可选；管理员查看币种余额与Token折算依据。
+
+EXAMPLES
+  /quota
+  /quota detail
+
+ABOUT
+  查看免费模型已用及剩余；明细仅管理员。
 
 BACK
   /help

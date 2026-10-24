@@ -17,7 +17,8 @@
         "help",
         "ver",
         "status",
-        "statics"
+        "statics",
+        "quota"
       ]
     },
     {
@@ -117,6 +118,10 @@
     },
     "statics": {
       "summary": "查看累计使用统计与产品规模：消息、命令、平台、LLM token、插件、指令和 Agent Tool。",
+      "category": "system"
+    },
+    "quota": {
+      "summary": "免费模型用量和剩余额度。",
       "category": "system"
     },
     "lookup": {
@@ -295,6 +300,25 @@
       "aliases": [],
       "args": "none",
       "kind": "command"
+    },
+    {
+      "id": "core.quota",
+      "path": "quota",
+      "summary": "查看免费模型已用及剩余；明细仅管理员。",
+      "usage": "/quota [detail]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[detail]",
+          "description": "可选；管理员查看币种余额与Token折算依据。"
+        }
+      ],
+      "examples": [
+        "/quota",
+        "/quota detail"
+      ]
     },
     {
       "id": "admin.help",
