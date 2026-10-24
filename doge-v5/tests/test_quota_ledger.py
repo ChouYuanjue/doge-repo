@@ -184,8 +184,8 @@ class FreeQuotaLedgerTests(unittest.TestCase):
                   accounts_dir=self.accounts,activity_file=self.activity)
         selected={"source":"freellmapi","model":"auto"}
         text=render(s,current_model=selected)
-        self.assertIn("当前模型：auto（最近执行：paid-model）\n"
-                      "模型来源：FreeLLMAPI → OpenRouter（网关最近成功 ",text)
+        self.assertIn("当前模型：auto (paid-model)\n"
+                      "模型来源：FreeLLMAPI → OpenRouter\n",text)
         self.assertEqual(text.splitlines()[3],"")
         with sqlite3.connect(self.free) as db:
             db.execute("INSERT INTO requests VALUES(?,?,?,?,?,?,?)",
@@ -194,9 +194,12 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         updated=collect(self.data,free_db=self.free,wb_log=self.wb,
                         accounts_dir=self.accounts,activity_file=self.activity)
         newer=render(updated,current_model=selected)
-        self.assertIn("当前模型：auto（最近执行：openai/gpt-oss-20b）\n"
-                      "模型来源：FreeLLMAPI → Groq（网关最近成功 ",newer)
-        self.assertNotIn("当前模型：auto（最近执行：paid-model）",newer)
+        self.assertIn("当前模型：auto (openai/gpt-oss-20b)\n"
+                      "模型来源：FreeLLMAPI → Groq\n",newer)
+        self.assertNotIn("当前模型：auto (paid-model)",newer)
+        self.assertNotIn("最近执行",newer)
+        self.assertNotIn("网关最近成功",newer)
+        self.assertNotIn("（openai/gpt-oss-20b）",newer)
         pinned=render(updated,current_model={"source":"freellmapi","model":"pinned-model"})
         self.assertIn("当前模型：pinned-model\n"
                       "模型来源：FreeLLMAPI（动态路由，暂无匹配上游记录）",pinned)

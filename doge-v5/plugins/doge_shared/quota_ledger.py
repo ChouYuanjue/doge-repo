@@ -625,16 +625,9 @@ def _model_lines(selected: dict | None,
                 "google": "Google", "cloudflare": "Cloudflare",
             }
             actual_source = names.get(actual_source.lower(), actual_source)
-            try:
-                date = datetime.fromisoformat(str(route["at"]).replace("Z", "+00:00"))
-                if date.tzinfo is None:
-                    date = date.replace(tzinfo=timezone.utc)
-                stamp = date.astimezone(BOT_TIMEZONE).strftime("%m-%d %H:%M")
-            except (ValueError, TypeError, KeyError, OverflowError):
-                stamp = "时间未知"
             return [
-                f"当前模型：auto（最近执行：{actual_model}）",
-                f"模型来源：FreeLLMAPI → {actual_source}（网关最近成功 {stamp}）",
+                f"当前模型：auto ({actual_model})",
+                f"模型来源：FreeLLMAPI → {actual_source}",
             ]
         return [f"当前模型：{model}", "模型来源：FreeLLMAPI（动态路由，暂无匹配上游记录）"]
     source = {
