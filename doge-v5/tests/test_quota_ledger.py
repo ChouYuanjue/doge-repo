@@ -272,23 +272,28 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertEqual(result["balance"],300)
         self.assertEqual(result["cn_daily"],100)
 
-    def test_volcengine_one_time_grant_and_local_usage_only(self):
+    def test_volcengine_confirmed_cash_balance_in_fixed_only(self):
+        from doge_shared.fixed_balances import credit_to_tokens,VOLC_MINI_LOW_PRIORITY_CNY
         self._account("cn",remain=110,daily=100)
         self._wb()
         self._free()
-        with sqlite3.connect(self.free) as db:
-            db.execute("INSERT INTO api_keys VALUES(?,?,?,?,?,?)",
-                       (11,"volcengine","Ark new-user","",1,"healthy"))
-            db.execute("INSERT INTO requests VALUES(?,?,?,?,?,?,?)",
-                       ("volcengine",11,"doubao",datetime.now(timezone.utc).isoformat(),
-                        "success",10000,1000))
+        config=self.data/"plugin_data/doge_core/fixed_balances.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"schema":1,"balances":{
+            "volcengine":{"amount":"20","currency":"CNY"}}}),encoding="utf-8")
         s=collect(self.data,free_db=self.free,wb_log=self.wb,
                   accounts_dir=self.accounts,activity_file=self.activity)
-        self.assertEqual(s["fixed_volcengine"],489_000)
-        self.assertEqual(s["fixed_remaining"],s["wb"]["remaining_tokens_now"]+489_000)
-        self.assertEqual(s["used_total"],180+175+11000)
+        expected=credit_to_tokens(
+            "20",s["project_profile"],
+            uncached=VOLC_MINI_LOW_PRIORITY_CNY[0],
+            cached=VOLC_MINI_LOW_PRIORITY_CNY[1],
+            output=VOLC_MINI_LOW_PRIORITY_CNY[2]
+        )
+        self.assertEqual(s["fixed_volcengine"],expected)
+        self.assertEqual(s["fixed_remaining"],s["wb"]["remaining_tokens_now"]+expected)
+        self.assertEqual(s["used_total"],180+175)
         self.assertEqual(s["forecast_30d"],48000000+s["wb"]["additional_tokens_30d"])
-        self.assertIn("火山",render(s))
+        self.assertEqual(len(render(s).splitlines()),4)
 
     def test_short_quota_output_three_main_values_and_no_model_list(self):
         self._account("cn",remain=300,daily=100)
@@ -302,6 +307,7 @@ class FreeQuotaLedgerTests(unittest.TestCase):
             self.assertIn(name,content)
         self.assertNotIn("openrouter",content.lower())
         self.assertNotIn("单模型",content)
+        self.assertNotIn("（",content)
 
     def test_registered_command_and_capability(self):
         op=match_invocation("/quota")

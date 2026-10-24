@@ -22,7 +22,7 @@ class DogeQuotaTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_quota"
     description: str = (
         "查询全局免费Token总账：累计消耗、按整个项目历史使用比例及当前上下文上限"
-        "估算的每月可续额度、WorkBuddy和火山引擎一次性固定余额剩余。"
+        "估算的每月可续额度、所有已核实的一次性固定余额剩余。"
         "不含官方付费DeepSeek或OpenRouter付费额度；详细统计依据限管理员。"
     )
     parameters: dict = Field(default_factory=lambda: {

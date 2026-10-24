@@ -28,6 +28,7 @@ from typing import Any
 from urllib import request
 
 from .free_capacity import estimate_capacity
+from .fixed_balances import collect_fixed_balances
 from .project_usage import deployment_profile, configured_context
 
 FREELLM_DB = Path("/var/lib/freellmapi-lab/freeapi.db")
@@ -232,21 +233,7 @@ def freeapi_pool(path: Path = FREELLM_DB, *, profile: dict | None = None) -> dic
                     " AND lower(COALESCE(label,'')) LIKE '%agentrouter%'"
                 ).fetchall()
             ]
-            # Volcengine documents a one-time 500K-token new-user grant.
-            # Its OpenAI-compatible key cannot read the actual Ark account
-            # balance. Preserve this as an *unverified estimate* and subtract
-            # locally observed provider usage without touching credentials.
-            volc_enabled = db.execute("""
-                SELECT EXISTS(SELECT 1 FROM api_keys
-                  WHERE platform='volcengine' AND enabled=1
-                    AND status IN ('healthy','unknown'))
-            """).fetchone()[0] == 1
-            volc_used = db.execute("""
-                SELECT COALESCE(SUM(COALESCE(input_tokens,0)
-                          + COALESCE(output_tokens,0)),0)
-                  FROM requests
-                 WHERE platform='volcengine' AND status='success'
-            """).fetchone()[0]
+
     except (sqlite3.Error, OSError):
         return None
 
@@ -363,10 +350,7 @@ def freeapi_pool(path: Path = FREELLM_DB, *, profile: dict | None = None) -> dic
         optimistic_month_remaining=cap["remaining_month"],
         conditional_free_30d=cap["forecast_30d"],
         rate_only_monthly_throughput=0,
-        volcengine_grant_tokens=(500000 if volc_enabled else None),
-        volcengine_remaining_tokens=(max(0,500000-nat(volc_used))
-                                     if volc_enabled else None),
-        volcengine_balance_verified=False,
+
         capacity=cap,
         rate_only=rate_only,unpriced_credit=unpriced_credit,unmapped=unmapped,
         unavailable_charity=inactive,
@@ -410,6 +394,7 @@ def collect(
     context_cap = configured_context(data_dir / "cmd_config.json")
     profile = deployment_profile(data_dir / "data_v4.db", context_limit=context_cap)
     free = freeapi_pool(free_db,profile=profile)
+    fixed_extra = collect_fixed_balances(data_dir,free_db,profile)
     if pool is None:
         # WorkBuddy exposes only the currently selected realm. This fallback
         # must be marked partial and may omit other free accounts.
@@ -424,9 +409,7 @@ def collect(
                     native_month_used=0,optimistic_month_remaining=0,
                     conditional_free_30d=0,rate_only_monthly_throughput=0,
                     capacity=dict(model_count=0),
-                    volcengine_grant_tokens=None,
-                    volcengine_remaining_tokens=None,
-                    volcengine_balance_verified=False)
+)
     balance = pool.get("balance")
     per_m, price_note = workbuddy_price_basis(usage)
     now_equiv = int(balance * 1000000 / per_m) if balance is not None else None
@@ -438,9 +421,9 @@ def collect(
     # Monthly *renewable* supply and once-only balances must be separate.
     # WorkBuddy gift packages must not be rolled into every future month.
     forecast_30d = (future_equiv + free30) if (usage is not None or not free.get("unreadable")) else None
-    volc_remaining = free.get("volcengine_remaining_tokens")
-    fixed_now = (now_equiv+nat(volc_remaining)
-                 if now_equiv is not None else None)
+    volc_remaining = fixed_extra.get("volcengine_tokens")
+    fixed_now = ((now_equiv or 0)+fixed_extra["extra_tokens"]
+                 if now_equiv is not None or fixed_extra["sources"] else None)
     conditional_30d = forecast_30d
     rate_ceiling = 0
     return dict(
@@ -465,6 +448,8 @@ def collect(
         finite_now=fixed_now,
         fixed_remaining=fixed_now,
         fixed_volcengine=volc_remaining,
+        fixed_sources=fixed_extra["sources"],
+        fixed_balance_missing=fixed_extra["unverified_sources"],
         project_profile=profile,
         forecast_30d=forecast_30d,
         conditional_30d=conditional_30d,
@@ -492,14 +477,11 @@ def compact(value: int | None) -> str:
 def render(snapshot: dict, *, detail: bool = False) -> str:
     """Three short numbers for both the /quota command and the agent."""
     wb,free=snapshot["wb"],snapshot["free"]
-    volc=free.get("volcengine_remaining_tokens")
-    volc_txt=(f"火山约{compact(volc)} tokens" if volc is not None else "火山无余额记录")
     lines=[
         "豆子 · 免费模型额度",
         f"消耗：{exact(snapshot['used_total'])} tokens",
         f"每月预估：约 {compact(snapshot['forecast_30d'])} tokens",
-        f"固定额度剩余：约 {compact(snapshot.get('fixed_remaining'))} tokens"
-        f"（WorkBuddy {wb.get('credit_balance') or '未知'} credit；{volc_txt}）",
+        f"固定额度剩余：约 {compact(snapshot.get('fixed_remaining'))} tokens",
     ]
     if detail:
         prof=snapshot.get("project_profile") or {}
@@ -514,9 +496,16 @@ def render(snapshot: dict, *, detail: bool = False) -> str:
             f"WorkBuddy每日领取约 {compact(wb.get('additional_tokens_30d'))} tokens；"
             f"换算 {Decimal(wb['rate_credit_per_m']):.2f} credit/百万tokens"
         )
-        if volc is not None:
-            lines.append("火山按文档一次性50万新户赠额减本地消耗估算；"
-                         "当前账户余额无法通过该API核验。")
+        fixed_parts=[f"WorkBuddy已到账 {wb.get('credit_balance') or '未知'} credit"]
+        for row in snapshot.get("fixed_sources",[]):
+            fixed_parts.append(
+                f"{row['provider']} {row['amount']} {row['currency']} ≈ "
+                f"{compact(row['remaining_tokens'])} tokens"
+            )
+        lines.append("固定余额："+"；".join(fixed_parts))
+        missing=snapshot.get("fixed_balance_missing") or []
+        if missing:
+            lines.append("另有未查询成功的钱包余额："+"、".join(missing))
     if snapshot["unreadable"]:
         lines.append("部分账本不可读："+",".join(snapshot["unreadable"]))
     return "\n".join(lines)
