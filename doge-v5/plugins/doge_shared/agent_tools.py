@@ -21,9 +21,9 @@ from .agent_bridge import DogePresentTool, execute_formal_command
 class DogeQuotaTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_quota"
     description: str = (
-        "读取全部模型来源的累计Token消耗和可用余额的乐观Token折算。"
-        "涵盖FreeLLMAPI、WorkBuddy、DeepSeek和OpenRouter；"
-        "默认只返回不含凭据和账户金额的总体统计。"
+        "查询所有免费模型的累计消耗、WorkBuddy固定免费余额与签到、"
+        "FreeLLM完整月模型预算及OpenRouter免费模型的30天极乐观容量。"
+        "只统计公益资源，不含官方付费DeepSeek和付费OpenRouter；详细依据限管理员。"
     )
     parameters: dict = Field(default_factory=lambda: {
         "type": "object",

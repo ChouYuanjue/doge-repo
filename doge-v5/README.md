@@ -120,13 +120,16 @@ RRPL 也按同样原则从“一个 renderer”升级为可理解能力：`/lang
 
 ### 免费模型额度总账
 
-/quota 汇总**全部已记录历史**的免费模型 token 消耗与剩余乐观折算；/quota detail 允许管理员查看分站点额度依据。Bot 也可自主调用 doge_quota 工具回答累计用量或剩余免费配额。
+/quota 和 Agent 原生工具 doge_quota 读取**所有来源、全部已记录历史**的免费模型 Token 用量；/quota detail 由管理员查看完整来源和折算依据。FreeLLMAPI 本身是路由层，经过 WorkBuddy 的请求以 WorkBuddy 的账本为准，不重复相加。DeepSeek 官方付费接口与 OpenRouter 付费模型均不纳入。
 
-- **可积累额度**：WorkBuddy 读取全部免费账号余额，并按实际 DeepSeek Flash 消费比例折算；国内签到 daily_credit 由账号状态读取，国际日活按有近期成功记录时的 50 credit/天乐观估计。未来30天的增量与已经到账的额度分开。
-- **会重置的额度**：FreeLLMAPI 的 Groq、LLM7、xKiro、智谱等日限额和 Ollama、Mistral 等月额度/粗估。计算未来30天的理论可用量，不伪装成当前余额。
-- **限速或尚无可信兑换率**：Kilo、OVH、UnoRouter 等限制请求频率却没有有限总 token 额度；ModelScope 每日赠送 credit，但不把 credit 编造成 token。AnyRouter 当前无可用模型映射、AgentRouter 当前配置失效，因此不纳入可用量。
+统计保留三类来源和一个明确时间口径：
 
-所有来源合计**不包含 DeepSeek 官方付费 API、OpenRouter 付费模型和付费账户余额**；FreeLLMAPI 经 WorkBuddy 转发时以 WorkBuddy 的原始用量为准，不再在路由层重复累计。统计只读服务自己的已有日志、模型目录及账户余额字段，不留 API 密钥、原始对话或用户标识；失效或不可读的数据单独标明。平均 Flash credit 单价和站点额度会随平台政策变化，估算允许乐观但始终保留可核验的计算依据。
+1. **已经到账的免费余额**：WorkBuddy 的两个免费账号均从官方代理缓存读取，包含体验包、活动赠送包、免费订阅包在内的现有全部余额，不只算每天签到。国内签到奖励取 credits.checkin.daily_credit，国际日活在近期存在成功记录时按 50 credit/天乐观预测，二者对应未来 30 天的新增部分，不和现有余额重计。换算成本取真实 DeepSeek Flash 调用中、单次至少 1000 tokens 的有效成本低 10% 分位（考虑缓存）；没有足够样本时才回退加权均价。
+2. **按月或按日更新的免费模型池**：从 FreeLLMAPI 当前活跃 Profile、启用且健康的 API key 和模型清单读取 monthly_token_budget，完全复刻上游 parseBudget 和 **Fallback Models 面板逐模型累计口径**。因此和面板上约 1.4B 的数值一致。Free Tier 页则按共享账户池去重，两种结果在 /quota detail 同时显示。原生标签未涵盖的 LLM7 每日 100K token、OpenRouter :free 每日 50 次、ModelScope 每日免费体验次数等，按各自**免费模型最大上下文**补算；已有模型预算被更高估计替代，不重复叠加。Mistral 每月免费 $10 取模型目录中最低非零输入价折算，与原月预算取较大值。
+3. **限频、没有公布总 Token 上限的公益池**：Kilo、OVH、UnoRouter 等按公布的请求速度乘 30 天、再乘最大模型上下文给出 24×7 满窗**吞吐极限**。这是独立指标，永远不与储值余额相加。AnyRouter 暂无模型映射、AgentRouter 现有密钥无效，仍展示状态但不虚构可用额度。
+
+**口径说明**：主数字是未来 30 天的极乐观名义容量，其中 FreeLLM 面板逐模型预算会重复展示共享池额度、按请求次数乘上下文计算的部分假设每次用满窗口，不能保证全部消耗。OpenRouter 已有 $10 充值的账号可能解锁 1000 次/天免费调用，但尚未确认 FreeLLM 使用的密钥拥有该资格，因此只在管理员明细里显示**附条件上界**。请求失败、缓存命中、未来奖励未到账及跨月重置都会影响预测。所有额度采集均为只读，不存储上游密钥或私人聊天。
+
 
 ## 8. 部署
 

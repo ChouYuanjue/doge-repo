@@ -27,6 +27,8 @@ import time
 from typing import Any
 from urllib import request
 
+from .free_capacity import estimate_capacity
+
 FREELLM_DB = Path("/var/lib/freellmapi-lab/freeapi.db")
 WORKBUDDY_LOG = Path("/var/lib/workbuddy-lab/usage/usage.jsonl")
 WORKBUDDY_ACCOUNTS = Path("/var/lib/workbuddy-lab/accounts")
@@ -57,7 +59,8 @@ def wblog(path: Path = WORKBUDDY_LOG) -> dict | None:
     if not path.exists():
         return None
     used = dict(requests=0, tokens=0, input=0, cached=0, output=0,
-                credit=Decimal(0), flash_credit=Decimal(0), flash_tokens=0)
+                credit=Decimal(0), flash_credit=Decimal(0), flash_tokens=0,
+                flash_sample_rates=[])
     try:
         with path.open("r", encoding="utf-8", errors="replace") as file:
             for line in file:
@@ -83,6 +86,8 @@ def wblog(path: Path = WORKBUDDY_LOG) -> dict | None:
                 if "deepseek" in model and "flash" in model and tokens and credit:
                     used["flash_credit"] += credit
                     used["flash_tokens"] += tokens
+                    if tokens >= 1000:
+                        used["flash_sample_rates"].append(credit * Decimal(1_000_000) / tokens)
     except OSError:
         return None
     return used
@@ -162,39 +167,65 @@ def workbuddy_account_pool(
 
 
 def freeapi_pool(path: Path = FREELLM_DB) -> dict | None:
-    """One row per successful routed request; inspect all active free sources."""
+    """All-time free-routed use + native FreeLLM-style optimistic monthly budget.
+
+    Enabled healthy keys and active-profile models reproduce the UI's same
+    eligibility conditions. One source's model-label sum remains explicitly
+    separate from pooled/dedup and hypothetical full-context request capacity.
+    """
     if not path.exists():
         return None
     try:
         with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2)) as db:
             db.row_factory = sqlite3.Row
-            # Any request routed to the WorkBuddy custom key is already in WB
-            # usage.jsonl. Direct paid OpenRouter calls do not go through this
-            # database. An OpenRouter *free* route only counts with :free model.
             used = db.execute("""
-                SELECT r.platform, r.model_id, r.created_at,
+                SELECT r.platform,r.model_id,r.created_at,
                        COALESCE(r.input_tokens,0) AS inp,
                        COALESCE(r.output_tokens,0) AS out
-                  FROM requests r
-                  LEFT JOIN api_keys k ON r.key_id=k.id
+                  FROM requests r LEFT JOIN api_keys k ON r.key_id=k.id
                  WHERE r.status='success'
                    AND NOT (r.platform='custom'
-                            AND lower(COALESCE(k.label,'')) LIKE '%workbuddy%')
-                   AND (r.platform != 'openrouter' OR r.model_id LIKE '%:free')
+                       AND lower(COALESCE(k.label,'')) LIKE '%workbuddy%')
+                   AND (r.platform!='openrouter' OR r.model_id LIKE '%:free')
             """).fetchall()
             keys = db.execute("""
-                SELECT platform, id, label, base_url
-                  FROM api_keys WHERE enabled=1 AND status IN ('healthy','unknown')
+                SELECT platform,id,label,base_url
+                  FROM api_keys
+                 WHERE enabled=1 AND status IN ('healthy','unknown')
             """).fetchall()
-            models = db.execute("""
-                SELECT platform, key_id, model_id, enabled, rpm_limit,
-                       rpd_limit, tpm_limit, tpd_limit,
-                       monthly_token_budget, paid_input_per_m
-                  FROM models WHERE enabled=1
-            """).fetchall()
-            unavailable_charity = [
-                "AgentRouter" for row in db.execute(
-                    "SELECT label FROM api_keys WHERE platform='custom' AND enabled=0"
+            try:
+                models = db.execute("""
+                    SELECT rowid AS _model_db_id,platform,key_id,model_id,enabled,
+                           rpm_limit,rpd_limit,tpm_limit,tpd_limit,context_window,
+                           monthly_token_budget,paid_input_per_m
+                      FROM models WHERE enabled=1
+                """).fetchall()
+            except sqlite3.OperationalError:
+                # Older minimal installations have no context or price fields.
+                models = db.execute("""
+                    SELECT rowid AS _model_db_id,platform,key_id,model_id,enabled,
+                           rpm_limit,rpd_limit,tpm_limit,tpd_limit,
+                           NULL AS context_window,monthly_token_budget,
+                           paid_input_per_m
+                      FROM models WHERE enabled=1
+                """).fetchall()
+            try:
+                row = db.execute("SELECT value FROM settings WHERE key='active_profile_id'").fetchone()
+                profile_id = int(row["value"]) if row and row["value"] else None
+                if profile_id:
+                    profile_ids = {
+                        int(x[0]) for x in db.execute(
+                            "SELECT model_db_id FROM profile_models WHERE profile_id=?",
+                            (profile_id,)
+                        ).fetchall()
+                    }
+                else:
+                    profile_ids = None
+            except (sqlite3.Error, ValueError, TypeError):
+                profile_ids = None
+            inactive = [
+                "AgentRouter" for _ in db.execute(
+                    "SELECT id FROM api_keys WHERE platform='custom' AND enabled=0"
                     " AND lower(COALESCE(label,'')) LIKE '%agentrouter%'"
                 ).fetchall()
             ]
@@ -202,98 +233,121 @@ def freeapi_pool(path: Path = FREELLM_DB) -> dict | None:
         return None
 
     by_provider: dict[str, dict] = {}
+    current_month_usage: dict[str, int] = {}
     total = 0
     now = time.time()
-    # request timestamps (ISO SQLite UTC); do not leak request contents.
-    import datetime as dt
-    current_24h = now - 86400
+    from collections import Counter
+    from datetime import datetime, timezone
+    now_month = datetime.fromtimestamp(now,timezone.utc).strftime("%Y-%m")
     for row in used:
-        plat = str(row["platform"] or "other")
-        tok = nat(row["inp"]) + nat(row["out"])
-        total += tok
-        item = by_provider.setdefault(plat, dict(tokens=0, requests=0, last24h=0))
-        item["tokens"] += tok
+        platform = str(row["platform"] or "other")
+        tokens = nat(row["inp"]) + nat(row["out"])
+        total += tokens
+        item = by_provider.setdefault(platform, dict(tokens=0,requests=0,last24h=0))
+        item["tokens"] += tokens
         item["requests"] += 1
         try:
-            stamp = dt.datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
-            if stamp.tzinfo is None:
-                stamp = stamp.replace(tzinfo=dt.timezone.utc)
-            if stamp.timestamp() >= current_24h:
-                item["last24h"] += tok
-        except ValueError:
+            when = datetime.fromisoformat(str(row["created_at"]).replace("Z","+00:00"))
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=timezone.utc)
+            if when.timestamp() >= now-86400:
+                item["last24h"] += tokens
+            if when.astimezone(timezone.utc).strftime("%Y-%m")==now_month:
+                current_month_usage[platform] = current_month_usage.get(platform,0) + tokens
+        except (ValueError,TypeError):
             pass
+
     active: dict[str, dict] = {}
-    for key in keys:
-        # WorkBuddy is reported separately, not counted as free routing capacity.
-        label = str(key["label"] or "")
-        if key["platform"] == "custom" and "workbuddy" in label.lower():
+    key_counts = Counter()
+    for k in keys:
+        label = str(k["label"] or "")
+        if k["platform"] == "custom" and "workbuddy" in label.lower():
             continue
-        source = str(key["platform"])
+        platform = str(k["platform"])
+        key_counts[platform] += 1
+        source = platform
         if source == "custom":
             from urllib.parse import urlsplit
-            host = urlsplit(str(key["base_url"] or "")).hostname or "custom"
+            host = urlsplit(str(k["base_url"] or "")).hostname or "custom"
             source = "AnyRouter" if "anyrouter" in host else "公益站:" + host[:25]
-        active[source] = dict(platform=str(key["platform"]), id=key["id"], label=label,
-                              models=[], usage=by_provider.get(str(key["platform"]),{}))
-    for model in models:
-        for info in active.values():
+        active[source] = dict(platform=platform,id=k["id"],label=label,models=[],
+                              usage=by_provider.get(platform,{}))
+
+    for r in models:
+        model = dict(r)
+        if profile_ids is not None and int(model["_model_db_id"]) not in profile_ids:
+            continue
+        for source,info in active.items():
             if info["platform"] != model["platform"]:
                 continue
             if info["platform"] == "custom" and model["key_id"] != info["id"]:
                 continue
-            if info["platform"] == "openrouter" and ":free" not in str(model["model_id"] or ""):
+            if info["platform"] == "openrouter" and not str(model["model_id"]).endswith(":free"):
                 continue
-            info["models"].append(dict(model))
-    # Free-rate/rolling pool: label a *forecast* only where actual model
-    # metadata supplies a credible daily or monthly numerical denominator.
-    daily: dict[str, int] = {}
-    monthly: dict[str, int] = {}
-    for provider, info in active.items():
+            info["models"].append(model)
+
+    # Transparent legacy per-day / per-month categories, no longer the main
+    # total. The actual main total is the FreeLLM UI model-aggregate plus a
+    # few documented-but-uncounted free allowances.
+    daily: dict[str,int] = {}
+    monthly: dict[str,int] = {}
+    for source,info in active.items():
         ms = info["models"]
         if not ms:
             continue
         plat = info["platform"]
-        budget = max((nat(m["tpd_limit"]) for m in ms), default=0)
+        budget = max((nat(m.get("tpd_limit")) for m in ms),default=0)
         hints = " ".join(str(m.get("monthly_token_budget") or "") for m in ms)
-        if plat == "llm7" and "100,000 tokens/24h" in hints:
-            budget = max(budget, 100000)
-        if plat == "xkiro" and "500K tokens/day" in hints:
-            budget = max(budget, 500000)
+        if plat=="llm7" and "100,000 tokens/24h" in hints:
+            budget=max(budget,100000)
+        if plat=="xkiro" and "1M tokens/day" in hints:
+            budget=max(budget,1_000_000)
         if budget:
-            daily[provider] = budget
-        if plat == "ollama":
-            # Source's own estimates are ~20-30M per month. Take upper bound
-            # of the shared account pool, never multiply it by model count.
-            matches = re.findall(r"~[0-9.]+-([0-9.]+)M", hints)
+            daily[source]=budget
+        if plat=="ollama":
+            matches=re.findall(r"~[0-9.]+-([0-9.]+)M",hints)
             if matches:
-                monthly[provider] = max(int(float(x) * 1000000) for x in matches)
-        if plat == "mistral" and "$10/month" in hints:
-            # Native Mistral free plan: $10/month shared, use cheapest
-            # explicitly listed input-only price, optimistic by design.
-            prices = [number(m.get("paid_input_per_m")) for m in ms]
-            prices = [v for v in prices if v and v > 0]
+                monthly[source]=max(int(float(x)*1_000_000) for x in matches)
+        if plat=="mistral" and "$10/month" in hints:
+            prices=[number(m.get("paid_input_per_m")) for m in ms]
+            prices=[v for v in prices if v and v>0]
             if prices:
-                monthly[provider] = int(Decimal(10) * Decimal(1000000) / min(prices))
-    # A future 30-day projection is not the present exact balance. For rolling
-    # sources, use full daily throughput; rate-only gateways remain unbounded
-    # over lifetime (subject to time/fair-use).
-    forecast_30d = sum(daily.values()) * FREE_30_DAYS + sum(monthly.values())
-    finite_remaining_today = sum(
-        max(0, cap - by_provider.get(provider, {}).get("last24h", 0))
-        for provider, cap in daily.items()
+                monthly[source]=int(Decimal(10_000_000)/min(prices))
+
+    cap = estimate_capacity(active,dict(key_counts),
+                            current_month_usage=current_month_usage)
+    remaining_today = sum(
+        max(0,limit-by_provider.get(provider,{}).get("last24h",0))
+        for provider,limit in daily.items()
     )
-    rate_only = [p for p,x in active.items() if x["models"] and p not in daily and p not in monthly]
-    unpriced_credit = {"modelscope": "200 credit/天（24h失效，未获可信token兑换率）"} if "modelscope" in rate_only else {}
-    rate_only = [p for p in rate_only if p not in unpriced_credit]
-    unmapped = [p for p,x in active.items() if not x["models"]]
+    rate_only = [source for source,info in active.items()
+                 if info["models"] and source not in daily
+                 and source not in monthly
+                 and source not in cap["derived"]]
+    # ModelScope's daily free credits are never treated as an unlimited pool.
+    # In minimal/older catalogs lacking a context field, report the credit
+    # unit alone instead of inventing a per-token conversion.
+    unpriced_credit = {}
+    if "modelscope" in active and active["modelscope"]["models"]:
+        unpriced_credit["modelscope"] = "200 credit/天（兑换率未核验）"
+        rate_only = [source for source in rate_only if source != "modelscope"]
+    unmapped = [source for source,info in active.items() if not info["models"]]
     return dict(
-        requests=len(used), tokens=total, by_provider=by_provider,
-        active_sources=len(active), mapped_sources=sum(bool(x["models"]) for x in active.values()),
-        renewable_daily=daily, renewable_monthly=monthly,
-        remaining_today=finite_remaining_today,
-        forecast_30d=forecast_30d,
-        rate_only=rate_only, unpriced_credit=unpriced_credit, unmapped=unmapped,
-        unavailable_charity=unavailable_charity,
+        requests=len(used),tokens=total,by_provider=by_provider,
+        active_sources=len(active),
+        mapped_sources=sum(bool(v["models"]) for v in active.values()),
+        renewable_daily=daily,renewable_monthly=monthly,
+        remaining_today=remaining_today,
+        forecast_30d=cap["optimistic_monthly"],
+        native_model_monthly=cap["native_model_monthly"],
+        native_pool_dedup_monthly=cap["native_pool_dedup_monthly"],
+        native_month_used=cap["current_month_used"],
+        optimistic_month_remaining=cap["optimistic_remaining_current_month"],
+        conditional_free_30d=cap["conditional_or_upgrade_total"],
+        rate_only_monthly_throughput=cap["rate_only_throughput_monthly"],
+        capacity=cap,
+        rate_only=rate_only,unpriced_credit=unpriced_credit,unmapped=unmapped,
+        unavailable_charity=inactive,
     )
 
 
@@ -308,13 +362,25 @@ def _balance_fallback(key: str) -> Decimal | None:
     return number(result.get("balance")) if result.get("unit") == "credit" else None
 
 
-def workbuddy_price_basis(usage: dict | None) -> tuple[Decimal, str]:
-    sample_tokens = nat((usage or {}).get("flash_tokens"))
-    sample_credit = (usage or {}).get("flash_credit") or Decimal(0)
-    if sample_tokens and sample_credit > 0:
-        per_m = sample_credit * Decimal(1_000_000) / Decimal(sample_tokens)
-        return per_m, "本地历史 DeepSeek Flash 实际 credit/token 比例"
-    return Decimal(12), "历史样本缺失，暂按12 credit/百万 token"
+def workbuddy_price_basis(usage: dict | None) -> tuple[Decimal,str]:
+    """Use low-decile *actual Flash* costs for an optimistic credit estimate.
+
+    Flash prompt caching causes the cost/token ratio to vary substantially.
+    A positive-sample decile is more defensible than either the weighted
+    average (too conservative for this user's goal) or the single minimum.
+    """
+    candidates = sorted((usage or {}).get("flash_sample_rates") or [])
+    if len(candidates) >= 5:
+        idx = (len(candidates) - 1) // 10
+        per_m = candidates[idx]
+        return per_m, ("历史 DeepSeek Flash 单次有效单价的低10%区间"
+                       f"（{len(candidates)}条≥1000token样本，已考虑缓存）")
+    tokens = nat((usage or {}).get("flash_tokens"))
+    spent = (usage or {}).get("flash_credit") or Decimal(0)
+    if tokens and spent > 0:
+        per_m = spent * Decimal(1_000_000) / Decimal(tokens)
+        return per_m, "历史 DeepSeek Flash 平均实付比例（样本不足）"
+    return Decimal(12), "Flash历史账本缺失，暂用12 credit/百万token"
 
 
 def collect(
@@ -335,7 +401,12 @@ def collect(
         free = dict(tokens=None, requests=None, by_provider={}, active_sources=0,
                     mapped_sources=0, renewable_daily={}, renewable_monthly={},
                     remaining_today=0, forecast_30d=0, rate_only=[], unpriced_credit={}, unmapped=[],
-                    unavailable_charity=[], unreadable=True)
+                    unavailable_charity=[], unreadable=True,
+                    native_model_monthly=0,native_pool_dedup_monthly=0,
+                    native_month_used=0,optimistic_month_remaining=0,
+                    conditional_free_30d=0,rate_only_monthly_throughput=0,
+                    capacity=dict(sources={},derived={},rate_only_estimates={},
+                                  model_count=0))
     balance = pool.get("balance")
     per_m, price_note = workbuddy_price_basis(usage)
     now_equiv = int(balance * 1000000 / per_m) if balance is not None else None
@@ -345,6 +416,8 @@ def collect(
     used_total = (usage or {}).get("tokens", 0) + (free.get("tokens") or 0)
     finite_now = ((now_equiv or 0) + free.get("remaining_today", 0)) if now_equiv is not None else None
     forecast_30d = ((now_equiv or 0) + future_equiv + free30) if now_equiv is not None else None
+    conditional_30d = ((now_equiv or 0) + future_equiv + free.get("conditional_free_30d",free30)) if now_equiv is not None else None
+    rate_ceiling = free.get("rate_only_monthly_throughput",0)
     return dict(
         used_total=used_total,
         free=free,
@@ -366,6 +439,9 @@ def collect(
         ),
         finite_now=finite_now,
         forecast_30d=forecast_30d,
+        conditional_30d=conditional_30d,
+        rate_only_throughput_30d=rate_ceiling,
+        including_rate_only_ceiling=(forecast_30d+rate_ceiling) if forecast_30d is not None else None,
         unreadable=[name for name, data in (("WorkBuddy",usage),("FreeLLMAPI",free))
                     if data is None or data.get("unreadable")],
     )
@@ -386,46 +462,89 @@ def compact(value: int | None) -> str:
 
 
 def render(snapshot: dict, *, detail: bool = False) -> str:
+    """Small QQ-first overview; full source arithmetic in admin detail."""
     wb, free = snapshot["wb"], snapshot["free"]
+    c = free.get("capacity") or {}
+    month = snapshot.get("forecast_30d")
     lines = [
-        "豆子 · 免费模型总账（全部来源、全部历史）",
-        f"累计已用：{snapshot['used_total']:,} tokens",
-        f"已知即时剩余：约 {compact(snapshot['finite_now'])} tokens",
-        f"未来30天理论可用：约 {compact(snapshot['forecast_30d'])} tokens",
-        "（只加有限额度，未计理论不限总额的限速公益池）",
+        "豆子 · 免费模型额度总账",
+        f"累计已用：{snapshot['used_total']:,} tokens（全部已记录历史）",
+        f"现有可折算额度：约 {compact(wb['remaining_tokens_now'])} tokens（WorkBuddy已到账免费包）",
+        f"未来30天乐观总量：约 {compact(month)} tokens",
         "",
-        f"WorkBuddy：已用 {exact(wb['used_tokens'])} tokens；当前约 {compact(wb['remaining_tokens_now'])}",
-        f"  免费账户余额 {wb.get('credit_balance') or '未知'} credit，"
-        f"每日预计增加 {wb['credit_daily']} credit",
-        f"  未来30天可新领约 {wb['credit_future30']} credit",
-        f"FreeLLMAPI 公益路由：已用 {exact(free.get('tokens'))} tokens",
-        f"  有限周期额度：当前24h估剩 {compact(free['remaining_today'])}，"
-        f"30天约 {compact(free['forecast_30d'])}",
-        f"  限速/总额度不明：{len(free['rate_only'])} 个；"
-        f"每日积分无法折Token：{len(free['unpriced_credit'])} 个",
-        f"  其他已配密钥但未映射模型：{len(free['unmapped'])} 个",
+        f"WorkBuddy：已用 {exact(wb['used_tokens'])} tokens；"
+        f"固定/赠送包余额 {wb.get('credit_balance') or '未知'} credit，"
+        f"折合 {compact(wb['remaining_tokens_now'])}",
+        f"  每日签到/活动预计 +{wb['credit_daily']} credit，"
+        f"30天再增加 {compact(wb['additional_tokens_30d'])} tokens",
+        f"FreeLLMAPI：模型面板标称 {compact(free.get('native_model_monthly'))}/月；"
+        f"补算免费额度后 {compact(free.get('forecast_30d'))}/月",
+        f"  当前成功请求累计已用 {exact(free.get('tokens'))} tokens；"
+        f"活跃可映射来源 {free.get('mapped_sources',0)} 个",
     ]
+    derived=c.get("derived") or {}
+    for source,label in (("openrouter","OpenRouter免费模型"),
+                         ("modelscope","ModelScope免费体验")):
+        item=derived.get(source)
+        if item and item.get("increment",0)>0:
+            lines.append(f"  {label}补算：{compact(item['increment'])}/月（极乐观满上下文）")
+    if snapshot.get("rate_only_throughput_30d"):
+        lines.append(f"另有限频可续用的公益池：{len(c.get('rate_only_estimates') or {})} 个；"
+                     "按满窗口连续调用计算吞吐，未当成余额累加")
     if detail:
-        lines.extend(["", "额度依据"])
-        lines.append(f"  WorkBuddy：{wb['price_basis']}；{Decimal(wb['rate_credit_per_m']):.2f} credit/百万 token")
-        lines.append(f"  国际账号每日活跃按最多 {INTL_DAILY_ACTIVITY_ESTIMATE} credit 估；"
-                     "每日奖励需成功签到/活动，未来30天不保证到账")
-        for provider, cap in sorted(free["renewable_daily"].items()):
-            lines.append(f"  {provider}: {compact(cap)} tokens/天（按站点元数据）")
-        for provider, cap in sorted(free["renewable_monthly"].items()):
-            lines.append(f"  {provider}: 约{compact(cap)} tokens/月（部分为宽松推算）")
-        if free["rate_only"]:
-            lines.append("  限频/总额未知站点：" + "、".join(sorted(free["rate_only"])))
-        for provider,note in sorted(free["unpriced_credit"].items()):
-            lines.append(f"  {provider}：{note}")
-        if free["unmapped"]:
-            lines.append("  暂无有效模型映射：" + "、".join(sorted(free["unmapped"])))
-        if free["unavailable_charity"]:
-            lines.append("  暂不可用的公益站：" + "、".join(sorted(free["unavailable_charity"])))
-        lines.append("  FreeLLMAPI经WorkBuddy的请求只记在WorkBuddy，避免重复统计")
+        lines.extend(["", "计算依据（同一共享池可能在模型总额内重复）"])
+        lines.append(
+            f"  FreeLLM原生逐模型预算：{exact(free.get('native_model_monthly'))} tokens/月；"
+            f"共享池去重：{exact(free.get('native_pool_dedup_monthly'))} tokens/月；"
+            f"活跃模型 {c.get('model_count',0)} 个"
+        )
+        lines.append(
+            f"  WorkBuddy当前{wb.get('credit_balance') or '未知'} credit已包含体验包、运营赠送包和免费订阅；"
+            f"未来30天签到预计再领{wb['credit_future30']} credit，"
+            f"按{wb['price_basis']}换算 {Decimal(wb['rate_credit_per_m']):.2f} credit/百万 token"
+        )
+        for source,v in sorted((c.get("sources") or {}).items(),
+                               key=lambda pair: pair[1].get("monthly_optimistic",0),reverse=True):
+            if v["monthly_optimistic"]<=0:
+                continue
+            suffix=(f"（额外补 {compact(v['extra_monthly'])}）"
+                    if v["extra_monthly"] else "")
+            lines.append(f"  {source}：月名义 {compact(v['nominal_monthly'])} → "
+                         f"乐观 {compact(v['monthly_optimistic'])}{suffix}")
+        for source, data in sorted(derived.items()):
+            lines.append("  推算：" + str(data.get("basis") or source))
+        if free.get("renewable_daily"):
+            lines.append("  明确日限额："+"、".join(
+                f"{k} {compact(v)}/天" for k,v in sorted(free["renewable_daily"].items())
+            ))
+        if free.get("rate_only_monthly_throughput"):
+            lines.append(
+                f"  仅限频池24×7满上下文理论吞吐：{compact(free['rate_only_monthly_throughput'])}/30天"
+                "（另计，不当作储值）"
+            )
+            for source,data in sorted((c.get("rate_only_estimates") or {}).items()):
+                lines.append(
+                    f"    {source} {data['basis']} × {data['largest_context']:,} 上下文 ≈ "
+                    f"{compact(data['monthly'])}/30天"
+                )
+        if snapshot.get("conditional_30d") is not None and (
+                snapshot["conditional_30d"] > (month or 0)):
+            lines.append(
+                f"  如果FreeLLM所用OpenRouter密钥拥有充值后1000次/天免费请求资格，"
+                f"30天条件上界 ≈ {compact(snapshot['conditional_30d'])} tokens"
+                "（该密钥资格尚未核验）"
+            )
+        if free.get("unpriced_credit"):
+            lines.append("  积分换算尚未核实：" + "、".join(sorted(free["unpriced_credit"])))
+        if free.get("unmapped"):
+            lines.append("  已配置但无模型映射：" + "、".join(sorted(free["unmapped"])))
+        if free.get("unavailable_charity"):
+            lines.append("  失效公益站：" + "、".join(sorted(free["unavailable_charity"])))
+        lines.append("  FreeLLM→WorkBuddy的请求只归WorkBuddy计数；付费DeepSeek/OpenRouter均未列入")
     if snapshot["unreadable"]:
-        lines.append("部分账本不可读，结果为已知部分："+"、".join(snapshot["unreadable"]))
-    lines.append("注：免费额度会重置或过期；30天数值为乐观容量，未加官方付费DS/OpenRouter，也不包含未折算或无总额公益池。")
+        lines.append("部分账本不可读，只显示已知用量：" + "、".join(snapshot["unreadable"]))
+    lines.append("注：乐观总量包含共享模型额度的重复展示和满上下文推算；"
+                 "续领、限流、调用长度及账户有效性会影响真实可用量。")
     return "\n".join(lines)
 
 

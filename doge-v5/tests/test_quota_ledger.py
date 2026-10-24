@@ -219,6 +219,57 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertIn("部分账本不可读", report)
         self.assertIn("WorkBuddy：已用 不可读", report)
 
+    def test_freellm_monthly_only_includes_active_profile_models(self):
+        self._free()
+        with sqlite3.connect(self.free) as db:
+            db.executescript("""
+                CREATE TABLE settings(key TEXT,value TEXT);
+                CREATE TABLE profile_models(profile_id INTEGER,model_db_id INTEGER);
+                INSERT INTO settings VALUES('active_profile_id','1');
+            """)
+            groq_id = db.execute(
+                "SELECT rowid FROM models WHERE platform='groq' LIMIT 1"
+            ).fetchone()[0]
+            db.execute("INSERT INTO profile_models VALUES(1,?)", (groq_id,))
+        r = freeapi_pool(self.free)
+        self.assertEqual(r["native_model_monthly"],15_000_000)
+        self.assertEqual(r["native_pool_dedup_monthly"],15_000_000)
+        self.assertEqual(r["forecast_30d"],15_000_000)
+        self.assertEqual(r["tokens"],175)  # old successful routes still count
+
+    def test_workbuddy_optimistic_flash_price_uses_real_low_decile(self):
+        rows=[]
+        for rate in range(2,22):
+            # 100K tokens per call, rate/10 credit per request
+            rows.append(dict(
+                model="deepseek-v4.1-flash",prompt_tokens=90_000,
+                completion_tokens=10_000,total_tokens=100_000,
+                credit=rate/10,
+            ))
+        self.wb.write_text(
+            "".join(json.dumps(x)+"\n" for x in rows),
+            encoding="utf-8",
+        )
+        usage=wblog(self.wb)
+        price, basis=workbuddy_price_basis(usage)
+        self.assertEqual(price,3)
+        self.assertIn("低10%",basis)
+        self.assertEqual(usage["flash_tokens"],2_000_000)
+
+    def test_fixed_free_account_packs_not_added_twice_to_balance(self):
+        self._account("fixed",remain=300,daily=100)
+        data=json.loads((self.accounts/"fixed.json").read_text(encoding="utf-8"))
+        data["credits"]["packages"]=[
+            {"name":"Free Plan Subscription","remain":100,"size":100},
+            {"name":"Bonus Pack","remain":200,"size":200},
+        ]
+        (self.accounts/"fixed.json").write_text(
+            json.dumps(data),encoding="utf-8",
+        )
+        result=workbuddy_account_pool(self.accounts,self.activity)
+        self.assertEqual(result["balance"],300)
+        self.assertEqual(result["cn_daily"],100)
+
     def test_registered_command_and_capability(self):
         op=match_invocation("/quota")
         self.assertIsNotNone(op)
