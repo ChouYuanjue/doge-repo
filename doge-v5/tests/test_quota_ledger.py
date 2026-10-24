@@ -151,6 +151,55 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertIn("modelscope", r["unpriced_credit"])
         self.assertNotIn("kilo", r["rate_only"])  # disabled key
         self.assertEqual(r["forecast_30d"], 48000000)
+        self.assertEqual(r["last_successful_route"]["platform"], "openrouter")
+        self.assertEqual(r["last_successful_route"]["model"], "paid-model")
+
+    def test_freellm_last_real_upstream_uses_all_successes_without_double_count(self):
+        self._free()
+        with sqlite3.connect(self.free) as db:
+            stamp=datetime.now(timezone.utc).isoformat()
+            db.execute("INSERT INTO requests VALUES(?,?,?,?,?,?,?)",
+                       ("custom",1,"deepseek-v4.1-flash",stamp,"success",700,30))
+        r=freeapi_pool(self.free)
+        self.assertEqual(r["tokens"],175)  # WorkBuddy is counted in its own ledger
+        self.assertEqual(r["last_successful_route"]["platform"],"WorkBuddy")
+        self.assertEqual(r["last_successful_route"]["model"],"deepseek-v4.1-flash")
+        with sqlite3.connect(self.free) as db:
+            db.execute("INSERT INTO requests VALUES(?,?,?,?,?,?,?)",
+                       ("custom",2,"deepseek-v3",stamp,"success",400,20))
+        r=freeapi_pool(self.free)
+        self.assertEqual(r["last_successful_route"]["platform"],"anyrouter.top")
+        self.assertEqual(r["last_successful_route"]["model"],"deepseek-v3")
+        self.assertEqual(r["tokens"],175+420)
+        with sqlite3.connect(self.free) as db:
+            db.execute("INSERT INTO requests VALUES(?,?,?,?,?,?,?)",
+                       ("custom",1,"unavailable-model",stamp,"error",0,0))
+        self.assertEqual(freeapi_pool(self.free)["last_successful_route"]["model"],"deepseek-v3")
+
+    def test_freellm_auto_shows_upstream_model_source_and_last_success_timestamp(self):
+        self._account("cn",remain=100,daily=100)
+        self._wb()
+        self._free()
+        s=collect(self.data,free_db=self.free,wb_log=self.wb,
+                  accounts_dir=self.accounts,activity_file=self.activity)
+        selected={"source":"freellmapi","model":"auto"}
+        text=render(s,current_model=selected)
+        self.assertIn("当前模型：auto（最近执行：paid-model）\n"
+                      "模型来源：FreeLLMAPI → OpenRouter（网关最近成功 ",text)
+        self.assertEqual(text.splitlines()[3],"")
+        with sqlite3.connect(self.free) as db:
+            db.execute("INSERT INTO requests VALUES(?,?,?,?,?,?,?)",
+                       ("groq",3,"openai/gpt-oss-20b",
+                        datetime.now(timezone.utc).isoformat(),"success",100,10))
+        updated=collect(self.data,free_db=self.free,wb_log=self.wb,
+                        accounts_dir=self.accounts,activity_file=self.activity)
+        newer=render(updated,current_model=selected)
+        self.assertIn("当前模型：auto（最近执行：openai/gpt-oss-20b）\n"
+                      "模型来源：FreeLLMAPI → Groq（网关最近成功 ",newer)
+        self.assertNotIn("当前模型：auto（最近执行：paid-model）",newer)
+        pinned=render(updated,current_model={"source":"freellmapi","model":"pinned-model"})
+        self.assertIn("当前模型：pinned-model\n"
+                      "模型来源：FreeLLMAPI（动态路由，暂无匹配上游记录）",pinned)
 
     def test_total_includes_actual_direct_provider_stats_without_double_counting(self):
         self._account("cn", remain=100, daily=100)
@@ -385,7 +434,7 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertEqual(s["fixed_remaining"],s["wb"]["remaining_tokens_now"]+expected)
         self.assertEqual(s["used_total"],180+175)
         self.assertEqual(s["forecast_30d"],48000000+s["wb"]["additional_tokens_30d"])
-        self.assertEqual(len(render(s).splitlines()),18)  # missing AstrBot ledger warning
+        self.assertEqual(len(render(s).splitlines()),20)  # missing AstrBot ledger warning
 
     def test_short_quota_output_live_usage_ratios_balances_and_si_tokens(self):
         self._account("cn",remain=300,daily=100)
@@ -395,18 +444,21 @@ class FreeQuotaLedgerTests(unittest.TestCase):
                   accounts_dir=self.accounts,activity_file=self.activity)
         content=render(s)
         lines=content.splitlines()
-        self.assertEqual(len(lines),18)  # missing AstrBot ledger warning
+        self.assertEqual(len(lines),20)  # missing AstrBot ledger warning
         self.assertEqual(lines[1],"当前模型：未配置")
-        self.assertEqual(lines[5],"")
-        self.assertEqual(lines[6],"历史比例：")
-        self.assertTrue(lines[7].startswith("缓存命中率： "))
-        self.assertTrue(lines[8].startswith("输入/输出： "))
-        self.assertEqual(lines[9],"")
-        self.assertEqual(lines[10],"免费模型额度：")
-        self.assertEqual(lines[13],"")
-        self.assertEqual(lines[14],"付费模型余额：")
-        self.assertTrue(lines[15].startswith("DeepSeek： "))
-        self.assertTrue(lines[16].startswith("OpenRouter： "))
+        self.assertEqual(lines[2],"模型来源：未知")
+        self.assertEqual(lines[3],"")
+        self.assertTrue(lines[4].startswith("本月消耗："))
+        self.assertEqual(lines[7],"")
+        self.assertEqual(lines[8],"历史比例：")
+        self.assertTrue(lines[9].startswith("缓存命中率： "))
+        self.assertTrue(lines[10].startswith("输入/输出： "))
+        self.assertEqual(lines[11],"")
+        self.assertEqual(lines[12],"免费模型额度：")
+        self.assertEqual(lines[15],"")
+        self.assertEqual(lines[16],"付费模型余额：")
+        self.assertTrue(lines[17].startswith("DeepSeek： "))
+        self.assertTrue(lines[18].startswith("OpenRouter： "))
         for name in ("本月消耗：","历史总消耗：","近7天消耗：",
                      "缓存命中率：","输入/输出：","每月免费额度：~","一次性额度剩余：~",
                      "DeepSeek：","OpenRouter："):
@@ -435,17 +487,17 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         ledger=QuotaLedger(self.data, free_db=self.free, wb_log=self.wb,
                            accounts_dir=self.accounts, activity_file=self.activity)
         first=ledger.display()
-        self.assertIn("当前模型：deepseek-v4.1-flash · WorkBuddy", first)
+        self.assertIn("当前模型：deepseek-v4.1-flash\n模型来源：WorkBuddy\n\n本月消耗：", first)
         self.assertNotIn("disabled-model",first)
         config["provider_settings"]["default_provider_id"]="deepseek/deepseek-v4-flash"
         path.write_text(json.dumps(config),encoding="utf-8")
         second=ledger.display()
-        self.assertIn("当前模型：deepseek-v4-flash · DeepSeek 官方",second)
+        self.assertIn("当前模型：deepseek-v4-flash\n模型来源：DeepSeek 官方",second)
         self.assertNotIn("当前模型：deepseek-v4.1-flash",second)
         selected=ledger.display(current_model={
             "model":"z-ai/glm-5.3-flash","source":"openrouter",
         })
-        self.assertIn("当前模型：z-ai/glm-5.3-flash · OpenRouter",selected)
+        self.assertIn("当前模型：z-ai/glm-5.3-flash\n模型来源：OpenRouter",selected)
         self.assertNotIn("当前模型：deepseek-v4-flash",selected)
 
     def test_registered_command_and_capability(self):

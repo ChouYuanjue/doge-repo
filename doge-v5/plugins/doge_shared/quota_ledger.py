@@ -16,9 +16,10 @@ No user/chat identifiers, API keys, or account file contents are ever retained.
 from __future__ import annotations
 
 from contextlib import closing
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,7 @@ from threading import Lock
 import time
 from typing import Any
 from urllib import request
+from urllib.parse import urlsplit
 
 from .free_capacity import estimate_capacity
 from .fixed_balances import collect_fixed_balances
@@ -194,7 +196,7 @@ def freeapi_pool(path: Path = FREELLM_DB, *, profile: dict | None = None) -> dic
         with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2)) as db:
             db.row_factory = sqlite3.Row
             used = db.execute("""
-                SELECT r.platform,r.model_id,r.created_at,
+                SELECT r.platform,r.model_id,r.created_at,k.base_url AS upstream_base_url,
                        COALESCE(r.input_tokens,0) AS inp,
                        COALESCE(r.output_tokens,0) AS out
                   FROM requests r LEFT JOIN api_keys k ON r.key_id=k.id
@@ -202,7 +204,18 @@ def freeapi_pool(path: Path = FREELLM_DB, *, profile: dict | None = None) -> dic
                    AND NOT (r.platform='custom'
                        AND lower(COALESCE(k.label,'')) LIKE '%workbuddy%')
                    AND (r.platform!='openrouter' OR r.model_id LIKE '%:free')
+                 ORDER BY r.rowid ASC
             """).fetchall()
+            # Separate from the free-usage ledger: forwarding via WorkBuddy
+            # still belongs to WB's token ledger, but is a genuine FreeLLM
+            # upstream route worth displaying.
+            recent = db.execute("""
+                SELECT r.platform,r.model_id,r.created_at,
+                       k.base_url AS upstream_base_url,k.label AS upstream_label
+                  FROM requests r LEFT JOIN api_keys k ON r.key_id=k.id
+                 WHERE r.status='success'
+                 ORDER BY r.rowid DESC LIMIT 1
+            """).fetchone()
             keys = db.execute("""
                 SELECT platform,id,label,base_url
                   FROM api_keys
@@ -358,10 +371,37 @@ def freeapi_pool(path: Path = FREELLM_DB, *, profile: dict | None = None) -> dic
         unpriced_credit["modelscope"] = "200 credit/天（兑换率未核验）"
         rate_only = [source for source in rate_only if source != "modelscope"]
     unmapped = [source for source,info in active.items() if not info["models"]]
+    # This records what the upstream gateway actually served most recently,
+    # not what its dynamic /auto router will necessarily choose next.
+    last_source = str(recent["platform"]) if recent else ""
+    if last_source == "custom":
+        label = str(recent["upstream_label"] or "").lower()
+        if "workbuddy" in label:
+            last_source = "WorkBuddy"
+        else:
+            # Use the public upstream host only, never a saved key label or
+            # private address. Raw base_url may contain credentials.
+            host = urlsplit(str(recent["upstream_base_url"] or "")).hostname or ""
+            try:
+                ipaddress.ip_address(host)
+                host = ""
+            except ValueError:
+                pass
+            if (host and "." in host and re.fullmatch(r"[a-zA-Z0-9.-]{1,160}", host)
+                    and not host.lower().endswith((".local", ".lan", ".internal"))):
+                last_source = host.lower()
+            else:
+                last_source = "自定义上游"
+    last_successful_route = (
+        dict(platform=last_source,model=str(recent["model_id"]),
+             at=str(recent["created_at"]))
+        if recent and recent["platform"] and recent["model_id"] else None
+    )
     return dict(
         requests=len(used),tokens=total,by_provider=by_provider,
         input=total_input,cached=0,output=total_output,
         month_tokens=month_tokens,week_tokens=week_tokens,
+        last_successful_route=last_successful_route,
         active_sources=len(active),
         mapped_sources=sum(bool(v["models"]) for v in active.values()),
         renewable_daily=daily,renewable_monthly=monthly,
@@ -565,17 +605,45 @@ def _money(row: dict | None) -> str:
     return f"{prefix}{amount:,.2f}" if prefix else f"{amount:,.2f} {row.get('currency')}"
 
 
-def _model_label(selected: dict | None) -> str:
+def _model_lines(selected: dict | None,
+                 last_free_route: dict | None = None) -> list[str]:
     if not isinstance(selected, dict) or not selected.get("model"):
-        return "当前模型：未配置"
+        return ["当前模型：未配置", "模型来源：未知"]
     source = str(selected.get("source") or "").strip()
+    model = str(selected["model"]).strip()
+    if source.lower() == "freellmapi":
+        route = last_free_route or {}
+        actual_model = str(route.get("model") or "").replace("\n", " ")[:120].strip()
+        actual_source = str(route.get("platform") or "").replace("\n", " ")[:120].strip()
+        # For /auto a route is selected on each inference request. The latest
+        # completed gateway request is factual; a future route is not knowable.
+        if actual_model and actual_source and model.lower() == "auto":
+            names = {
+                "groq": "Groq", "ollama": "Ollama", "openrouter": "OpenRouter",
+                "zhipu": "智谱", "modelscope": "ModelScope", "ovh": "OVHcloud",
+                "kilo": "Kilo", "xkiro": "xKiro", "mistral": "Mistral",
+                "google": "Google", "cloudflare": "Cloudflare",
+            }
+            actual_source = names.get(actual_source.lower(), actual_source)
+            try:
+                date = datetime.fromisoformat(str(route["at"]).replace("Z", "+00:00"))
+                if date.tzinfo is None:
+                    date = date.replace(tzinfo=timezone.utc)
+                stamp = date.astimezone(BOT_TIMEZONE).strftime("%m-%d %H:%M")
+            except (ValueError, TypeError, KeyError, OverflowError):
+                stamp = "时间未知"
+            return [
+                f"当前模型：auto（最近执行：{actual_model}）",
+                f"模型来源：FreeLLMAPI → {actual_source}（网关最近成功 {stamp}）",
+            ]
+        return [f"当前模型：{model}", "模型来源：FreeLLMAPI（动态路由，暂无匹配上游记录）"]
     source = {
         "deepseek": "DeepSeek 官方",
         "openrouter": "OpenRouter",
         "workbuddy": "WorkBuddy",
         "freellmapi": "FreeLLMAPI",
     }.get(source.lower(), source or "未知来源")
-    return f"当前模型：{selected['model']} · {source}"
+    return [f"当前模型：{model}", f"模型来源：{source}"]
 
 
 def render(snapshot: dict, *, detail: bool = False,
@@ -595,7 +663,11 @@ def render(snapshot: dict, *, detail: bool = False,
     stamp=updated[5:16].replace("T", " ") if len(updated)>=16 else "当前"
     lines=[
         f"模型用量与额度 · {stamp}",
-        _model_label(current_model or snapshot.get("current_model")),
+        *_model_lines(
+            current_model or snapshot.get("current_model"),
+            free.get("last_successful_route"),
+        ),
+        "",
         f"本月消耗：{compact(snapshot.get('used_month'))} tokens",
         f"历史总消耗：{compact(snapshot.get('used_total'))} tokens",
         f"近7天消耗：{compact(snapshot.get('used_week'))} tokens",
