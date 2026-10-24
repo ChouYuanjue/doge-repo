@@ -625,7 +625,21 @@ class DogeCore(Star):
             return
         try:
             service = get_quota_ledger(self.data_root)
-            report = await asyncio.to_thread(service.display, detail=detail)
+            current_model = None
+            try:
+                provider = await self.context.get_using_provider_async(
+                    umo=event.unified_msg_origin,
+                )
+                if provider:
+                    current_model = {
+                        "model": provider.get_model(),
+                        "source": provider.meta().id.split("/", 1)[0],
+                    }
+            except Exception:
+                pass  # Fall back to the live configured default model.
+            report = await asyncio.to_thread(
+                service.display, detail=detail, current_model=current_model,
+            )
         except Exception:
             report = "模型额度统计暂时不可用"
         yield text_result(event, report, markdown=False)

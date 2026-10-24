@@ -21,7 +21,7 @@ from .agent_bridge import DogePresentTool, execute_formal_command
 class DogeQuotaTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_quota"
     description: str = (
-        "查询全局模型Token用量和余额：本月、近7天、历史总消耗、历史缓存命中率和输入输出比例、"
+        "查询当前会话使用的模型名称与来源，以及全局模型Token用量和余额：本月、近7天、历史总消耗、历史缓存命中率和输入输出比例、"
         "基于最新历史比例及当前上下文上限计算的免费每月额度与一次性固定余额，"
         "以及实时查询官方DeepSeek和OpenRouter账户余额。"
         "官方付费余额不会混入免费Token月额度，原始统计依据限管理员。"
@@ -46,7 +46,23 @@ class DogeQuotaTool(FunctionTool[AstrAgentContext]):
         if bool(kwargs.get("detail")) and not is_admin:
             return "原始余额明细仅管理员可查看。可查询用量、历史比例、月额预测及官方余额。"
         service = get_quota_ledger(Path(get_astrbot_data_path()))
-        return await asyncio.to_thread(service.display, detail=bool(kwargs.get("detail")) and is_admin)
+        current_model = None
+        try:
+            star_context = context.context.context
+            provider = await star_context.get_using_provider_async(
+                umo=event.unified_msg_origin,
+            )
+            if provider:
+                current_model = {
+                    "model": provider.get_model(),
+                    "source": provider.meta().id.split("/", 1)[0],
+                }
+        except Exception:
+            pass  # The quota ledger reads the default from the current config.
+        return await asyncio.to_thread(
+            service.display, detail=bool(kwargs.get("detail")) and is_admin,
+            current_model=current_model,
+        )
 
 
 @dataclass

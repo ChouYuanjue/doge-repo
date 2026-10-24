@@ -259,7 +259,7 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         from doge_shared.agent_tools import DogeQuotaTool
 
         class FakeLedger:
-            def display(self, *, detail=False):
+            def display(self, *, detail=False, current_model=None):
                 return "DETAIL:PRIVATE" if detail else "TOTAL:PUBLIC"
 
         tool = DogeQuotaTool()
@@ -272,6 +272,38 @@ class FreeQuotaLedgerTests(unittest.TestCase):
             self.assertIn("仅管理员", asyncio.run(tool.call(user,detail=True)))
             self.assertEqual(asyncio.run(tool.call(admin,detail=True)), "DETAIL:PRIVATE")
             self.assertEqual(mock.call_count, 2)
+
+    def test_bot_quota_tool_prefers_active_conversation_provider(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from doge_shared.agent_tools import DogeQuotaTool
+
+        class CaptureLedger:
+            current_model = None
+            def display(self, *, detail=False, current_model=None):
+                self.current_model = current_model
+                return "CURRENT:SESSION"
+
+        class FakeStarContext:
+            async def get_using_provider_async(self, *, umo):
+                self.used_umo = umo
+                return SimpleNamespace(
+                    get_model=lambda: "z-ai/glm-5.3-flash",
+                    meta=lambda: SimpleNamespace(id="openrouter/z-ai/glm-5.3-flash"),
+                )
+
+        star = FakeStarContext()
+        event = SimpleNamespace(is_admin=lambda: False,
+                                unified_msg_origin="qq:Group:12345")
+        ctx = SimpleNamespace(context=SimpleNamespace(event=event, context=star))
+        ledger = CaptureLedger()
+        with patch("doge_shared.agent_tools.get_quota_ledger", return_value=ledger):
+            self.assertEqual(asyncio.run(DogeQuotaTool().call(ctx)), "CURRENT:SESSION")
+        self.assertEqual(star.used_umo, event.unified_msg_origin)
+        self.assertEqual(ledger.current_model, {
+            "model": "z-ai/glm-5.3-flash", "source": "openrouter",
+        })
 
     def test_report_survives_unavailable_gateway_data(self):
         from doge_shared.quota_ledger import render
@@ -353,7 +385,7 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertEqual(s["fixed_remaining"],s["wb"]["remaining_tokens_now"]+expected)
         self.assertEqual(s["used_total"],180+175)
         self.assertEqual(s["forecast_30d"],48000000+s["wb"]["additional_tokens_30d"])
-        self.assertEqual(len(render(s).splitlines()),17)  # missing AstrBot ledger warning
+        self.assertEqual(len(render(s).splitlines()),18)  # missing AstrBot ledger warning
 
     def test_short_quota_output_live_usage_ratios_balances_and_si_tokens(self):
         self._account("cn",remain=300,daily=100)
@@ -363,17 +395,18 @@ class FreeQuotaLedgerTests(unittest.TestCase):
                   accounts_dir=self.accounts,activity_file=self.activity)
         content=render(s)
         lines=content.splitlines()
-        self.assertEqual(len(lines),17)  # missing AstrBot ledger warning
-        self.assertEqual(lines[4],"")
-        self.assertEqual(lines[5],"历史比例：")
-        self.assertTrue(lines[6].startswith("缓存命中率： "))
-        self.assertTrue(lines[7].startswith("输入/输出： "))
-        self.assertEqual(lines[8],"")
-        self.assertEqual(lines[9],"免费模型额度：")
-        self.assertEqual(lines[12],"")
-        self.assertEqual(lines[13],"付费模型余额：")
-        self.assertTrue(lines[14].startswith("DeepSeek： "))
-        self.assertTrue(lines[15].startswith("OpenRouter： "))
+        self.assertEqual(len(lines),18)  # missing AstrBot ledger warning
+        self.assertEqual(lines[1],"当前模型：未配置")
+        self.assertEqual(lines[5],"")
+        self.assertEqual(lines[6],"历史比例：")
+        self.assertTrue(lines[7].startswith("缓存命中率： "))
+        self.assertTrue(lines[8].startswith("输入/输出： "))
+        self.assertEqual(lines[9],"")
+        self.assertEqual(lines[10],"免费模型额度：")
+        self.assertEqual(lines[13],"")
+        self.assertEqual(lines[14],"付费模型余额：")
+        self.assertTrue(lines[15].startswith("DeepSeek： "))
+        self.assertTrue(lines[16].startswith("OpenRouter： "))
         for name in ("本月消耗：","历史总消耗：","近7天消耗：",
                      "缓存命中率：","输入/输出：","每月免费额度：~","一次性额度剩余：~",
                      "DeepSeek：","OpenRouter："):
@@ -384,6 +417,36 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertIn("M tokens",content)
         self.assertNotIn("单模型",content)
         self.assertNotIn("（输入内）",content)
+
+    def test_current_selected_model_and_gateway_update_on_every_call(self):
+        self._account("cn", remain=200, daily=100)
+        self._wb()
+        self._free()
+        path = self.data/"cmd_config.json"
+        config = {
+            "provider_settings": {"default_provider_id":"workbuddy/deepseek-v4.1-flash"},
+            "provider": [
+                {"id":"workbuddy/deepseek-v4.1-flash", "model":"deepseek-v4.1-flash", "enable":True},
+                {"id":"deepseek/deepseek-v4-flash", "model":"deepseek-v4-flash", "enable":True},
+                {"id":"openrouter/disabled-model", "model":"disabled-model", "enable":False},
+            ],
+        }
+        path.write_text(json.dumps(config), encoding="utf-8")
+        ledger=QuotaLedger(self.data, free_db=self.free, wb_log=self.wb,
+                           accounts_dir=self.accounts, activity_file=self.activity)
+        first=ledger.display()
+        self.assertIn("当前模型：deepseek-v4.1-flash · WorkBuddy", first)
+        self.assertNotIn("disabled-model",first)
+        config["provider_settings"]["default_provider_id"]="deepseek/deepseek-v4-flash"
+        path.write_text(json.dumps(config),encoding="utf-8")
+        second=ledger.display()
+        self.assertIn("当前模型：deepseek-v4-flash · DeepSeek 官方",second)
+        self.assertNotIn("当前模型：deepseek-v4.1-flash",second)
+        selected=ledger.display(current_model={
+            "model":"z-ai/glm-5.3-flash","source":"openrouter",
+        })
+        self.assertIn("当前模型：z-ai/glm-5.3-flash · OpenRouter",selected)
+        self.assertNotIn("当前模型：deepseek-v4-flash",selected)
 
     def test_registered_command_and_capability(self):
         op=match_invocation("/quota")

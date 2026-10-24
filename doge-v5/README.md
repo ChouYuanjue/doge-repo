@@ -120,7 +120,7 @@ RRPL 也按同样原则从“一个 renderer”升级为可理解能力：`/lang
 
 ### 模型用量与额度概览
 
-/quota 展示本月/近7天/历史总Token消耗、全历史实际缓存命中率与输入/输出比例、每月免费可续额度估计、一次性固定额度、以及官方 DeepSeek/OpenRouter 账户余额。统一使用 K/M/B 格式，预测数字使用 ~，而原始账户余额保留原有币种。/quota detail 仅向管理员额外解释统计依据，Bot 通过 doge_quota 读取同一总账。
+/quota 展示当前会话选中的模型名称及路由来源、本月/近7天/历史总Token消耗、全历史实际缓存命中率与输入/输出比例、每月免费可续额度估计、一次性固定额度、以及官方 DeepSeek/OpenRouter 账户余额。当前模型优先从 AstrBot 会话绑定的 Provider 实例解析，无法获取时每次重新读取默认模型配置；OpenRouter、WorkBuddy 等来源按实际使用的接入路由显示。统一使用 K/M/B 格式，预测数字使用 ~，而原始账户余额保留原有币种。/quota detail 仅向管理员额外解释统计依据，Bot 通过 doge_quota 读取同一总账。
 
 - 实际消耗：生产 AstrBot provider_stats 中直接上游调用（包括官方 DeepSeek 和 OpenRouter）与 WorkBuddy、FreeLLMAPI 两个独立网关日志合计。两条网关的 AstrBot provider_stats 不重复计入。成功的完整调用使用未裁剪的真实 token 数；本月日期与近7天均按 Asia/Shanghai 统计。公开展示的历史三项比例使用**全项目历史调用按当前上下文窗口逐条裁剪**的数据，与额度预测统一；管理员明细还可查看未裁剪实际输入、缓存输入与输出比例。对未暴露缓存拆分的上游使用已报告输入Token数并将缓存记为零。
 - 每月预估：FreeLLMAPI 当前启用模型月预算沿用其原生模型清单合计。对仅有限频/请求额而没有 Token 月预算的公益站，使用**整个 Doge 项目部署以来** AstrBot provider_stats 的成功调用统计，逐条将历史输入与输出合计限制在**生产当前最小正数 max_context_tokens**，再求统一请求长度和日调用量；全局估算，不逐模型取巨大上下文值，不假定 24 小时跑满限流。WorkBuddy 按当前免费账号的签到/日活日赠额与**全部实际 DeepSeek Flash 调用的平均 credit/token 成本**折算每月续领量。FreeLLM 原生模型预算为目录估计，可能重复表示同一共享账户池。

@@ -406,6 +406,31 @@ def workbuddy_price_basis(usage: dict | None) -> tuple[Decimal,str]:
     return Decimal(12), "Flash历史账本缺失，暂用12 credit/百万token"
 
 
+def configured_current_model(path: Path) -> dict | None:
+    """Current chat-provider selection from AstrBot config (no API keys read out)."""
+    try:
+        config = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(config, dict):
+        return None
+    settings = config.get("provider_settings") or {}
+    preferred = str(settings.get("default_provider_id") or "") if isinstance(settings, dict) else ""
+    providers = [
+        item for item in config.get("provider", [])
+        if isinstance(item, dict) and item.get("enable", True)
+        and isinstance(item.get("id"), str)
+    ]
+    selected = next((item for item in providers if item["id"] == preferred), None)
+    if selected is None:
+        selected = next(iter(providers), None)
+    if selected is None:
+        return None
+    route = selected["id"].split("/", 1)[0]
+    model = str(selected.get("model") or selected["id"].partition("/")[2]).strip()
+    return {"model": model, "source": route} if model and route else None
+
+
 def collect(
     data_dir: Path, *, free_db: Path = FREELLM_DB,
     wb_log: Path = WORKBUDDY_LOG, accounts_dir: Path = WORKBUDDY_ACCOUNTS,
@@ -474,6 +499,7 @@ def collect(
         direct=direct,
         usage_mix=usage_mix,
         official=official,
+        current_model=configured_current_model(data_dir / "cmd_config.json"),
         updated_at=datetime.now(BOT_TIMEZONE).isoformat(timespec="minutes"),
         free=free,
         wb=dict(
@@ -539,7 +565,21 @@ def _money(row: dict | None) -> str:
     return f"{prefix}{amount:,.2f}" if prefix else f"{amount:,.2f} {row.get('currency')}"
 
 
-def render(snapshot: dict, *, detail: bool = False) -> str:
+def _model_label(selected: dict | None) -> str:
+    if not isinstance(selected, dict) or not selected.get("model"):
+        return "当前模型：未配置"
+    source = str(selected.get("source") or "").strip()
+    source = {
+        "deepseek": "DeepSeek 官方",
+        "openrouter": "OpenRouter",
+        "workbuddy": "WorkBuddy",
+        "freellmapi": "FreeLLMAPI",
+    }.get(source.lower(), source or "未知来源")
+    return f"当前模型：{selected['model']} · {source}"
+
+
+def render(snapshot: dict, *, detail: bool = False,
+           current_model: dict | None = None) -> str:
     """Compact live usage and capacity dashboard for /quota and doge_quota."""
     wb,free=snapshot["wb"],snapshot["free"]
     mix=snapshot.get("usage_mix") or {}
@@ -555,6 +595,7 @@ def render(snapshot: dict, *, detail: bool = False) -> str:
     stamp=updated[5:16].replace("T", " ") if len(updated)>=16 else "当前"
     lines=[
         f"模型用量与额度 · {stamp}",
+        _model_label(current_model or snapshot.get("current_model")),
         f"本月消耗：{compact(snapshot.get('used_month'))} tokens",
         f"历史总消耗：{compact(snapshot.get('used_total'))} tokens",
         f"近7天消耗：{compact(snapshot.get('used_week'))} tokens",
@@ -644,8 +685,9 @@ class QuotaLedger:
             self._at = time.monotonic()
             return json.loads(json.dumps(self._last))
 
-    def display(self, *, detail: bool = False) -> str:
-        return render(self.snapshot(), detail=detail)
+    def display(self, *, detail: bool = False,
+                current_model: dict | None = None) -> str:
+        return render(self.snapshot(), detail=detail, current_model=current_model)
 
 
 @lru_cache(maxsize=3)
