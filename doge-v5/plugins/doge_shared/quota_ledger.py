@@ -558,14 +558,21 @@ def render(snapshot: dict, *, detail: bool = False) -> str:
         f"本月消耗：{compact(snapshot.get('used_month'))} tokens",
         f"历史总消耗：{compact(snapshot.get('used_total'))} tokens",
         f"近7天消耗：{compact(snapshot.get('used_week'))} tokens",
-        f"历史比例：缓存命中 {_pct(predictive_mix.get('cache_hit'))}（输入内）；"
-        f"输入/输出 {_pct(predictive_mix.get('input_share'))}/{_pct(predictive_mix.get('output_share'))}",
-        f"每月预估可续：~{compact(snapshot['forecast_30d'])} tokens",
-        f"固定额度剩余：~{compact(snapshot.get('fixed_remaining'))} tokens",
-        f"官方余额：DeepSeek {_money(providers.get('deepseek'))} · "
-        f"OpenRouter {_money(providers.get('openrouter'))}",
+        "",
+        "历史比例：",
+        f"缓存命中率： {_pct(predictive_mix.get('cache_hit'))}",
+        f"输入/输出： {_pct(predictive_mix.get('input_share'))}/{_pct(predictive_mix.get('output_share'))}",
+        "",
+        "免费模型额度：",
+        f"每月免费额度：~{compact(snapshot['forecast_30d'])} tokens",
+        f"一次性额度剩余：~{compact(snapshot.get('fixed_remaining'))} tokens",
+        "",
+        "付费模型余额：",
+        f"DeepSeek： {_money(providers.get('deepseek'))}",
+        f"OpenRouter： {_money(providers.get('openrouter'))}",
     ]
     if detail:
+        lines.append("")
         lines.append(
             f"月额估算依据（按当前上下文上限截断）：部署以来 {prof.get('requests',0)} 次调用，"
             f"均长 {int(prof.get('avg_request_tokens') or 0):,} tokens，"

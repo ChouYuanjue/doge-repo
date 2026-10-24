@@ -188,8 +188,8 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertEqual(s["fixed_volcengine"],None)
         report = render(s, detail=True)
         self.assertIn("历史总消耗：595 tokens", report)
-        self.assertIn("每月预估可续：~", report)
-        self.assertIn("固定额度剩余：", report)
+        self.assertIn("每月免费额度：~", report)
+        self.assertIn("一次性额度剩余：", report)
         self.assertNotIn("AnyRouter", report)
         self.assertNotIn("999", report)
         self.assertNotIn("secret-account", report)
@@ -353,7 +353,7 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertEqual(s["fixed_remaining"],s["wb"]["remaining_tokens_now"]+expected)
         self.assertEqual(s["used_total"],180+175)
         self.assertEqual(s["forecast_30d"],48000000+s["wb"]["additional_tokens_30d"])
-        self.assertEqual(len(render(s).splitlines()),9)  # missing AstrBot ledger warning
+        self.assertEqual(len(render(s).splitlines()),17)  # missing AstrBot ledger warning
 
     def test_short_quota_output_live_usage_ratios_balances_and_si_tokens(self):
         self._account("cn",remain=300,daily=100)
@@ -362,17 +362,28 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         s=collect(self.data,free_db=self.free,wb_log=self.wb,
                   accounts_dir=self.accounts,activity_file=self.activity)
         content=render(s)
-        self.assertEqual(len(content.splitlines()),9)  # missing AstrBot ledger warning
+        lines=content.splitlines()
+        self.assertEqual(len(lines),17)  # missing AstrBot ledger warning
+        self.assertEqual(lines[4],"")
+        self.assertEqual(lines[5],"历史比例：")
+        self.assertTrue(lines[6].startswith("缓存命中率： "))
+        self.assertTrue(lines[7].startswith("输入/输出： "))
+        self.assertEqual(lines[8],"")
+        self.assertEqual(lines[9],"免费模型额度：")
+        self.assertEqual(lines[12],"")
+        self.assertEqual(lines[13],"付费模型余额：")
+        self.assertTrue(lines[14].startswith("DeepSeek： "))
+        self.assertTrue(lines[15].startswith("OpenRouter： "))
         for name in ("本月消耗：","历史总消耗：","近7天消耗：",
-                     "缓存命中","输入/输出","每月预估可续：~","固定额度剩余：~",
-                     "DeepSeek","OpenRouter"):
+                     "缓存命中率：","输入/输出：","每月免费额度：~","一次性额度剩余：~",
+                     "DeepSeek：","OpenRouter："):
             self.assertIn(name,content)
         self.assertNotIn("豆子",content)
         self.assertNotIn("约",content)
         self.assertNotIn("亿",content)
         self.assertIn("M tokens",content)
         self.assertNotIn("单模型",content)
-        self.assertIn("（输入内）",content)
+        self.assertNotIn("（输入内）",content)
 
     def test_registered_command_and_capability(self):
         op=match_invocation("/quota")
