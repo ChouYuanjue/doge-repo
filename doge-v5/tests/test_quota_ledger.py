@@ -52,9 +52,11 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         rows = [
             {"model": "deepseek-v4.1-flash", "prompt_tokens": 100,
              "completion_tokens": 20, "reasoning_tokens": 18,
-             "cached_tokens": 60, "total_tokens": 120, "credit": 0.12},
+             "cached_tokens": 60, "total_tokens": 120, "credit": 0.12,
+             "at": time.time()},
             {"model": "glm-5.3", "prompt_tokens": 50,
-             "completion_tokens": 10, "total_tokens": 60, "credit": 0.3},
+             "completion_tokens": 10, "total_tokens": 60, "credit": 0.3,
+             "at": time.time()},
         ]
         self.wb.write_text("".join(json.dumps(x) + "\n" for x in rows)+"{\"incomplete\":",encoding="utf-8")
 
@@ -150,47 +152,105 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertNotIn("kilo", r["rate_only"])  # disabled key
         self.assertEqual(r["forecast_30d"], 48000000)
 
-    def test_total_is_lifetime_free_only_and_not_paid_provider_stats(self):
+    def test_total_includes_actual_direct_provider_stats_without_double_counting(self):
         self._account("cn", remain=100, daily=100)
         self._account("intl", remain=200, realm="intl")
         self._activity()
         self._wb()
         self._free()
         with sqlite3.connect(self.data / "data_v4.db") as db:
-            db.execute("CREATE TABLE provider_stats(provider_id TEXT, token_input_other INTEGER)")
-            db.execute("INSERT INTO provider_stats VALUES('deepseek/deepseek-v4-flash',999999999)")
+            db.execute("""CREATE TABLE provider_stats(
+                provider_id TEXT, status TEXT, token_input_other INTEGER,
+                token_input_cached INTEGER, token_output INTEGER,
+                created_at TEXT)""")
+            stamp=datetime.now(timezone.utc).isoformat()
+            db.executemany("INSERT INTO provider_stats VALUES(?,?,?,?,?,?)",[
+                ("deepseek/deepseek-v4-flash", "completed", 100, 40, 10, stamp),
+                ("openrouter/z-ai/glm-5-flash", "completed", 60, 20, 10, stamp),
+                ("workbuddy/deepseek-v4.1-flash", "completed", 999, 0, 0, stamp),
+                ("freellmapi/auto", "completed", 999, 0, 0, stamp),
+                ("deepseek/deepseek-v4-flash", "aborted", 999, 0, 0, stamp),
+            ])
         s = collect(self.data, free_db=self.free, wb_log=self.wb,
                     accounts_dir=self.accounts, activity_file=self.activity)
-        self.assertEqual(s["used_total"], 355)
+        self.assertEqual(s["used_total"], 355 + 240)
+        self.assertEqual(s["used_month"], 355 + 240)
+        self.assertEqual(s["used_week"], 355 + 240)
+        self.assertEqual(s["usage_mix"]["cached_input_tokens"], 60 + 60)
+        self.assertEqual(s["usage_mix"]["input_tokens"], 150 + 140 + 220)
+        self.assertEqual(s["usage_mix"]["output_tokens"], 30 + 35 + 20)
         self.assertEqual(s["wb"]["credit_balance"], "300")
         self.assertEqual(s["wb"]["credit_future30"], "4500")
         self.assertEqual(s["free"]["remaining_today"], 1599875)
-        self.assertEqual(s["forecast_30d"],
-                         s["wb"]["additional_tokens_30d"] + 48000000)
+        self.assertGreaterEqual(s["forecast_30d"],
+                                s["wb"]["additional_tokens_30d"] + 48000000)
         self.assertEqual(s["fixed_remaining"],s["wb"]["remaining_tokens_now"])
         self.assertEqual(s["fixed_volcengine"],None)
         report = render(s, detail=True)
-        self.assertIn("消耗：355 tokens", report)
-        self.assertIn("每月预估：", report)
+        self.assertIn("历史总消耗：595 tokens", report)
+        self.assertIn("每月预估可续：~", report)
         self.assertIn("固定额度剩余：", report)
         self.assertNotIn("AnyRouter", report)
-        self.assertNotIn("999999999", report)
+        self.assertNotIn("999", report)
         self.assertNotIn("secret-account", report)
         self.assertNotIn("very-secret", report)
 
-    def test_cache_shared_for_public_and_detail_views(self):
+    def test_each_invocation_recomputes_balance_and_forecast(self):
         self._account("cn", remain=100, daily=100)
         self._wb()
         self._free()
         ledger = QuotaLedger(self.data, free_db=self.free, wb_log=self.wb,
                              accounts_dir=self.accounts, activity_file=self.activity)
         one=ledger.display()
-        self.assertIn("豆子", one)
+        self.assertNotIn("豆子", one)
         self._account("cn", remain=999, daily=100)
         two=ledger.display(detail=True)
-        self.assertIn("100 credit", two)
-        self.assertNotIn("999 credit", two)
-        self.assertEqual(ledger.snapshot(refresh=True)["wb"]["credit_balance"],"999")
+        self.assertIn("999 credit", two)
+        self.assertNotIn("100 credit", two)
+        self.assertEqual(ledger.snapshot()["wb"]["credit_balance"],"999")
+
+    def test_current_context_and_historical_mix_recalculate_each_time(self):
+        self._account("cn",remain=100,daily=100)
+        self._wb()
+        self._free()
+        fixed=self.data/"plugin_data/doge_core/fixed_balances.json"
+        fixed.parent.mkdir(parents=True)
+        fixed.write_text(json.dumps({"schema":1,"balances":{
+            "volcengine":{"amount":"20","currency":"CNY"},
+        }}))
+        with sqlite3.connect(self.data/"data_v4.db") as db:
+            db.execute("""CREATE TABLE provider_stats(
+                provider_id TEXT,status TEXT,token_input_other INTEGER,
+                token_input_cached INTEGER,token_output INTEGER,created_at TEXT)""")
+            db.execute("INSERT INTO provider_stats VALUES(?,?,?,?,?,?)",
+                ("deepseek/direct","completed",100_000,30_000,20_000,
+                 datetime.now(timezone.utc).isoformat()))
+        config=self.data/"cmd_config.json"
+        config.write_text(json.dumps({"provider":[{"max_context_tokens":14000}]}))
+        ledger=QuotaLedger(self.data,free_db=self.free,wb_log=self.wb,
+                           accounts_dir=self.accounts,activity_file=self.activity)
+        first=ledger.snapshot()
+        self.assertEqual(first["project_profile"]["context_limit"],14000)
+        config.write_text(json.dumps({"provider":[{"max_context_tokens":3000}]}))
+        second=ledger.snapshot()
+        self.assertEqual(second["project_profile"]["context_limit"],3000)
+        self.assertLess(second["project_profile"]["avg_request_tokens"],
+                        first["project_profile"]["avg_request_tokens"])
+        self.assertLess(second["forecast_30d"],first["forecast_30d"])
+        with sqlite3.connect(self.data/"data_v4.db") as db:
+            db.execute("INSERT INTO provider_stats VALUES(?,?,?,?,?,?)",
+                ("openrouter/direct","completed",3000,0,3000,
+                 datetime.now(timezone.utc).isoformat()))
+        third=ledger.snapshot()
+        self.assertEqual(third["project_profile"]["requests"],2)
+        self.assertNotEqual(third["project_profile"]["output_share"],
+                            second["project_profile"]["output_share"])
+        self.assertNotEqual(third["project_profile"]["cached_input_share"],
+                            second["project_profile"]["cached_input_share"])
+        self.assertNotEqual(third["used_total"], second["used_total"])
+        self.assertNotEqual(third["fixed_remaining"], second["fixed_remaining"])
+        self.assertIn(f"{100*third['project_profile']['cached_input_share']:.1f}%",
+                      render(third))
 
     def test_bot_tool_can_read_public_total_but_avoids_private_detail(self):
         import asyncio
@@ -219,7 +279,7 @@ class FreeQuotaLedgerTests(unittest.TestCase):
                                wb_log=self.wb, accounts_dir=self.accounts,
                                activity_file=self.activity))
         self.assertIn("部分账本不可读", report)
-        self.assertIn("消耗：不可读 tokens", report)
+        self.assertIn("历史总消耗：不可读 tokens", report)
 
     def test_freellm_monthly_only_includes_active_profile_models(self):
         self._free()
@@ -293,21 +353,26 @@ class FreeQuotaLedgerTests(unittest.TestCase):
         self.assertEqual(s["fixed_remaining"],s["wb"]["remaining_tokens_now"]+expected)
         self.assertEqual(s["used_total"],180+175)
         self.assertEqual(s["forecast_30d"],48000000+s["wb"]["additional_tokens_30d"])
-        self.assertEqual(len(render(s).splitlines()),4)
+        self.assertEqual(len(render(s).splitlines()),9)  # missing AstrBot ledger warning
 
-    def test_short_quota_output_three_main_values_and_no_model_list(self):
+    def test_short_quota_output_live_usage_ratios_balances_and_si_tokens(self):
         self._account("cn",remain=300,daily=100)
         self._wb()
         self._free()
         s=collect(self.data,free_db=self.free,wb_log=self.wb,
                   accounts_dir=self.accounts,activity_file=self.activity)
         content=render(s)
-        self.assertEqual(len(content.splitlines()),4)
-        for name in ("消耗：","每月预估：","固定额度剩余："):
+        self.assertEqual(len(content.splitlines()),9)  # missing AstrBot ledger warning
+        for name in ("本月消耗：","历史总消耗：","近7天消耗：",
+                     "缓存命中","输入/输出","每月预估可续：~","固定额度剩余：~",
+                     "DeepSeek","OpenRouter"):
             self.assertIn(name,content)
-        self.assertNotIn("openrouter",content.lower())
+        self.assertNotIn("豆子",content)
+        self.assertNotIn("约",content)
+        self.assertNotIn("亿",content)
+        self.assertIn("M tokens",content)
         self.assertNotIn("单模型",content)
-        self.assertNotIn("（",content)
+        self.assertIn("（输入内）",content)
 
     def test_registered_command_and_capability(self):
         op=match_invocation("/quota")

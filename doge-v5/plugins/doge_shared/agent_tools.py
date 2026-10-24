@@ -21,9 +21,10 @@ from .agent_bridge import DogePresentTool, execute_formal_command
 class DogeQuotaTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_quota"
     description: str = (
-        "查询全局免费Token总账：累计消耗、按整个项目历史使用比例及当前上下文上限"
-        "估算的每月可续额度、所有已核实的一次性固定余额剩余。"
-        "不含官方付费DeepSeek或OpenRouter付费额度；详细统计依据限管理员。"
+        "查询全局模型Token用量和余额：本月、近7天、历史总消耗、历史缓存命中率和输入输出比例、"
+        "基于最新历史比例及当前上下文上限计算的免费每月额度与一次性固定余额，"
+        "以及实时查询官方DeepSeek和OpenRouter账户余额。"
+        "官方付费余额不会混入免费Token月额度，原始统计依据限管理员。"
     )
     parameters: dict = Field(default_factory=lambda: {
         "type": "object",
@@ -43,7 +44,7 @@ class DogeQuotaTool(FunctionTool[AstrAgentContext]):
         except Exception:
             pass
         if bool(kwargs.get("detail")) and not is_admin:
-            return "原始余额明细仅管理员可查看。可查询总体Token已用和剩余估算。"
+            return "原始余额明细仅管理员可查看。可查询用量、历史比例、月额预测及官方余额。"
         service = get_quota_ledger(Path(get_astrbot_data_path()))
         return await asyncio.to_thread(service.display, detail=bool(kwargs.get("detail")) and is_admin)
 

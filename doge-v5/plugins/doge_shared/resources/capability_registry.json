@@ -304,7 +304,7 @@
     {
       "id": "core.quota",
       "path": "quota",
-      "summary": "查看免费模型已用及剩余；明细仅管理员。",
+      "summary": "查看本月/历史Token消耗、缓存和输入输出比例、免费额度预测及DeepSeek/OpenRouter官方余额；明细仅管理员。",
       "usage": "/quota [detail]",
       "aliases": [],
       "args": "optional",

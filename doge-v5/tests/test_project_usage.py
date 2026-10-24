@@ -7,9 +7,12 @@ import tempfile
 import unittest
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"plugins"))
-from doge_shared.project_usage import deployment_profile,configured_context
+from doge_shared.project_usage import (
+    deployment_profile, configured_context, period_flags, actual_provider_usage,
+)
 
 
 class DeploymentTokenProfileTests(unittest.TestCase):
@@ -76,6 +79,44 @@ class DeploymentTokenProfileTests(unittest.TestCase):
         self.assertAlmostEqual(s["input_share"],15/16,places=5)
         self.assertAlmostEqual(s["output_share"],1/16,places=5)
         self.assertAlmostEqual(s["cached_input_share"],9000/15000,places=5)
+
+    def test_month_boundary_uses_shanghai_calendar_with_utc_database(self):
+        shanghai=ZoneInfo("Asia/Shanghai")
+        now=datetime(2026,11,1,1,0,tzinfo=shanghai)
+        self.assertEqual(
+            period_flags("2026-10-31 16:30:00", now=now, naive_tz=timezone.utc),
+            (True,True),
+        )
+        self.assertEqual(
+            period_flags("2026-10-31 23:30:00", now=now),
+            (False,True),
+        )
+        self.assertEqual(
+            period_flags("2026-10-02 10:00:00", now=now),
+            (False,False),
+        )
+
+    def test_raw_actual_usage_is_not_clipped_and_excludes_gateway_duplicates(self):
+        now=datetime.now(timezone.utc)
+        stamp=now.isoformat()
+        with sqlite3.connect(self.db) as c:
+            c.executemany("INSERT INTO provider_stats VALUES(?,?,?,?,?,?)",[
+                ("deepseek/direct", "completed", 100_000, 50_000, 10_000, stamp),
+                ("openrouter/direct", "completed", 9_000, 1_000, 1_000, stamp),
+                ("freellmapi/auto", "completed", 999_999, 0, 0, stamp),
+                ("workbuddy/flash", "completed", 999_999, 0, 0, stamp),
+                ("deepseek/direct", "aborted", 999_999, 0, 0, stamp),
+            ])
+        raw=actual_provider_usage(self.db)
+        self.assertEqual(raw["requests"],2)
+        self.assertEqual(raw["tokens"],171_000)
+        self.assertEqual(raw["month_tokens"],171_000)
+        self.assertEqual(raw["week_tokens"],171_000)
+        self.assertEqual(raw["input"],160_000)
+        self.assertEqual(raw["cached"],51_000)
+        self.assertEqual(raw["output"],11_000)
+        capped=deployment_profile(self.db,context_limit=14_000)
+        self.assertLessEqual(capped["avg_request_tokens"],14_000)
 
 
 if __name__=="__main__":

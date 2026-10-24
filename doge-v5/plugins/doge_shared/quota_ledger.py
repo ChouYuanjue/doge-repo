@@ -1,10 +1,12 @@
-"""All-time usage and free-resource availability for Doge.
+"""Actual model usage, free-resource estimates and paid account balances.
 
 Only resources that are free to this operator:
 * WorkBuddy free account credits, including future check-in projections;
 * FreeLLMAPI free provider routes, including community gateways.
 
-Paid direct DeepSeek and paid OpenRouter are explicitly OUT OF SCOPE.
+Paid direct DeepSeek/OpenRouter usage is counted in actual usage, and their
+official account balances are shown separately in their original currencies.
+They are OUT OF SCOPE for free recurring/fixed token capacity totals.
 The FreeLLMAPI router is a view on its underlying sites, not another provider:
 we count its successful upstream requests once. When FreeLLMAPI routes through
 the WorkBuddy proxy, that request belongs only to WorkBuddy's JSONL ledger.
@@ -13,8 +15,8 @@ No user/chat identifiers, API keys, or account file contents are ever retained.
 """
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 import json
@@ -29,7 +31,9 @@ from urllib import request
 
 from .free_capacity import estimate_capacity
 from .fixed_balances import collect_fixed_balances
-from .project_usage import deployment_profile, configured_context
+from .official_balances import collect_official_balances
+from .project_usage import (BOT_TIMEZONE, actual_provider_usage,
+                            deployment_profile, configured_context, period_flags)
 
 FREELLM_DB = Path("/var/lib/freellmapi-lab/freeapi.db")
 WORKBUDDY_LOG = Path("/var/lib/workbuddy-lab/usage/usage.jsonl")
@@ -61,6 +65,7 @@ def wblog(path: Path = WORKBUDDY_LOG) -> dict | None:
     if not path.exists():
         return None
     used = dict(requests=0, tokens=0, input=0, cached=0, output=0,
+                month_tokens=0, week_tokens=0,
                 credit=Decimal(0), flash_credit=Decimal(0), flash_tokens=0,
                 flash_sample_rates=[])
     try:
@@ -84,6 +89,14 @@ def wblog(path: Path = WORKBUDDY_LOG) -> dict | None:
                 used["cached"] += min(inp, nat(event.get("cached_tokens")))
                 used["output"] += output
                 used["credit"] += credit
+                stamp = event.get("at")
+                if stamp is None:
+                    stamp = event.get("iso") or event.get("created_at")
+                this_month, this_week = period_flags(stamp)
+                if this_month:
+                    used["month_tokens"] += tokens
+                if this_week:
+                    used["week_tokens"] += tokens
                 model = str(event.get("model") or "").lower()
                 if "deepseek" in model and "flash" in model and tokens and credit:
                     used["flash_credit"] += credit
@@ -240,14 +253,17 @@ def freeapi_pool(path: Path = FREELLM_DB, *, profile: dict | None = None) -> dic
     by_provider: dict[str, dict] = {}
     current_month_usage: dict[str, int] = {}
     total = 0
+    total_input = total_output = month_tokens = week_tokens = 0
     now = time.time()
     from collections import Counter
-    from datetime import datetime, timezone
-    now_month = datetime.fromtimestamp(now,timezone.utc).strftime("%Y-%m")
+    from datetime import timezone
     for row in used:
         platform = str(row["platform"] or "other")
-        tokens = nat(row["inp"]) + nat(row["out"])
+        inp, out = nat(row["inp"]), nat(row["out"])
+        tokens = inp + out
         total += tokens
+        total_input += inp
+        total_output += out
         item = by_provider.setdefault(platform, dict(tokens=0,requests=0,last24h=0))
         item["tokens"] += tokens
         item["requests"] += 1
@@ -257,10 +273,15 @@ def freeapi_pool(path: Path = FREELLM_DB, *, profile: dict | None = None) -> dic
                 when = when.replace(tzinfo=timezone.utc)
             if when.timestamp() >= now-86400:
                 item["last24h"] += tokens
-            if when.astimezone(timezone.utc).strftime("%Y-%m")==now_month:
-                current_month_usage[platform] = current_month_usage.get(platform,0) + tokens
         except (ValueError,TypeError):
             pass
+        # FreeLLMAPI SQLite timestamps are stored in UTC.
+        this_month, this_week = period_flags(row["created_at"], naive_tz=timezone.utc)
+        if this_month:
+            month_tokens += tokens
+            current_month_usage[platform] = current_month_usage.get(platform,0) + tokens
+        if this_week:
+            week_tokens += tokens
 
     active: dict[str, dict] = {}
     key_counts = Counter()
@@ -339,6 +360,8 @@ def freeapi_pool(path: Path = FREELLM_DB, *, profile: dict | None = None) -> dic
     unmapped = [source for source,info in active.items() if not info["models"]]
     return dict(
         requests=len(used),tokens=total,by_provider=by_provider,
+        input=total_input,cached=0,output=total_output,
+        month_tokens=month_tokens,week_tokens=week_tokens,
         active_sources=len(active),
         mapped_sources=sum(bool(v["models"]) for v in active.values()),
         renewable_daily=daily,renewable_monthly=monthly,
@@ -388,20 +411,24 @@ def collect(
     wb_log: Path = WORKBUDDY_LOG, accounts_dir: Path = WORKBUDDY_ACCOUNTS,
     activity_file: Path = WORKBUDDY_ACTIVITY,
 ) -> dict:
-    # No paid-direct providers, not even if provider_stats contains billions.
+    # Each upstream request is counted exactly once. Direct AstrBot providers
+    # have their own provider_stats records; WB and FreeLLM have upstream logs.
     usage = wblog(wb_log)
+    direct = actual_provider_usage(data_dir / "data_v4.db")
     pool = workbuddy_account_pool(accounts_dir, activity_file)
     context_cap = configured_context(data_dir / "cmd_config.json")
     profile = deployment_profile(data_dir / "data_v4.db", context_limit=context_cap)
     free = freeapi_pool(free_db,profile=profile)
     fixed_extra = collect_fixed_balances(data_dir,free_db,profile)
+    official = collect_official_balances(data_dir / "cmd_config.json")
     if pool is None:
         # WorkBuddy exposes only the currently selected realm. This fallback
         # must be marked partial and may omit other free accounts.
         pool = dict(balance=None, free_accounts=0, cn_daily=Decimal(0),
                     intl_daily=Decimal(0), daily_bonus=Decimal(0), partial=True)
     if free is None:
-        free = dict(tokens=None, requests=None, by_provider={}, active_sources=0,
+        free = dict(tokens=None,requests=None,by_provider={},active_sources=0,
+                    input=0,cached=0,output=0,month_tokens=0,week_tokens=0,
                     mapped_sources=0, renewable_daily={}, renewable_monthly={},
                     remaining_today=0, forecast_30d=0, rate_only=[], unpriced_credit={}, unmapped=[],
                     unavailable_charity=[], unreadable=True,
@@ -416,8 +443,22 @@ def collect(
     future_credit = pool["daily_bonus"] * FREE_30_DAYS
     future_equiv = int(future_credit * 1000000 / per_m)
     free30 = free.get("forecast_30d", 0)
-    used_total = ((usage or {}).get("tokens",0)+(free.get("tokens") or 0)
-                  if usage is not None or free.get("tokens") is not None else None)
+    known_sources = [src for src in (direct, usage, free)
+                     if src is not None and src.get("tokens") is not None]
+    used_total = sum(src["tokens"] for src in known_sources) if known_sources else None
+    used_month = sum(src.get("month_tokens", 0) for src in known_sources) if known_sources else None
+    used_week = sum(src.get("week_tokens", 0) for src in known_sources) if known_sources else None
+    actual_input = sum(src.get("input", 0) for src in known_sources)
+    actual_output = sum(src.get("output", 0) for src in known_sources)
+    actual_cached = sum(src.get("cached", 0) for src in known_sources)
+    actual_io = actual_input + actual_output
+    usage_mix = dict(
+        input_tokens=actual_input,output_tokens=actual_output,
+        cached_input_tokens=actual_cached,
+        cache_hit=actual_cached / actual_input if actual_input else None,
+        input_share=actual_input / actual_io if actual_io else None,
+        output_share=actual_output / actual_io if actual_io else None,
+    )
     # Monthly *renewable* supply and once-only balances must be separate.
     # WorkBuddy gift packages must not be rolled into every future month.
     forecast_30d = (future_equiv + free30) if (usage is not None or not free.get("unreadable")) else None
@@ -428,6 +469,12 @@ def collect(
     rate_ceiling = 0
     return dict(
         used_total=used_total,
+        used_month=used_month,
+        used_week=used_week,
+        direct=direct,
+        usage_mix=usage_mix,
+        official=official,
+        updated_at=datetime.now(BOT_TIMEZONE).isoformat(timespec="minutes"),
         free=free,
         wb=dict(
             used_tokens=(usage or {}).get("tokens"),
@@ -455,7 +502,7 @@ def collect(
         conditional_30d=conditional_30d,
         rate_only_throughput_30d=rate_ceiling,
         including_rate_only_ceiling=(forecast_30d+rate_ceiling) if forecast_30d is not None else None,
-        unreadable=[name for name, data in (("WorkBuddy",usage),("FreeLLMAPI",free))
+        unreadable=[name for name, data in (("AstrBot",direct),("WorkBuddy",usage),("FreeLLMAPI",free))
                     if data is None or data.get("unreadable")],
     )
 
@@ -465,36 +512,87 @@ def exact(value: int | None) -> str:
 
 
 def compact(value: int | None) -> str:
+    """Human-readable SI token scale, with one convention for all quantities."""
     if value is None:
         return "不可读"
-    if value >= 100_000_000:
-        return f"{value / 100_000_000:.2f}亿"
-    if value >= 10_000:
-        return f"{value / 10_000:.1f}万"
+    if value >= 1_000_000_000:
+        return f"{value / 1_000_000_000:.3f}B"
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:.3f}M"
+    if value >= 1_000:
+        return f"{value / 1_000:.3f}K"
     return f"{value:,}"
 
 
+def _pct(value: float | None) -> str:
+    return f"{100*value:.1f}%" if value is not None else "暂无数据"
+
+
+def _money(row: dict | None) -> str:
+    if not row or row.get("status") != "ok":
+        return (row or {}).get("status", "暂不可查")
+    try:
+        amount = Decimal(str(row["amount"]))
+    except (InvalidOperation, ValueError, KeyError):
+        return "暂不可查"
+    prefix = {"CNY": "¥", "USD": "$"}.get(row.get("currency"))
+    return f"{prefix}{amount:,.2f}" if prefix else f"{amount:,.2f} {row.get('currency')}"
+
+
 def render(snapshot: dict, *, detail: bool = False) -> str:
-    """Three short numbers for both the /quota command and the agent."""
+    """Compact live usage and capacity dashboard for /quota and doge_quota."""
     wb,free=snapshot["wb"],snapshot["free"]
+    mix=snapshot.get("usage_mix") or {}
+    prof=snapshot.get("project_profile") or {}
+    predictive_mix=(
+        dict(cache_hit=prof.get("cached_input_share"),
+             input_share=prof.get("input_share"),
+             output_share=prof.get("output_share"))
+        if prof.get("available") else {}
+    )
+    providers=(snapshot.get("official") or {}).get("providers") or {}
+    updated=str(snapshot.get("updated_at") or "")
+    stamp=updated[5:16].replace("T", " ") if len(updated)>=16 else "当前"
     lines=[
-        "豆子 · 免费模型额度",
-        f"消耗：{exact(snapshot['used_total'])} tokens",
-        f"每月预估：约 {compact(snapshot['forecast_30d'])} tokens",
-        f"固定额度剩余：约 {compact(snapshot.get('fixed_remaining'))} tokens",
+        f"模型用量与额度 · {stamp}",
+        f"本月消耗：{compact(snapshot.get('used_month'))} tokens",
+        f"历史总消耗：{compact(snapshot.get('used_total'))} tokens",
+        f"近7天消耗：{compact(snapshot.get('used_week'))} tokens",
+        f"历史比例：缓存命中 {_pct(predictive_mix.get('cache_hit'))}（输入内）；"
+        f"输入/输出 {_pct(predictive_mix.get('input_share'))}/{_pct(predictive_mix.get('output_share'))}",
+        f"每月预估可续：~{compact(snapshot['forecast_30d'])} tokens",
+        f"固定额度剩余：~{compact(snapshot.get('fixed_remaining'))} tokens",
+        f"官方余额：DeepSeek {_money(providers.get('deepseek'))} · "
+        f"OpenRouter {_money(providers.get('openrouter'))}",
     ]
     if detail:
-        prof=snapshot.get("project_profile") or {}
         lines.append(
-            f"估算依据：部署以来 {prof.get('requests',0)} 次调用，"
+            f"月额估算依据（按当前上下文上限截断）：部署以来 {prof.get('requests',0)} 次调用，"
             f"均长 {int(prof.get('avg_request_tokens') or 0):,} tokens，"
             f"上下文限 {int(prof.get('context_limit') or 0):,}，"
             f"输入 {100*prof.get('input_share',0):.1f}% / 输出 {100*prof.get('output_share',0):.1f}%"
         )
+        direct=snapshot.get("direct") or {}
         lines.append(
-            f"月额：FreeLLM免费池约 {compact(free.get('forecast_30d'))} + "
-            f"WorkBuddy每日领取约 {compact(wb.get('additional_tokens_30d'))} tokens；"
-            f"换算 {Decimal(wb['rate_credit_per_m']):.2f} credit/百万tokens"
+            "历史实耗（未截断）："
+            f"AstrBot直连 {exact(direct.get('tokens'))}；"
+            f"WorkBuddy {exact(wb.get('used_tokens'))}；"
+            f"FreeLLMAPI {exact(free.get('tokens'))} tokens"
+        )
+        lines.append(
+            f"历史结构：输入 {exact(mix.get('input_tokens'))}、"
+            f"缓存输入 {exact(mix.get('cached_input_tokens'))}（含于输入）、"
+            f"输出 {exact(mix.get('output_tokens'))} tokens；"
+            "未报告缓存的路由按无缓存计"
+        )
+        lines.append(
+            f"历史实耗比例（未截断）：缓存 {_pct(mix.get('cache_hit'))}；"
+            f"输入/输出 {_pct(mix.get('input_share'))}/{_pct(mix.get('output_share'))}"
+        )
+        lines.append(
+            f"月额：FreeLLM免费池 ~{compact(free.get('forecast_30d'))} + "
+            f"WorkBuddy每日领取 ~{compact(wb.get('additional_tokens_30d'))} tokens；"
+            f"换算 {Decimal(wb['rate_credit_per_m']):.2f} credit/M tokens"
         )
         fixed_parts=[f"WorkBuddy已到账 {wb.get('credit_balance') or '未知'} credit"]
         for row in snapshot.get("fixed_sources",[]):
@@ -506,17 +604,20 @@ def render(snapshot: dict, *, detail: bool = False) -> str:
         missing=snapshot.get("fixed_balance_missing") or []
         if missing:
             lines.append("另有未查询成功的钱包余额："+"、".join(missing))
+        ds=providers.get("deepseek") or {}
+        if ds.get("status")=="ok" and ds.get("granted") is not None:
+            lines.append(f"DeepSeek余额包含赠金 {_money(dict(status='ok',amount=ds['granted'],currency=ds.get('currency')))}")
     if snapshot["unreadable"]:
         lines.append("部分账本不可读："+",".join(snapshot["unreadable"]))
     return "\n".join(lines)
 
 
 class QuotaLedger:
-    """Read-only two-ledger service with a 60-second in-memory result cache."""
+    """Read-only snapshot service; no stale snapshots between /quota calls."""
 
     def __init__(self, data_dir: Path, *, free_db: Path = FREELLM_DB, wb_log: Path = WORKBUDDY_LOG,
                  accounts_dir: Path = WORKBUDDY_ACCOUNTS, activity_file: Path = WORKBUDDY_ACTIVITY,
-                 ttl: float = 60):
+                 ttl: float = 0):
         self.data_dir = Path(data_dir)
         self.free_db = Path(free_db)
         self.wb_log = Path(wb_log)
