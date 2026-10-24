@@ -357,6 +357,31 @@ class FreeQuotaLedgerTests(unittest.TestCase):
             "model": "z-ai/glm-5.3-flash", "source": "openrouter",
         })
 
+    def test_bot_quota_tool_does_not_wait_for_hung_session_model_lookup(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from doge_shared.agent_tools import DogeQuotaTool
+
+        class Ledger:
+            def display(self, *, detail=False, current_model=None):
+                if current_model is not None:
+                    raise AssertionError("Hung session should use live config fallback")
+                return "QUOTA:READY"
+
+        class SlowContext:
+            async def get_using_provider_async(self, *, umo):
+                await asyncio.sleep(5)
+
+        event=SimpleNamespace(is_admin=lambda: False,
+                              unified_msg_origin="test:group:latency")
+        ctx=SimpleNamespace(context=SimpleNamespace(event=event,context=SlowContext()))
+        with patch("doge_shared.agent_tools.get_quota_ledger", return_value=Ledger()):
+            started=time.monotonic()
+            result=asyncio.run(DogeQuotaTool().call(ctx))
+        self.assertEqual(result,"QUOTA:READY")
+        self.assertLess(time.monotonic()-started,0.8)
+
     def test_report_survives_unavailable_gateway_data(self):
         from doge_shared.quota_ledger import render
         report=render(collect(self.data, free_db=self.free,

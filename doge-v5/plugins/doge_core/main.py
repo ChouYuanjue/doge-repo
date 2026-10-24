@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import asyncio
 import re
+import time
 
 import astrbot.api.message_components as Comp
 from astrbot.api import logger
@@ -133,6 +134,9 @@ class DogeCore(Star):
         self.v5_root = Path(__file__).resolve().parents[2]
         self.repo_root = self.v5_root.parent
         self.data_root = Path(get_astrbot_data_path())
+        # Preload monetary balances while AstrBot initializes. /quota must
+        # never wait for remote wallet APIs on its user-visible response path.
+        get_quota_ledger(self.data_root).warm_official_balances()
         self.core_data_dir = Path(StarTools.get_data_dir("doge_core"))
         self.counter = UsageCounter(
             self.core_data_dir / "usage.json",
@@ -615,6 +619,8 @@ class DogeCore(Star):
     @filter.command("quota")
     async def quota(self, event: AstrMessageEvent, mode: str = ""):
         """Global all-time model consumption and remaining balance estimates."""
+        started = time.monotonic()
+        logger.info("doge /quota received")
         mode = str(mode or "").strip().lower()
         if mode and mode not in ("detail", "详细"):
             yield text_result(event, "用法：/quota 或 /quota detail（管理员查看原始余额）", markdown=False)
@@ -627,8 +633,9 @@ class DogeCore(Star):
             service = get_quota_ledger(self.data_root)
             current_model = None
             try:
-                provider = await self.context.get_using_provider_async(
-                    umo=event.unified_msg_origin,
+                provider = await asyncio.wait_for(
+                    self.context.get_using_provider_async(umo=event.unified_msg_origin),
+                    timeout=0.30,
                 )
                 if provider:
                     current_model = {
@@ -637,10 +644,16 @@ class DogeCore(Star):
                     }
             except Exception:
                 pass  # Fall back to the live configured default model.
+            lookup_ms = (time.monotonic() - started) * 1000
             report = await asyncio.to_thread(
                 service.display, detail=detail, current_model=current_model,
             )
-        except Exception:
+            logger.info(
+                f"doge /quota completed in {(time.monotonic() - started) * 1000:.1f} ms "
+                f"(model lookup {lookup_ms:.1f} ms)"
+            )
+        except Exception as exc:
+            logger.warning(f"doge /quota failed ({type(exc).__name__})")
             report = "模型额度统计暂时不可用"
         yield text_result(event, report, markdown=False)
 

@@ -7,10 +7,14 @@ persisted. No paid balance is included in renewable/free-token estimates.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 import json
 from pathlib import Path
+from threading import Event, Lock, Thread
+import time
+from typing import Callable
 from urllib import error, request
 from zoneinfo import ZoneInfo
 
@@ -128,5 +132,101 @@ def _fresh(path: Path) -> dict:
 
 
 def collect_official_balances(path: Path, *, refresh: bool = False) -> dict:
-    """Fetch balances on every /quota invocation; do not reuse stale amounts."""
+    """Synchronous authoritative official read for tests and refresh worker."""
     return _fresh(Path(path))
+
+
+class BackgroundOfficialBalances:
+    """Single-flight wallet refresh; never let HTTPS block a quota response.
+
+    Only parsed monetary balances are retained. Every read can initiate an
+    asynchronous refresh, while repeated calls share its result. Local token
+    accounting remains fully live and independent of this short-lived cache.
+    """
+
+    def __init__(
+        self, path: Path, *,
+        min_interval: float = 5.0,
+        cold_wait: float = 0.15,
+        stale_after: float = 60.0,
+        fetch: Callable[[Path], dict] | None = None,
+    ):
+        self.path = Path(path)
+        self.min_interval = max(0.0, min_interval)
+        self.cold_wait = max(0.0, cold_wait)
+        self.stale_after = max(0.0, stale_after)
+        self._fetch = fetch or collect_official_balances
+        self._lock = Lock()
+        self._event = Event()
+        self._version: tuple[int, int] | None = None
+        self._generation = 0
+        self._inflight: int | None = None
+        self._last_launch = float("-inf")
+        self._last: dict | None = None
+        self._last_at = 0.0
+
+    def _file_version(self) -> tuple[int, int] | None:
+        try:
+            s = self.path.stat()
+            return s.st_mtime_ns, s.st_size
+        except OSError:
+            return None
+
+    def prefetch(self) -> None:
+        version = self._file_version()
+        with self._lock:
+            if version != self._version:
+                self._version = version
+                self._generation += 1
+                self._last = None
+                self._last_at = 0.0
+                self._last_launch = float("-inf")
+                self._event = Event()
+            now = time.monotonic()
+            generation = self._generation
+            if (self._inflight == generation or
+                    now - self._last_launch < self.min_interval):
+                return
+            self._last_launch = now
+            self._inflight = generation
+            event = self._event
+        Thread(
+            target=self._refresh, args=(generation, event),
+            name="doge-quota-wallet-refresh", daemon=True,
+        ).start()
+
+    def _refresh(self, generation: int, event: Event) -> None:
+        try:
+            result = self._fetch(self.path)
+        except Exception:
+            result = {
+                "providers": {name: {"status": "暂不可查"} for name in _ENDPOINTS},
+                "checked_at": datetime.now(TIMEZONE).isoformat(timespec="seconds"),
+            }
+        with self._lock:
+            if generation != self._generation:
+                return  # Discard another account's response after config switch.
+            self._last = result
+            self._last_at = time.monotonic()
+            self._inflight = None
+            event.set()
+
+    def snapshot(self) -> dict:
+        self.prefetch()
+        with self._lock:
+            event = self._event
+            ready = self._last is not None
+        if not ready:
+            event.wait(self.cold_wait)
+        with self._lock:
+            if self._last is None:
+                return {
+                    "providers": {name: {"status": "查询中"} for name in _ENDPOINTS},
+                    "checked_at": None,
+                }
+            result = deepcopy(self._last)
+            if time.monotonic() - self._last_at > self.stale_after:
+                for row in result.get("providers", {}).values():
+                    if row.get("status") == "ok":
+                        row["stale"] = True
+            return result

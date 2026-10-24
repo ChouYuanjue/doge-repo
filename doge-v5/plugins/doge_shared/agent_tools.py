@@ -49,8 +49,9 @@ class DogeQuotaTool(FunctionTool[AstrAgentContext]):
         current_model = None
         try:
             star_context = context.context.context
-            provider = await star_context.get_using_provider_async(
-                umo=event.unified_msg_origin,
+            provider = await asyncio.wait_for(
+                star_context.get_using_provider_async(umo=event.unified_msg_origin),
+                timeout=0.30,
             )
             if provider:
                 current_model = {

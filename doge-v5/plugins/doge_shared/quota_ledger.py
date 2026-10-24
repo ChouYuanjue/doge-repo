@@ -33,7 +33,7 @@ from urllib.parse import urlsplit
 
 from .free_capacity import estimate_capacity
 from .fixed_balances import collect_fixed_balances
-from .official_balances import collect_official_balances
+from .official_balances import BackgroundOfficialBalances, collect_official_balances
 from .project_usage import (BOT_TIMEZONE, actual_provider_usage,
                             deployment_profile, configured_context, period_flags)
 
@@ -475,6 +475,7 @@ def collect(
     data_dir: Path, *, free_db: Path = FREELLM_DB,
     wb_log: Path = WORKBUDDY_LOG, accounts_dir: Path = WORKBUDDY_ACCOUNTS,
     activity_file: Path = WORKBUDDY_ACTIVITY,
+    official_snapshot: dict | None = None,
 ) -> dict:
     # Each upstream request is counted exactly once. Direct AstrBot providers
     # have their own provider_stats records; WB and FreeLLM have upstream logs.
@@ -485,7 +486,8 @@ def collect(
     profile = deployment_profile(data_dir / "data_v4.db", context_limit=context_cap)
     free = freeapi_pool(free_db,profile=profile)
     fixed_extra = collect_fixed_balances(data_dir,free_db,profile)
-    official = collect_official_balances(data_dir / "cmd_config.json")
+    official = (official_snapshot if official_snapshot is not None
+                else collect_official_balances(data_dir / "cmd_config.json"))
     if pool is None:
         # WorkBuddy exposes only the currently selected realm. This fallback
         # must be marked partial and may omit other free accounts.
@@ -602,7 +604,8 @@ def _money(row: dict | None) -> str:
     except (InvalidOperation, ValueError, KeyError):
         return "暂不可查"
     prefix = {"CNY": "¥", "USD": "$"}.get(row.get("currency"))
-    return f"{prefix}{amount:,.2f}" if prefix else f"{amount:,.2f} {row.get('currency')}"
+    label = f"{prefix}{amount:,.2f}" if prefix else f"{amount:,.2f} {row.get('currency')}"
+    return label + ("（刷新中）" if row.get("stale") else "")
 
 
 def _model_lines(selected: dict | None,
@@ -726,7 +729,7 @@ def render(snapshot: dict, *, detail: bool = False,
 
 
 class QuotaLedger:
-    """Read-only snapshot service; no stale snapshots between /quota calls."""
+    """Fresh local stats per request, with nonblocking live wallet refresh."""
 
     def __init__(self, data_dir: Path, *, free_db: Path = FREELLM_DB, wb_log: Path = WORKBUDDY_LOG,
                  accounts_dir: Path = WORKBUDDY_ACCOUNTS, activity_file: Path = WORKBUDDY_ACTIVITY,
@@ -740,13 +743,20 @@ class QuotaLedger:
         self._lock = Lock()
         self._last: dict | None = None
         self._at = -1.0
+        self._wallets = BackgroundOfficialBalances(self.data_dir / "cmd_config.json")
+        self._wallets.prefetch()  # Warm in parallel during startup, never on the event loop.
+
+    def warm_official_balances(self) -> None:
+        self._wallets.prefetch()
 
     def snapshot(self, *, refresh: bool = False) -> dict:
+        official = self._wallets.snapshot()
         with self._lock:
             if not refresh and self._last is not None and time.monotonic() - self._at < self.ttl:
                 return json.loads(json.dumps(self._last))
             self._last = collect(self.data_dir, free_db=self.free_db, wb_log=self.wb_log,
-                                 accounts_dir=self.accounts_dir, activity_file=self.activity_file)
+                                 accounts_dir=self.accounts_dir, activity_file=self.activity_file,
+                                 official_snapshot=official)
             self._at = time.monotonic()
             return json.loads(json.dumps(self._last))
 

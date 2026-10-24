@@ -3,13 +3,17 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from threading import Event
 from unittest.mock import patch
 from urllib.error import HTTPError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "plugins"))
-from doge_shared.official_balances import collect_official_balances, _query
+from doge_shared.official_balances import (
+    BackgroundOfficialBalances, collect_official_balances, _query,
+)
 
 
 class FakeResponse:
@@ -97,6 +101,120 @@ class OfficialBalanceTests(unittest.TestCase):
         with patch("doge_shared.official_balances.request.urlopen",
                    return_value=FakeResponse({"data": {"total_credits": "NaN"}})):
             self.assertEqual(_query("openrouter", "secret")["status"], "响应无效")
+
+    def test_background_wallet_refresh_nonblocking_coalesced_and_updated(self):
+        entered = Event()
+        release = Event()
+        result_ready = Event()
+        calls = []
+
+        def fetch(_path):
+            calls.append(1)
+            entered.set()
+            if len(calls) == 1:
+                release.wait(2)
+            result_ready.set()
+            return {"providers": {
+                "deepseek": {"status": "ok", "amount": str(len(calls)),
+                             "currency": "CNY"},
+                "openrouter": {"status": "ok", "amount": "7.34",
+                               "currency": "USD"},
+            }, "checked_at": "now"}
+
+        cache = BackgroundOfficialBalances(
+            self.path, min_interval=0.2, cold_wait=0.02, fetch=fetch,
+        )
+        started = time.perf_counter()
+        first = cache.snapshot()
+        self.assertLess(time.perf_counter() - started, 0.15)
+        self.assertTrue(entered.wait(1))
+        self.assertEqual(first["providers"]["deepseek"]["status"], "查询中")
+        for _ in range(6):
+            cache.snapshot()
+        self.assertEqual(len(calls), 1)  # Single flight while HTTPS is slow.
+        release.set()
+        self.assertTrue(result_ready.wait(1))
+        for _ in range(100):
+            value = cache.snapshot()
+            if value["providers"]["deepseek"].get("amount") == "1":
+                break
+            time.sleep(.005)
+        self.assertEqual(value["providers"]["deepseek"]["amount"], "1")
+        time.sleep(.21)
+        started = time.perf_counter()
+        previous = cache.snapshot()
+        self.assertLess(time.perf_counter() - started, 0.15)
+        self.assertIn(previous["providers"]["deepseek"]["amount"], ("1", "2"))
+        for _ in range(100):
+            value = cache.snapshot()
+            if value["providers"]["deepseek"].get("amount") == "2":
+                break
+            time.sleep(.005)
+        self.assertEqual(value["providers"]["deepseek"]["amount"], "2")
+        self.assertEqual(len(calls), 2)
+        self.assertNotIn("secret", str(value))
+
+    def test_config_change_invalidates_wallet_without_leaking_old_account(self):
+        old_started, old_release, new_done = Event(), Event(), Event()
+
+        def fetch(path):
+            content = path.read_text(encoding="utf-8")
+            if "old-account" in content:
+                old_started.set()
+                old_release.wait(2)
+                amount = "42.00"
+            else:
+                amount = "13.00"
+                new_done.set()
+            return {"providers": {
+                "deepseek": {"status": "ok", "amount": amount,
+                             "currency": "CNY"},
+                "openrouter": {"status": "未配置"},
+            }, "checked_at": "now"}
+
+        self.path.write_text("old-account", encoding="utf-8")
+        cache = BackgroundOfficialBalances(
+            self.path, min_interval=1, cold_wait=0.01, fetch=fetch,
+        )
+        cache.prefetch()
+        self.assertTrue(old_started.wait(1))
+        self.path.write_text("new-account-with-different-length", encoding="utf-8")
+        value = cache.snapshot()
+        self.assertNotEqual(value["providers"]["deepseek"].get("amount"), "42.00")
+        self.assertTrue(new_done.wait(1))
+        old_release.set()
+        for _ in range(100):
+            value = cache.snapshot()
+            if value["providers"]["deepseek"].get("amount") == "13.00":
+                break
+            time.sleep(.005)
+        self.assertEqual(value["providers"]["deepseek"]["amount"], "13.00")
+
+    def test_old_wallet_result_is_marked_refreshing_without_blocking(self):
+        def fetch(_path):
+            return {"providers": {
+                "deepseek": {"status": "ok", "amount": "12.50", "currency": "CNY"},
+                "openrouter": {"status": "暂不可查"},
+            }, "checked_at": "now"}
+
+        cache = BackgroundOfficialBalances(
+            self.path, min_interval=60, cold_wait=0.1,
+            stale_after=0.01, fetch=fetch,
+        )
+        cache.prefetch()
+        for _ in range(100):
+            value = cache.snapshot()
+            if value["providers"]["deepseek"].get("status") == "ok":
+                break
+            time.sleep(.005)
+        self.assertEqual(value["providers"]["deepseek"]["amount"], "12.50")
+        time.sleep(.02)
+        previous = cache.snapshot()
+        self.assertTrue(previous["providers"]["deepseek"].get("stale"))
+        from doge_shared.quota_ledger import _money
+        self.assertEqual(_money(previous["providers"]["deepseek"]),
+                         "¥12.50（刷新中）")
+        self.assertNotIn("stale",previous["providers"]["openrouter"])
 
 
 if __name__ == "__main__":
