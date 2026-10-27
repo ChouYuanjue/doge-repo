@@ -22,6 +22,11 @@ ALL = {
     "wavelength","extent","sources","decay","theta1","theta2","omega","masses","lengths",
     "infectious","r0","alpha","beta","gamma","delta","capacity","bias","fx","fy","phase",
     "p","q","vectors","a","cells","wavelength","maxh","maxangle","particles","neighbors",
+    "shape","bc","mix","amplitude","refine","aspect","young","density","thickness","length","poisson","f",
+    "potential","levels","mass","hbar","slits","aperture","distance","focal","object","elements","rays",
+    "rho","bloch","gates","theta","phi","beta","events","grains","maxiter","sink",
+    "tones","points","growth","jitter","start","step","multiplier",
+    "angle1","angle2","spacing1","spacing2","phase1","phase2","profile",
 }
 
 # Reject option values that the selected backend cannot consume.
@@ -60,6 +65,18 @@ _OPT_GROUPS = {
     "lattice":"preset vectors a basis cells",
     "xrd":"preset vectors a basis wavelength maxh maxangle width",
     "dla":"particles size seed neighbors",
+    "chladni":"shape bc mode mix amplitude refine aspect young density thickness length poisson",
+    "pde":"shape refine aspect diffusion f init time steps mode",
+    "well":"n levels size range mass hbar potential",
+    "diffraction":"size span wavelength distance angle slits aperture",
+    "lens":"focal object elements rays",
+    "bloch":"rho bloch gates theta phi",
+    "relativity":"beta events",
+    "sandpile":"sites grains size maxiter boundary sink",
+    "moire":"angle1 angle2 spacing1 spacing2 phase1 phase2 profile size",
+    "phyllotaxis":"angle points growth jitter seed",
+    "beats":"tones seconds rate",
+    "number":"size start step points multiplier expr",
 }
 _OPT_KEYS = {key: set(value.split()) for key,value in _OPT_GROUPS.items()}
 _HEAD_TO_GROUP = {
@@ -68,8 +85,10 @@ _HEAD_TO_GROUP = {
     "perc":"percolation","rmt":"randommatrix","bean":"galton",
     "walk":"brownian","langton":"ant","aggregate":"dla",
     "doublependulum":"pendulum","lotka":"predator","rps":"replicator",
-    "diffraction-crystal":"xrd",
-    "xy":"lissajous","slit":"diffraction",
+    "diffraction-crystal":"xrd", "plate":"chladni",
+    "xy":"lissajous","slit":"diffraction","quantumwell":"well",
+    "quantum":"bloch","minkowski":"relativity","sand":"sandpile",
+    "sunflower":"phyllotaxis","beat":"beats",
 }
 def _opt_group(head):
     return _HEAD_TO_GROUP.get(head, head)
@@ -81,6 +100,11 @@ def render_general(output_dir:Path,payload:str):
     from . import visual_lab_stochastic as st
     from . import visual_lab_models as mo
     from . import visual_lab_crystals as cr
+    from . import visual_lab_plate as plate_fem
+    from . import visual_lab_pde as fem_pde
+    from . import visual_lab_quantum_optics as qo
+    from . import visual_lab_remaining as rem
+    from . import visual_lab_patterns as patterns
     try:
         tokens=shlex.split(payload)
     except ValueError as exc:
@@ -94,6 +118,9 @@ def render_general(output_dir:Path,payload:str):
         "ising","percolation","perc","randommatrix","rmt","galton","bean","brownian","walk",
         "ant","langton","chaos","wave","pendulum","doublependulum",
         "sir","predator","lotka","replicator","rps","lissajous","xy","knot","lattice","xrd","diffraction-crystal","dla","aggregate",
+        "chladni","plate","pde","well","quantumwell","diffraction","slit","lens",
+        "bloch","quantum","relativity","minkowski","sandpile","sand",
+        "moire","phyllotaxis","sunflower","beats","beat","number",
     }:
         return None
     args,opt=options(tokens[1:],ALL)
@@ -104,6 +131,81 @@ def render_general(output_dir:Path,payload:str):
     def noextra(maximum):
         if len(args)>maximum:
             raise LabError(f"{head} 位置参数过多；请使用 /lab 查看 -- 选项")
+    if head in {"chladni","plate"}:
+        noextra(2)
+        if args:opt.setdefault("mode",args[0])
+        if len(args)>1:opt.setdefault("mix",args[1])
+        return plate_fem.plate_modes(output_dir,opt)
+    if head=="pde":
+        noextra(1)
+        return fem_pde.pde_general(output_dir,args[0].lower() if args else "poisson",opt)
+    if head in {"well","quantumwell"}:
+        noextra(1)
+        if args:opt.setdefault("n",args[0])
+        return qo.schrodinger_1d(output_dir,opt)
+    if head in {"diffraction","slit"}:
+        noextra(3)
+        if args:
+            import math
+            from .science_expression import float_opt
+            sep=float_opt(args[0],"slit separation",.001,1e4)
+            wd=float_opt(args[1],"slit width",.0001,1e4) if len(args)>1 else 1.
+            if "slits" in opt or "aperture" in opt:
+                raise LabError("使用 --slits/--aperture 时不可同时输入旧版狭缝位置参数")
+            opt.setdefault("slits",f"{-sep/2:g},{wd:g},1,0;{sep/2:g},{wd:g},1,0")
+            if len(args)>2:opt.setdefault("wavelength",args[2])
+        return qo.diffraction_fft(output_dir,opt)
+    if head=="lens":
+        noextra(2)
+        if args:opt.setdefault("focal",args[0])
+        if len(args)>1:opt.setdefault("object",args[1])
+        return qo.ray_transfer(output_dir,opt)
+    if head in {"bloch","quantum"}:
+        noextra(2)
+        if args:opt.setdefault("theta",args[0])
+        if len(args)>1:opt.setdefault("phi",args[1])
+        return rem.bloch_general(output_dir,opt)
+    if head in {"relativity","minkowski"}:
+        noextra(1)
+        if args:opt.setdefault("beta",args[0])
+        return rem.lorentz_general(output_dir,opt)
+    if head in {"sandpile","sand"}:
+        noextra(1)
+        if args:opt.setdefault("grains",args[0])
+        return rem.sandpile_general(output_dir,opt)
+    if head=="moire":
+        noextra(2)
+        if args:opt.setdefault("angle2",args[0])
+        if len(args)>1:
+            opt.setdefault("spacing1",args[1]);opt.setdefault("spacing2",args[1])
+        return patterns.moire_general(output_dir,opt)
+    if head in {"phyllotaxis","sunflower"}:
+        noextra(2)
+        if args:opt.setdefault("angle",args[0])
+        if len(args)>1:opt.setdefault("points",args[1])
+        return patterns.phyllotaxis_general(output_dir,opt)
+    if head in {"beats","beat"}:
+        noextra(3)
+        if args and "tones" in opt:raise LabError("指定 --tones 时不可同时提供旧版双频参数")
+        if args:
+            f1=args[0];f2=args[1] if len(args)>1 else "10"
+            opt.setdefault("tones",f"{f1},1,0;{f2},1,0")
+        if len(args)>2:opt.setdefault("seconds",args[2])
+        return patterns.beats_general(output_dir,opt)
+    if head=="number":
+        if not args:raise LabError("number 使用 ulam / modular")
+        mode=args.pop(0).lower()
+        noextra(2)
+        if mode in {"ulam","prime","primes"}:
+            if set(opt)&{"points","multiplier","expr"}:raise LabError("ulam 不支持模圆参数")
+            if args:opt.setdefault("size",args[0])
+            return patterns.ulam_general(output_dir,opt)
+        if mode in {"modular","mod","circle"}:
+            if set(opt)&{"size","start","step"}:raise LabError("modular 不支持 Ulam 参数")
+            if args:opt.setdefault("multiplier",args[0])
+            if len(args)>1:opt.setdefault("points",args[1])
+            return patterns.modular_general(output_dir,opt)
+        raise LabError("number 支持 ulam 或 modular")
     if head in {"complex","domain"}:
         aliases={"z":"z","id":"z","z2+1":"z^2+1","z3-1":"z^3-1","inv":"1/z",
                  "sin":"sin(z)","sinz":"sin(z)","exp":"exp(z)","expz":"exp(z)"}
@@ -387,6 +489,21 @@ HELP = """/lab 可泛化计算引擎（预设仍可用）
   /lab xrd --vectors "2,0,0;0,3,0;0,0,4" --basis "0,0,0,1;0.5,0.5,0.5,1"
   /lab dla --particles 600 --size 321 --neighbors 4 --seed 123
   /lab life random:123:0.35 120 B36/S23 wrap 121
+  /lab chladni --shape circle --bc free --mode 5 --refine 2 --young 2e11 --thickness 0.001
+  /lab pde poisson --f "sin(pi*x)*sin(pi*y)" --shape lshape --refine 3
+  /lab pde heat --init "exp(-40*((x-.5)^2+(y-.5)^2))" --time 0.2
+  /lab pde eigen --shape circle --mode 4 --refine 3
+  /lab well --potential "50*(x-0.5)^2" --n 3 --mass 1 --levels 5
+  /lab diffraction --aperture "exp(-(x/0.25)^2)" --wavelength 0.5
+  /lab lens --elements "space:1;lens:0.5;space:0.7" --rays "0.1,0;-0.1,0;0,0.03"
+  /lab bloch --rho "0.6,0.1-0.2i,0.1+0.2i,0.4" --gates "H;Rz:45"
+  /lab relativity --beta 0.65 --events "1,0;2,1;3,-1"
+  /lab sandpile --sites "0,0,30000;12,8,8000" --size 151 --boundary open
+  /lab moire --angle1 0 --angle2 7 --spacing1 18 --spacing2 19
+  /lab phyllotaxis --angle 138 --growth 0.7 --jitter 1.5 --seed 12
+  /lab beats --tones "8,1,0;9.3,0.7,90;14,0.5,0" --rate 2048
+  /lab number ulam --size 241 --start 13 --step 2
+  /lab number modular --points 340 --expr "x^2+3*x"
 数值计算使用 SymPy / NumPy / SciPy，绘图使用 Matplotlib / Pillow。
 复函数表达式支持 + - * / ^、sin/cos/tan、exp/log/sqrt、abs/arg/re/im 等；
 不支持任意 Python 代码。计算结果是模型模拟，不代表真实实验数据。"""

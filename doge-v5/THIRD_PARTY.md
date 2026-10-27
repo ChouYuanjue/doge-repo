@@ -33,6 +33,9 @@ No source is copied for these packages:
 - Schemdraw — MIT — `/eng circuit`;
 - python-control — BSD-3-Clause — `/eng control`;
 - SciPy and Matplotlib — engineering and diffraction numerical/plotting runtime;
+- `scikit-fem` `12.0.2` — BSD-3-Clause — real Morley Kirchhoff–Love fourth-order plate FEM and P1 Poisson/heat/membrane PDE solvers under `/lab chladni` / `/lab pde`; native dependency installed in AstrBot Python without copying source;
+- `bgabrovsek/knotpy` — BSD-3-Clause (copyright 2023–2024 KnotPy Developers; source `LICENCE.txt`) — pinned Git revision `b5fcf1a` in `/opt/doge-science/knotpy`. Source kept outside this repo under the original license, with one isolated upstream import-path correction in `knotpy/drawing/draw.py`; `/math knot` calculates Jones/Alexander in unprivileged, networkless bubblewrap workers. `tools/install_science_backends.sh` precisely reproduces the checkout;
+- `tqdm` `4.70.1` — KnotPy runtime dependency;
 - Dans_Diffraction — Apache-2.0 — `/mat crystal`;
 - NetworkX + pydot + system Graphviz — PageRank and local graph/automata rendering;
 - `vl-convert-python` — local Vega-Lite rendering for `/diagram vegalite`;

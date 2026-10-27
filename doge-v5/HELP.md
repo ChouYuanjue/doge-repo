@@ -15,9 +15,9 @@ GROUPS
              认识当前实例、查看运行状态与使用统计。
   research    64  检索 / 科研
              论文、知识检索，以及生化环材、天文和临床数据。
-  compute     26  数学 / 计算机 / AI
+  compute     27  数学 / 计算机 / AI
              精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
-  create      82  排版 / 图形 / 工程
+  create      83  排版 / 图形 / 工程
              排版、结构图、工程系统，以及以图像/动画展示机制的科学实验。
   language    14  语言学
              西夏文、汉字历史音系、RRPL 与构造语言。
@@ -41,8 +41,8 @@ QUICK START
 
 SCALE
   顶层指令       37
-  正式叶子功能   288
-  正式调用形式   583  （含 295 个兼容别名）
+  正式叶子功能   290
+  正式调用形式   585  （含 295 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -448,7 +448,7 @@ BACK
 
 ```text
 COMMAND  /math
-精确/符号计算、微积分、矩阵代数、数论、统计、OEIS、WA 和形式化入口。
+精确/符号计算、数论、矩阵代数、KnotPy 结绳不变量、统计、微积分与形式化证明源码入口。
 
 SUBCOMMANDS
   calc             数学表达式计算。
@@ -486,6 +486,8 @@ SUBCOMMANDS
   formal            4 功能  Lean / Coq(Rocq) / Rzk 轻量形式化入口
   matrix           精确/数值矩阵代数及线性方程组
     /math matrix <operation> <matrix> [--b <matrix>] [--vector <vector>]
+  knot             用开源 KnotPy 对命名结或任意 PD 图计算 Alexander / Jones 多项式与行列式。
+    /math knot <knot-name|pd-diagram> [--poly all|alexander|jones|det]
 
 NEXT
   /help math calc
@@ -752,7 +754,7 @@ BACK
 
 ```text
 COMMAND  /lab
-可视化、模拟与真实数值实验：任意安全表达式、矩阵、方程、初值、随机种子与物理参数；预设仅作快捷入口。
+可视化、模拟与实数值科学计算：可参数化有限元/PDE/薄板振型、波动、复函数、晶体、动力系统和随机模型。
 
 SUBCOMMANDS
   fractal           2 功能  分形
@@ -791,18 +793,18 @@ SUBCOMMANDS
     /lab randommatrix [{ginibre|goe}] [N]
   voronoi          自定义种子点坐标，或用 --count/--seed 随机生成。
     /lab voronoi [points]
-  bloch            Bloch 球
-    /lab bloch [theta_deg] [phi_deg]
-  relativity       Minkowski/狭义相对论图
-    /lab relativity [beta]
+  bloch            单量子比特纯态或混态密度矩阵与酉门演化，实际检查物理性和纯度。
+    /lab bloch [theta_deg] [phi_deg] [--rho a,b,c,d] [--gates H;Rx:90;...]
+  relativity       任意 1+1 时空事件经 Lorentz boost 真实变换并核对不变量。
+    /lab relativity [beta] [--events <ct,x;ct,x;...>]
   spectrum         自定义时间信号 FFT
     /lab spectrum [{sine|square|saw|chirp}] [frequency]
-  sandpile         Abelian sandpile
-    /lab sandpile [grains]
+  sandpile         支持多点投沙、开边界/周期吸收点，执行至真正稳定并验证守恒。
+    /lab sandpile [grains] [--sites x,y,n;...] [--boundary open|wrap] [--sink x,y]
   ant              用自定义多状态转向表运行 Langton ant / turmite。
     /lab ant [steps]
-  moire            莫尔纹
-    /lab moire [angle_deg] [spacing_px]
+  moire            双光栅的独立角度、周期、相位、二值/正弦轮廓模拟与差频空间周期。
+    /lab moire [angle_deg] [spacing_px] [--angle1 deg] [--angle2 deg] [--spacing1 px] [--spacing2 px]
   orbital          真实氢原子解析本征态 ψ_nlm 的二维切片，SciPy 球谐函数及径向 Laguerre 多项式。
     /lab orbital [{1s|2px|2py|3dxy|3dz2}]
   lattice          任意三维 Bravais 晶格基矢及分数原子坐标
@@ -817,23 +819,23 @@ SUBCOMMANDS
     /lab sir [R0] [infectious_days]
   predator         Lotka-Volterra 模型 + 可选有限承载量，初态/积分范围/参数可变。
     /lab predator [alpha] [beta] [delta] [gamma]
-  lens             薄透镜成像
-    /lab lens [focal] [object_distance]
-  well             量子无限深势阱
-    /lab well [n]
-  diffraction      双缝/单缝衍射
-    /lab diffraction [slit_sep] [slit_width] [wavelength]
+  lens             任意多段近轴光学系统，ABCD 传播和透镜矩阵逐段相乘并实际光线追踪。
+    /lab lens [focal] [object_distance] [--elements <space:d;lens:f;...>]
+  well             用户定义任意有限实势 V(x) 的一维定态 Schrödinger 数值本征态。
+    /lab well [n] [--potential <V(x)>] [--range xmin,xmax] [--mass m] [--hbar h]
+  diffraction      任意 1D 复数光阑透过率、多狭缝、相位与屏距的实际 Fraunhofer FFT。
+    /lab diffraction [slit_sep] [slit_width] [wavelength] [--aperture <T(x)>]
   replicator       支持任意 2..6 策略收益矩阵与初始分布，由 SciPy 求解复制子方程。
     /lab replicator [bias]
   life              4 功能  可配置且可接续的 Life-like cellular automaton 动态 GIF：自定义初态、任意合法 B/S 规则、dead/wrap 边界与 per-group/session 最终棋盘状态。
   dla              Diffusion-limited aggregation；自定义随机种子、粒子数、网格、4/8 邻接。
     /lab dla [particles]
-  beats            拍频
-    /lab beats [f1] [f2] [seconds]
-  chladni          Chladni 板振型
-    /lab chladni [m] [n]
-  phyllotaxis      叶序/黄金角
-    /lab phyllotaxis [angle_deg] [points]
+  beats            任意 1..8 路频率/振幅/相位波形叠加及 Hilbert 包络。
+    /lab beats [f1] [f2] [seconds] [--tones f,a,phase;...]
+  chladni          由 scikit-fem Morley 单元求解 Kirchhoff–Love 薄板振型，支持真实边界和材料参数。
+    /lab chladni [mode] [mix] [--shape square|circle|lshape] [--bc free|clamped|simply]
+  phyllotaxis      任意发散角、径向增长指数、随机角扰动及复现种子的植序参数模型。
+    /lab phyllotaxis [angle] [points] [--growth p] [--jitter sigma] [--seed n]
   galton           任意 p 的 Bernoulli/binomial 真实模拟与 SciPy 精确期望对照。
     /lab galton [rows] [balls]
   lissajous        真实参数曲线绘制
@@ -848,6 +850,8 @@ SUBCOMMANDS
     /lab map --eq <x_next;y_next;...> [--params <k=v,...>]
   nbody            2..6 天体可变质量/位置/速度的经典引力数值积分
     /lab nbody [--bodies <m,x,y,vx,vy;...>]
+  pde              通用 2D 有限元：Poisson 源项、热扩散或 Dirichlet Laplace 特征模态。
+    /lab pde <poisson|heat|eigen> [--shape square|circle|lshape] [--refine N]
 
 NEXT
   /help lab fractal
@@ -882,10 +886,10 @@ COMMAND  /lab number
 数论图形
 
 SUBCOMMANDS
-  ulam             Ulam 素数螺旋。
-    /lab number ulam [size]
-  mod              模乘圆。
-    /lab number mod [multiplier] [points]
+  ulam             任意整数起点和步长的 Ulam 式方格螺旋真实素数测试。
+    /lab number ulam [size] [--start n] [--step n]
+  mod              任意安全实函数生成 i->f(i) mod n 的圆周连线。
+    /lab number mod [multiplier] [points] [--expr <f(x)>]
 
 NEXT
   /help lab number ulam

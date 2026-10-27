@@ -153,7 +153,7 @@
       "category": "research"
     },
     "math": {
-      "summary": "精确/符号计算、微积分、矩阵代数、数论、统计、OEIS、WA 和形式化入口。",
+      "summary": "精确/符号计算、数论、矩阵代数、KnotPy 结绳不变量、统计、微积分与形式化证明源码入口。",
       "category": "compute"
     },
     "ai": {
@@ -193,7 +193,7 @@
       "category": "create"
     },
     "lab": {
-      "summary": "可视化、模拟与真实数值实验：任意安全表达式、矩阵、方程、初值、随机种子与物理参数；预设仅作快捷入口。",
+      "summary": "可视化、模拟与实数值科学计算：可参数化有限元/PDE/薄板振型、波动、复函数、晶体、动力系统和随机模型。",
       "category": "create"
     },
     "lang": {
@@ -1259,8 +1259,8 @@
     {
       "id": "lab.ulam",
       "path": "lab number ulam",
-      "summary": "Ulam 素数螺旋。",
-      "usage": "/lab number ulam [size]",
+      "summary": "任意整数起点和步长的 Ulam 式方格螺旋真实素数测试。",
+      "usage": "/lab number ulam [size] [--start n] [--step n]",
       "aliases": [],
       "args": "optional",
       "kind": "command",
@@ -1268,14 +1268,21 @@
         {
           "name": "[size]",
           "description": "可选画布边长，默认 301；偶数会调整为奇数。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "每个格点按 SymPy 真正检查 start + i*step 的素性。"
         }
+      ],
+      "examples": [
+        "/lab number ulam --size 51 --start 13 --step 2"
       ]
     },
     {
       "id": "lab.modcircle",
       "path": "lab number mod",
-      "summary": "模乘圆。",
-      "usage": "/lab number mod [multiplier] [points]",
+      "summary": "任意安全实函数生成 i->f(i) mod n 的圆周连线。",
+      "usage": "/lab number mod [multiplier] [points] [--expr <f(x)>]",
       "aliases": [
         "lab number circle",
         "lab number modcircle"
@@ -1290,7 +1297,14 @@
         {
           "name": "[points]",
           "description": "可选圆周点数，默认 360。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "原乘法图是一个函数特例，所有弦依实际表达式计算。"
         }
+      ],
+      "examples": [
+        "/lab number mod --points 150 --expr 'x^2+3*x'"
       ]
     },
     {
@@ -1653,8 +1667,8 @@
     {
       "id": "lab.bloch",
       "path": "lab bloch",
-      "summary": "Bloch 球",
-      "usage": "/lab bloch [theta_deg] [phi_deg]",
+      "summary": "单量子比特纯态或混态密度矩阵与酉门演化，实际检查物理性和纯度。",
+      "usage": "/lab bloch [theta_deg] [phi_deg] [--rho a,b,c,d] [--gates H;Rx:90;...]",
       "aliases": [
         "lab quantum"
       ],
@@ -1668,14 +1682,21 @@
         {
           "name": "[phi_deg]",
           "description": "可选方位角 φ（度），默认 45。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "正确验证 Hermitian、Tr(ρ)=1、半正定，计算 Bloch 向量、Tr(ρ²) 和门序列。"
         }
+      ],
+      "examples": [
+        "/lab bloch --rho '0.6,0.1-0.2i,0.1+0.2i,0.4' --gates 'H;Rz:45'"
       ]
     },
     {
       "id": "lab.relativity",
       "path": "lab relativity",
-      "summary": "Minkowski/狭义相对论图",
-      "usage": "/lab relativity [beta]",
+      "summary": "任意 1+1 时空事件经 Lorentz boost 真实变换并核对不变量。",
+      "usage": "/lab relativity [beta] [--events <ct,x;ct,x;...>]",
       "aliases": [
         "lab minkowski"
       ],
@@ -1685,7 +1706,14 @@
         {
           "name": "[beta]",
           "description": "可选 β=v/c，默认 0.6；为图形可读性要求 |β|<0.98。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "本命令计算平直 1+1 时空 Lorentz 矩阵，事件间隔前后一致。"
         }
+      ],
+      "examples": [
+        "/lab relativity --beta -0.45 --events '1,0;2,1;3,-1'"
       ]
     },
     {
@@ -1719,8 +1747,8 @@
     {
       "id": "lab.sandpile",
       "path": "lab sandpile",
-      "summary": "Abelian sandpile",
-      "usage": "/lab sandpile [grains]",
+      "summary": "支持多点投沙、开边界/周期吸收点，执行至真正稳定并验证守恒。",
+      "usage": "/lab sandpile [grains] [--sites x,y,n;...] [--boundary open|wrap] [--sink x,y]",
       "aliases": [
         "lab sand"
       ],
@@ -1730,7 +1758,14 @@
         {
           "name": "[grains]",
           "description": "可选中心初始沙粒数，默认 120000。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "确实拓扑至所有格点高度<=3；超过 maxiter 将显式报未收敛而非成功。"
         }
+      ],
+      "examples": [
+        "/lab sandpile --sites '0,0,30000;12,8,8000' --size 151 --boundary open"
       ]
     },
     {
@@ -1760,8 +1795,8 @@
     {
       "id": "lab.moire",
       "path": "lab moire",
-      "summary": "莫尔纹",
-      "usage": "/lab moire [angle_deg] [spacing_px]",
+      "summary": "双光栅的独立角度、周期、相位、二值/正弦轮廓模拟与差频空间周期。",
+      "usage": "/lab moire [angle_deg] [spacing_px] [--angle1 deg] [--angle2 deg] [--spacing1 px] [--spacing2 px]",
       "aliases": [],
       "args": "optional",
       "kind": "command",
@@ -1773,7 +1808,14 @@
         {
           "name": "[spacing_px]",
           "description": "可选条纹间距，默认 18。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "按二维周期函数计算两个光栅的乘积，非手绘莫尔纹。"
         }
+      ],
+      "examples": [
+        "/lab moire --angle1 12 --angle2 30 --spacing1 18 --spacing2 21"
       ]
     },
     {
@@ -1979,8 +2021,8 @@
     {
       "id": "lab.lens",
       "path": "lab lens",
-      "summary": "薄透镜成像",
-      "usage": "/lab lens [focal] [object_distance]",
+      "summary": "任意多段近轴光学系统，ABCD 传播和透镜矩阵逐段相乘并实际光线追踪。",
+      "usage": "/lab lens [focal] [object_distance] [--elements <space:d;lens:f;...>]",
       "aliases": [],
       "args": "optional",
       "kind": "command",
@@ -1992,14 +2034,21 @@
         {
           "name": "[object_distance]",
           "description": "可选物距，默认 180。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "仅近轴薄透镜近似；不包含像差、衍射、色散。"
         }
+      ],
+      "examples": [
+        "/lab lens --elements 'space:1;lens:0.5;space:0.7' --rays '0.1,0;-0.1,0;0,0.03'"
       ]
     },
     {
       "id": "lab.well",
       "path": "lab well",
-      "summary": "量子无限深势阱",
-      "usage": "/lab well [n]",
+      "summary": "用户定义任意有限实势 V(x) 的一维定态 Schrödinger 数值本征态。",
+      "usage": "/lab well [n] [--potential <V(x)>] [--range xmin,xmax] [--mass m] [--hbar h]",
       "aliases": [
         "lab quantumwell"
       ],
@@ -2009,14 +2058,21 @@
         {
           "name": "[n]",
           "description": "可选量子数，默认 1，限制 1–12。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "SciPy 有界稀疏本征值和归一化，有限区间 Dirichlet 边界；不是任意多体量子力学。"
         }
+      ],
+      "examples": [
+        "/lab well --potential '60*(x-0.45)^2' --n 4 --levels 6 --size 700"
       ]
     },
     {
       "id": "lab.diffraction",
       "path": "lab diffraction",
-      "summary": "双缝/单缝衍射",
-      "usage": "/lab diffraction [slit_sep] [slit_width] [wavelength]",
+      "summary": "任意 1D 复数光阑透过率、多狭缝、相位与屏距的实际 Fraunhofer FFT。",
+      "usage": "/lab diffraction [slit_sep] [slit_width] [wavelength] [--aperture <T(x)>]",
       "aliases": [
         "lab slit"
       ],
@@ -2034,7 +2090,15 @@
         {
           "name": "[wavelength]",
           "description": "可选波长，默认 0.5；三者须为正。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "标量一维远场 Fraunhofer；衍射强度来自真实 FFT，并非近场传播。"
         }
+      ],
+      "examples": [
+        "/lab diffraction --aperture 'exp(-(x/0.2)^2)' --wavelength 0.5 --distance 3",
+        "/lab diffraction --slits '-2,1,1,0;2,1,0.5,90' --wavelength .7"
       ]
     },
     {
@@ -2171,8 +2235,8 @@
     {
       "id": "lab.beats",
       "path": "lab beats",
-      "summary": "拍频",
-      "usage": "/lab beats [f1] [f2] [seconds]",
+      "summary": "任意 1..8 路频率/振幅/相位波形叠加及 Hilbert 包络。",
+      "usage": "/lab beats [f1] [f2] [seconds] [--tones f,a,phase;...]",
       "aliases": [
         "lab beat"
       ],
@@ -2190,14 +2254,21 @@
         {
           "name": "[seconds]",
           "description": "可选显示时长秒，默认 3。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "真实时域采样；多频不强行声称存在唯一拍频。"
         }
+      ],
+      "examples": [
+        "/lab beats --tones '8,1,0;9.3,0.7,90;14,0.5,0' --rate 2048"
       ]
     },
     {
       "id": "lab.chladni",
       "path": "lab chladni",
-      "summary": "Chladni 板振型",
-      "usage": "/lab chladni [m] [n]",
+      "summary": "由 scikit-fem Morley 单元求解 Kirchhoff–Love 薄板振型，支持真实边界和材料参数。",
+      "usage": "/lab chladni [mode] [mix] [--shape square|circle|lshape] [--bc free|clamped|simply]",
       "aliases": [
         "lab plate"
       ],
@@ -2211,14 +2282,22 @@
         {
           "name": "[n]",
           "description": "可选第二模态序号，默认 3，不能与 m 相同。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "FEM 真正装配四阶薄板刚度/质量矩阵并求广义特征向量。两个模态叠加是快照，不是单一驻波。"
         }
+      ],
+      "examples": [
+        "/lab chladni --shape circle --bc free --mode 5 --refine 2 --young 2e11",
+        "/lab chladni --shape lshape --bc clamped --mode 2 --thickness .002"
       ]
     },
     {
       "id": "lab.phyllotaxis",
       "path": "lab phyllotaxis",
-      "summary": "叶序/黄金角",
-      "usage": "/lab phyllotaxis [angle_deg] [points]",
+      "summary": "任意发散角、径向增长指数、随机角扰动及复现种子的植序参数模型。",
+      "usage": "/lab phyllotaxis [angle] [points] [--growth p] [--jitter sigma] [--seed n]",
       "aliases": [
         "lab sunflower"
       ],
@@ -2232,7 +2311,14 @@
         {
           "name": "[points]",
           "description": "可选点数，默认 1800。"
+        },
+        {
+          "name": "[--general-options]",
+          "description": "几何位置直接来自 r_k ~ k^growth 和 θ_k=k·angle+jitter；不声称真实植物观测。"
         }
+      ],
+      "examples": [
+        "/lab phyllotaxis --angle 138 --growth .7 --jitter 1.5 --seed 12"
       ]
     },
     {
@@ -4591,6 +4677,46 @@
       "kind": "command",
       "examples": [
         "/lab nbody --bodies '1,-1,0,0,.5;1,1,0,0,-.5' --time 12"
+      ]
+    },
+    {
+      "id": "math.knot",
+      "path": "math knot",
+      "summary": "用开源 KnotPy 对命名结或任意 PD 图计算 Alexander / Jones 多项式与行列式。",
+      "usage": "/math knot <knot-name|pd-diagram> [--poly all|alexander|jones|det]",
+      "args": "required",
+      "aliases": [],
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[--options]",
+          "description": "这是已安装真实不变量引擎，在无网络低权限的 bubblewrap 容器中独立执行。只对输入的结图负责；多项式不能唯一决定同痕。"
+        }
+      ],
+      "examples": [
+        "/math knot 4_1",
+        "/math knot 7_2 --poly alexander",
+        "/math knot pd '[[1,5,2,4],[3,1,4,6],[5,3,6,2]]'"
+      ]
+    },
+    {
+      "id": "lab.pde",
+      "path": "lab pde",
+      "summary": "通用 2D 有限元：Poisson 源项、热扩散或 Dirichlet Laplace 特征模态。",
+      "usage": "/lab pde <poisson|heat|eigen> [--shape square|circle|lshape] [--refine N]",
+      "args": "required",
+      "aliases": [],
+      "kind": "command",
+      "parameters": [
+        {
+          "name": "[--options]",
+          "description": "scikit-fem P1 三角网格，SciPy sparse 线性求解/隐式 Euler/eigsh；齐次 Dirichlet 边界，有限几何集合。"
+        }
+      ],
+      "examples": [
+        "/lab pde poisson --f 'sin(pi*x)*sin(pi*y)' --shape lshape",
+        "/lab pde heat --init 'exp(-40*((x-.5)^2+(y-.5)^2))' --time .2",
+        "/lab pde eigen --shape circle --mode 4"
       ]
     }
   ],

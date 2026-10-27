@@ -1,5 +1,5 @@
 name: doge_math
-version: 5.4.0
-desc: Doge 精确/符号数学、数论、统计、WA 与形式化入口
+version: 5.5.0
+desc: Doge 符号数学、矩阵代数、结绳不变量、数论与形式化入口
 author: runnel
 repo: https://github.com/ChouYuanjue/doge-repo

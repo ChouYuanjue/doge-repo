@@ -13,6 +13,7 @@ from data.plugins.doge_shared.presentation import text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
 from data.plugins.doge_shared.services import MathService
 from data.plugins.doge_shared.math_matrices import matrix_op
+from data.plugins.doge_shared.math_knot import knot_invariant
 
 
 def _opts(text: str, allowed: set[str]) -> tuple[str, dict[str, str]]:
@@ -36,7 +37,7 @@ def _opts(text: str, allowed: set[str]) -> tuple[str, dict[str, str]]:
     return " ".join(body).strip(), options
 
 
-@register("doge_math", "runnel", "Doge 精确/符号数学、数论、统计、WA 与形式化入口", "5.4.0")
+@register("doge_math", "runnel", "Doge 符号数学、矩阵代数、结绳不变量、数论与形式化入口", "5.5.0")
 class DogeMath(Star):
     def __init__(self, context: Context, config=None):
         super().__init__(context)
@@ -66,7 +67,7 @@ class DogeMath(Star):
             action = parts[0].lower(); rest = parts[1] if len(parts) > 1 else ""
             aliases = {"system": "base", "derive": "diff", "int": "integrate", "lim": "limit", "wolfram": "wa", "rocq": "formal"}
             action = aliases.get(action, action)
-            if action in {"calc","base","pi","oeis","numeric","simplify","expand","factor","solve","diff","integrate","limit","factorint","prime","stats","wa","formal","matrix"}:
+            if action in {"calc","base","pi","oeis","numeric","simplify","expand","factor","solve","diff","integrate","limit","factorint","prime","stats","wa","formal","matrix","knot"}:
                 help_topic = f"math {action}"
 
             if action == "calc":
@@ -128,6 +129,11 @@ class DogeMath(Star):
                 if not matrix_source:
                     raise ValueError("矩阵不能为空，例如 1,2;3,4")
                 result = matrix_op(op, matrix_source, other=opts.get("b"), vector=opts.get("vector"))
+            elif action == "knot":
+                source, opts = _opts(rest, {"poly"})
+                if not source:
+                    raise ValueError("用法：/math knot 4_1 或 /math knot pd '[[1,5,2,4],[3,1,4,6],[5,3,6,2]]' [--poly all|alexander|jones|det]")
+                result = await knot_invariant(source, opts.get("poly","all"))
             elif action == "formal":
                 fparts = split_head(rest, 1)
                 if not fparts:
