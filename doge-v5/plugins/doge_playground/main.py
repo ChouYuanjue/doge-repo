@@ -28,6 +28,12 @@ class DogePlayground(Star):
         self.mode_path = self.data_dir / 'fourier-modes.json'
         self.modes = self._load_modes()
         self.life_store = LifeSessionStore(self.data_dir / 'life_states')
+        # Bound concurrent CPU-heavy science jobs on the small production VPS.
+        self.lab_semaphore = asyncio.Semaphore(2)
+
+    async def _run_lab(self, func, *args, **kwargs):
+        async with self.lab_semaphore:
+            return await asyncio.to_thread(func, *args, **kwargs)
 
     def _load_modes(self):
         # Preserve existing /fourier mode preferences when migrating from the
@@ -115,7 +121,7 @@ class DogePlayground(Star):
                     state=self.life_store.load(event.unified_msg_origin)
                     if state is None: raise FunLabError("当前群/会话没有可接续的 Life 状态；先运行一次 /lab life ...")
                     steps,rule,boundary=self._life_continue_args(rest[1:],state)
-                    path,caption,board,rule_name,boundary_name=await asyncio.to_thread(
+                    path,caption,board,rule_name,boundary_name=await self._run_lab(
                         life_stateful,self.data_dir,state["label"],steps,rule,boundary,int(state["board"].shape[0]),
                         initial=state["board"],seed_label=state["label"],generation_offset=state["generation"],
                     )
@@ -123,12 +129,12 @@ class DogePlayground(Star):
                     self.life_store.save(event.unified_msg_origin,board,rule=rule_name,boundary=boundary_name,label=state["label"],generation=state["generation"]+actual_steps)
                     yield image_result(event,path,caption); return
                 seed,steps,rule,boundary,size=_parse_life_cli(rest)
-                path,caption,board,rule_name,boundary_name=await asyncio.to_thread(life_stateful,self.data_dir,seed,steps,rule,boundary,size)
+                path,caption,board,rule_name,boundary_name=await self._run_lab(life_stateful,self.data_dir,seed,steps,rule,boundary,size)
                 actual_steps=max(1,min(int(steps),5000))
                 label=caption.split("初态 ",1)[1].split("（",1)[0] if "初态 " in caption else str(seed)
                 self.life_store.save(event.unified_msg_origin,board,rule=rule_name,boundary=boundary_name,label=label,generation=actual_steps)
                 yield image_result(event,path,caption); return
-            path, caption = await asyncio.to_thread(lab_render, self.data_dir, payload)
+            path, caption = await self._run_lab(lab_render, self.data_dir, payload)
             yield image_result(event, path, caption)
         except (LabError, FunLabError, ValueError) as exc:
             yield text_result(event, format_cli_error('lab', exc), markdown=False)

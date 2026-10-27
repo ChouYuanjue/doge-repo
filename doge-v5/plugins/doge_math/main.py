@@ -12,6 +12,7 @@ from data.plugins.doge_shared.lookup import LookupService
 from data.plugins.doge_shared.presentation import text_result
 from data.plugins.doge_shared.raw_command import command_payload, split_head
 from data.plugins.doge_shared.services import MathService
+from data.plugins.doge_shared.math_matrices import matrix_op
 
 
 def _opts(text: str, allowed: set[str]) -> tuple[str, dict[str, str]]:
@@ -65,7 +66,7 @@ class DogeMath(Star):
             action = parts[0].lower(); rest = parts[1] if len(parts) > 1 else ""
             aliases = {"system": "base", "derive": "diff", "int": "integrate", "lim": "limit", "wolfram": "wa", "rocq": "formal"}
             action = aliases.get(action, action)
-            if action in {"calc","base","pi","oeis","numeric","simplify","expand","factor","solve","diff","integrate","limit","factorint","prime","stats","wa","formal"}:
+            if action in {"calc","base","pi","oeis","numeric","simplify","expand","factor","solve","diff","integrate","limit","factorint","prime","stats","wa","formal","matrix"}:
                 help_topic = f"math {action}"
 
             if action == "calc":
@@ -118,6 +119,15 @@ class DogeMath(Star):
             elif action == "wa":
                 if not rest.strip(): raise ValueError("用法：/math wa <Wolfram|Alpha 查询>")
                 result = await LookupService.wolfram(rest, appid=self.wolfram_appid)
+            elif action == "matrix":
+                args = split_head(rest, 1)
+                if not args:
+                    raise ValueError("用法：/math matrix {det|inv|rref|null|rank|eig|svd|cond|expm|solve|add|mul} <矩阵行;行> [--b <第二矩阵>] [--vector <b>]")
+                op, source = args[0].lower(), args[1] if len(args)>1 else ""
+                matrix_source, opts = _opts(source, {"b", "vector"})
+                if not matrix_source:
+                    raise ValueError("矩阵不能为空，例如 1,2;3,4")
+                result = matrix_op(op, matrix_source, other=opts.get("b"), vector=opts.get("vector"))
             elif action == "formal":
                 fparts = split_head(rest, 1)
                 if not fparts:

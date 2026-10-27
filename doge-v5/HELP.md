@@ -15,9 +15,9 @@ GROUPS
              认识当前实例、查看运行状态与使用统计。
   research    64  检索 / 科研
              论文、知识检索，以及生化环材、天文和临床数据。
-  compute     25  数学 / 计算机 / AI
+  compute     26  数学 / 计算机 / AI
              精确与符号数学、形式化入口，以及轻量 AI/CS 和远端代码执行。
-  create      77  排版 / 图形 / 工程
+  create      82  排版 / 图形 / 工程
              排版、结构图、工程系统，以及以图像/动画展示机制的科学实验。
   language    14  语言学
              西夏文、汉字历史音系、RRPL 与构造语言。
@@ -41,8 +41,8 @@ QUICK START
 
 SCALE
   顶层指令       37
-  正式叶子功能   282
-  正式调用形式   577  （含 295 个兼容别名）
+  正式叶子功能   288
+  正式调用形式   583  （含 295 个兼容别名）
   Legacy 叶子    81
 
 SYNTAX
@@ -147,7 +147,7 @@ EXAMPLES
   /quota detail
 
 ABOUT
-  查看免费模型已用及剩余；明细仅管理员。
+  查看当前会话模型与路由、本月/历史Token消耗、缓存和输入输出比例、免费额度预测及DeepSeek/OpenRouter官方余额；明细仅管理员。
 
 BACK
   /help
@@ -448,7 +448,7 @@ BACK
 
 ```text
 COMMAND  /math
-精确/符号计算、代数与微积分、数论、统计、OEIS、WA 和形式化数学入口；结果以计算/文本为主。
+精确/符号计算、微积分、矩阵代数、数论、统计、OEIS、WA 和形式化入口。
 
 SUBCOMMANDS
   calc             数学表达式计算。
@@ -484,6 +484,8 @@ SUBCOMMANDS
   wa               Wolfram|Alpha LLM API 计算/知识查询。
     /math wa <query>
   formal            4 功能  Lean / Coq(Rocq) / Rzk 轻量形式化入口
+  matrix           精确/数值矩阵代数及线性方程组
+    /math matrix <operation> <matrix> [--b <matrix>] [--vector <vector>]
 
 NEXT
   /help math calc
@@ -750,70 +752,70 @@ BACK
 
 ```text
 COMMAND  /lab
-可视化、模拟和直觉实验：用图像/动画观察数学、物理与复杂系统；不作为通用求解器。
+可视化、模拟与真实数值实验：任意安全表达式、矩阵、方程、初值、随机种子与物理参数；预设仅作快捷入口。
 
 SUBCOMMANDS
   fractal           2 功能  分形
-  chaos            Logistic map 分岔图。
+  chaos            任意一维映射 x[n+1]=f(x[n],r)
     /lab chaos bifurcation [rmin] [rmax]
-  attractor        Lorenz/Rössler/Clifford 吸引子。
+  attractor        预设走 SciPy ODE / 离散映射求解器
     /lab attractor [{lorenz|rossler|clifford}]
-  ca               Wolfram 一维元胞自动机。
+  ca               自定义初始位串、随机初始态、周期/非周期边界
     /lab ca [rule] [steps]
   number            2 功能  数论图形
-  lsys             L-system 分形。
+  lsys             完整参数化 L-system 文法（F/G 绘制、+/-/| 转向、[] 分支），限制展开长度
     /lab lsys [{dragon|hilbert|koch|plant}] [iterations]
   tiling           Penrose 铺砌。
     /lab tiling penrose [depth]
-  wave             双源波干涉
+  wave             任意 1..12 相干点波源，指定位置/振幅/相位/波长与衰减模型
     /lab wave [separation] [wavelength]
-  field            电场线
+  field            任意二维场 F=(fx,fy) 或多点电荷系，直接积分流线。
     /lab field [{dipole|quadrupole|triple}]
-  pendulum         双摆
+  pendulum         真实双摆 Lagrange 方程，质量/长度/初始角/角速度/积分时间/扰动幅度可调。
     /lab pendulum [initial_angle_deg]
-  orbit            三体 figure-eight 轨道
+  orbit            figure8 预设也使用参数化的 N 体经典引力速度 Verlet 积分，其他系统使用 /lab nbody。
     /lab orbit [figure8]
-  reaction         Gray-Scott 反应扩散
+  reaction         Gray-Scott 反应扩散的 F、k、Du、Dv、网格、步数和 RNG seed 可调。
     /lab reaction [{spots|worms|mitosis|coral}]
-  linear           二维线性映射
+  linear           任意 2..8 行/列实矩阵，非方阵显示 SVD，方阵给出数值谱
     /lab linear <a> <b> <c> <d>
-  complex          复函数域着色
+  complex          任意安全数学复表达式，可用 sin/cos/tan/exp/log/sqrt/Abs/arg 等
     /lab complex [{z|z2+1|z3-1|1/z|sin|exp}] [zoom]
-  newton           Newton 分形
+  newton           对任意可微安全复表达式由 SymPy 自动求导并进行 Newton 迭代，收敛判据用户可设置。
     /lab newton [degree] [zoom]
-  ising            二维 Ising 模型
+  ising            Ising Hamiltonian H=-J Σs_i s_j - hΣs_i 的二维 Metropolis 模
     /lab ising [T] [sweeps]
-  percolation      渗流模型
+  percolation      site/bond 渗流 Monte Carlo，指定 p、size、seed，实测顶底连通。
     /lab percolation [p] [size]
-  randommatrix     随机矩阵谱
+  randommatrix     Ginibre/real Ginibre/GOE/GUE/Wishart 用 NumPy RNG 真实抽样并计算
     /lab randommatrix [{ginibre|goe}] [N]
-  voronoi          Voronoi 几何
+  voronoi          自定义种子点坐标，或用 --count/--seed 随机生成。
     /lab voronoi [points]
   bloch            Bloch 球
     /lab bloch [theta_deg] [phi_deg]
   relativity       Minkowski/狭义相对论图
     /lab relativity [beta]
-  spectrum         FFT 频谱
+  spectrum         自定义时间信号 FFT
     /lab spectrum [{sine|square|saw|chirp}] [frequency]
   sandpile         Abelian sandpile
     /lab sandpile [grains]
-  ant              Langton 蚂蚁
+  ant              用自定义多状态转向表运行 Langton ant / turmite。
     /lab ant [steps]
   moire            莫尔纹
     /lab moire [angle_deg] [spacing_px]
-  orbital          氢样原子轨道切片
+  orbital          真实氢原子解析本征态 ψ_nlm 的二维切片，SciPy 球谐函数及径向 Laguerre 多项式。
     /lab orbital [{1s|2px|2py|3dxy|3dz2}]
-  lattice          晶格实空间投影
+  lattice          任意三维 Bravais 晶格基矢及分数原子坐标
     /lab lattice [{sc|bcc|fcc|diamond}] [cells]
-  xrd              理想晶格 XRD 教学模型
+  xrd              理想晶体结构因子 XRD：可配置任意晶格矢量与原子散射权重；真实 CIF 用 /mat crystal powder
     /lab xrd [{sc|bcc|fcc|diamond}] [a] [wavelength]
-  knot             数学结可视化
+  knot             通用三维参数闭曲线，预设只是示例。当前仅渲染，不做结不变量认证。
     /lab knot [{trefoil|figure8|torus}] [p] [q]
-  brownian         布朗运动
+  brownian         带可变漂移和扩散常数的多轨迹 Wiener 增量模拟，报告 MSD 与理论比较。
     /lab brownian [walkers] [steps]
-  sir              SIR 传染病模型
+  sir              使用 SciPy integrate.solve_ivp 求解自定义初态和参数的经典 SIR。
     /lab sir [R0] [infectious_days]
-  predator         Lotka–Volterra 捕食者模型
+  predator         Lotka-Volterra 模型 + 可选有限承载量，初态/积分范围/参数可变。
     /lab predator [alpha] [beta] [delta] [gamma]
   lens             薄透镜成像
     /lab lens [focal] [object_distance]
@@ -821,10 +823,10 @@ SUBCOMMANDS
     /lab well [n]
   diffraction      双缝/单缝衍射
     /lab diffraction [slit_sep] [slit_width] [wavelength]
-  replicator       复制子动力学/RPS
+  replicator       支持任意 2..6 策略收益矩阵与初始分布，由 SciPy 求解复制子方程。
     /lab replicator [bias]
   life              4 功能  可配置且可接续的 Life-like cellular automaton 动态 GIF：自定义初态、任意合法 B/S 规则、dead/wrap 边界与 per-group/session 最终棋盘状态。
-  dla              Diffusion-limited aggregation
+  dla              Diffusion-limited aggregation；自定义随机种子、粒子数、网格、4/8 邻接。
     /lab dla [particles]
   beats            拍频
     /lab beats [f1] [f2] [seconds]
@@ -832,10 +834,20 @@ SUBCOMMANDS
     /lab chladni [m] [n]
   phyllotaxis      叶序/黄金角
     /lab phyllotaxis [angle_deg] [points]
-  galton           Galton 板
+  galton           任意 p 的 Bernoulli/binomial 真实模拟与 SciPy 精确期望对照。
     /lab galton [rows] [balls]
-  lissajous        Lissajous 曲线
+  lissajous        真实参数曲线绘制
     /lab lissajous [fx] [fy] [phase_deg]
+  plot             任意一元实函数曲线与多曲线对比
+    /lab plot <f(x)> [--range <min,max>]
+  param            任意二维/三维参数曲线
+    /lab param --x <x(t)> --y <y(t)> [--z <z(t)>]
+  ode              任意 2..4 维常微分方程数值积分
+    /lab ode --eq <dx/dt;dy/dt;...> [--init <x0,y0,...>]
+  map              任意二维或三维离散动力系统
+    /lab map --eq <x_next;y_next;...> [--params <k=v,...>]
+  nbody            2..6 天体可变质量/位置/速度的经典引力数值积分
+    /lab nbody [--bodies <m,x,y,vx,vy;...>]
 
 NEXT
   /help lab fractal
@@ -851,9 +863,9 @@ COMMAND  /lab fractal
 分形
 
 SUBCOMMANDS
-  mandelbrot       Mandelbrot 分形。
+  mandelbrot       任意 z[n+1]=f(z,c) 迭代
     /lab fractal mandelbrot [cx] [cy] [zoom]
-  julia            Julia 分形。
+  julia            同一通用映射引擎，c 可为任意有限复数。
     /lab fractal julia [c_re] [c_im] [zoom]
 
 NEXT

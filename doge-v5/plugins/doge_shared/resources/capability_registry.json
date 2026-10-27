@@ -153,7 +153,7 @@
       "category": "research"
     },
     "math": {
-      "summary": "精确/符号计算、代数与微积分、数论、统计、OEIS、WA 和形式化数学入口；结果以计算/文本为主。",
+      "summary": "精确/符号计算、微积分、矩阵代数、数论、统计、OEIS、WA 和形式化入口。",
       "category": "compute"
     },
     "ai": {
@@ -193,7 +193,7 @@
       "category": "create"
     },
     "lab": {
-      "summary": "可视化、模拟和直觉实验：用图像/动画观察数学、物理与复杂系统；不作为通用求解器。",
+      "summary": "可视化、模拟与真实数值实验：任意安全表达式、矩阵、方程、初值、随机种子与物理参数；预设仅作快捷入口。",
       "category": "create"
     },
     "lang": {
@@ -1115,7 +1115,7 @@
     {
       "id": "lab.mandelbrot",
       "path": "lab fractal mandelbrot",
-      "summary": "Mandelbrot 分形。",
+      "summary": "任意 z[n+1]=f(z,c) 迭代",
       "usage": "/lab fractal mandelbrot [cx] [cy] [zoom]",
       "aliases": [
         "lab fractal mandel",
@@ -1135,13 +1135,20 @@
         {
           "name": "[zoom]",
           "description": "可选放大倍数，默认 1；实现限制到可读范围。"
+        },
+        {
+          "name": "[--options]",
+          "description": "任意 z[n+1]=f(z,c) 迭代；--expr --center --zoom --iter --escape --size；黑色为有限迭代内未逃逸。"
         }
+      ],
+      "examples": [
+        "/lab fractal mandelbrot --expr 'z^3+c' --iter 150 --zoom 2"
       ]
     },
     {
       "id": "lab.julia",
       "path": "lab fractal julia",
-      "summary": "Julia 分形。",
+      "summary": "同一通用映射引擎，c 可为任意有限复数。",
       "usage": "/lab fractal julia [c_re] [c_im] [zoom]",
       "aliases": [
         "lab fractal j"
@@ -1160,13 +1167,20 @@
         {
           "name": "[zoom]",
           "description": "可选放大倍数，默认 1。"
+        },
+        {
+          "name": "[--options]",
+          "description": "同一通用映射引擎，c 可为任意有限复数。"
         }
+      ],
+      "examples": [
+        "/lab fractal julia --expr 'z^4+c' --c -0.5+0.2i --iter 160"
       ]
     },
     {
       "id": "lab.bifurcation",
       "path": "lab chaos bifurcation",
-      "summary": "Logistic map 分岔图。",
+      "summary": "任意一维映射 x[n+1]=f(x[n],r)",
       "usage": "/lab chaos bifurcation [rmin] [rmax]",
       "aliases": [
         "lab chaos bif",
@@ -1183,13 +1197,20 @@
         {
           "name": "[rmax]",
           "description": "可选上界，默认 4.0；要求 rmin < rmax。"
+        },
+        {
+          "name": "[--options]",
+          "description": "任意一维映射 x[n+1]=f(x[n],r)；--expr --rmin --rmax --samples --discard --steps。"
         }
+      ],
+      "examples": [
+        "/lab chaos bifurcation --expr 'r*x-x^3' --rmin 0 --rmax 2 --samples 500"
       ]
     },
     {
       "id": "lab.attractor",
       "path": "lab attractor",
-      "summary": "Lorenz/Rössler/Clifford 吸引子。",
+      "summary": "预设走 SciPy ODE / 离散映射求解器",
       "usage": "/lab attractor [{lorenz|rossler|clifford}]",
       "aliases": [],
       "args": "optional",
@@ -1198,13 +1219,21 @@
         {
           "name": "[{lorenz|rossler|clifford}]",
           "description": "可选吸引子类型，默认 lorenz。"
+        },
+        {
+          "name": "[--options]",
+          "description": "预设走 SciPy ODE / 离散映射求解器；允许 --params / --eq / --init / --time / --steps。"
         }
+      ],
+      "examples": [
+        "/lab attractor lorenz --params sigma=14,rho=32,beta=2.7",
+        "/lab attractor --eq 'y;-x' --init 1,0 --time 20"
       ]
     },
     {
       "id": "lab.ca",
       "path": "lab ca",
-      "summary": "Wolfram 一维元胞自动机。",
+      "summary": "自定义初始位串、随机初始态、周期/非周期边界",
       "usage": "/lab ca [rule] [steps]",
       "aliases": [],
       "args": "optional",
@@ -1217,7 +1246,14 @@
         {
           "name": "[steps]",
           "description": "可选演化步数，默认 420，内部会限制极端值。"
+        },
+        {
+          "name": "[--options]",
+          "description": "自定义初始位串、随机初始态、周期/非周期边界；--rule --seed --rng --width --steps。"
         }
+      ],
+      "examples": [
+        "/lab ca 110 400 --seed random --width 801 --boundary wrap"
       ]
     },
     {
@@ -1260,7 +1296,7 @@
     {
       "id": "lab.lsystem",
       "path": "lab lsys",
-      "summary": "L-system 分形。",
+      "summary": "完整参数化 L-system 文法（F/G 绘制、+/-/| 转向、[] 分支），限制展开长度",
       "usage": "/lab lsys [{dragon|hilbert|koch|plant}] [iterations]",
       "aliases": [
         "lab l-system"
@@ -1275,7 +1311,14 @@
         {
           "name": "[iterations]",
           "description": "可选迭代次数；省略时使用该预设的安全默认值。"
+        },
+        {
+          "name": "[--options]",
+          "description": "完整参数化 L-system 文法（F/G 绘制、+/-/| 转向、[] 分支），限制展开长度；预设仅是捷径。"
         }
+      ],
+      "examples": [
+        "/lab lsys custom --axiom F --rules 'F=F+F--F+F' --angle 60 --iter 5"
       ]
     },
     {
@@ -1296,7 +1339,7 @@
     {
       "id": "lab.wave",
       "path": "lab wave",
-      "summary": "双源波干涉",
+      "summary": "任意 1..12 相干点波源，指定位置/振幅/相位/波长与衰减模型",
       "usage": "/lab wave [separation] [wavelength]",
       "aliases": [],
       "args": "optional",
@@ -1309,13 +1352,20 @@
         {
           "name": "[wavelength]",
           "description": "可选波长，默认 0.35。"
+        },
+        {
+          "name": "[--options]",
+          "description": "任意 1..12 相干点波源，指定位置/振幅/相位/波长与衰减模型；图为模型相对强度。"
         }
+      ],
+      "examples": [
+        "/lab wave --sources '-1,0,1,0;1,0,0.5,45' --wavelength 0.3"
       ]
     },
     {
       "id": "lab.field",
       "path": "lab field",
-      "summary": "电场线",
+      "summary": "任意二维场 F=(fx,fy) 或多点电荷系，直接积分流线。",
       "usage": "/lab field [{dipole|quadrupole|triple}]",
       "aliases": [],
       "args": "optional",
@@ -1324,13 +1374,21 @@
         {
           "name": "[{dipole|quadrupole|triple}]",
           "description": "可选电荷布局，默认 dipole。"
+        },
+        {
+          "name": "[--options]",
+          "description": "任意二维场 F=(fx,fy) 或多点电荷系，直接积分流线。"
         }
+      ],
+      "examples": [
+        "/lab field --charges '-1,0,1;1,0,-1'",
+        "/lab field --fx '-y' --fy 'x'"
       ]
     },
     {
       "id": "lab.pendulum",
       "path": "lab pendulum",
-      "summary": "双摆",
+      "summary": "真实双摆 Lagrange 方程，质量/长度/初始角/角速度/积分时间/扰动幅度可调。",
       "usage": "/lab pendulum [initial_angle_deg]",
       "aliases": [
         "lab doublependulum"
@@ -1341,13 +1399,20 @@
         {
           "name": "[initial_angle_deg]",
           "description": "可选初始角度（度），默认 120。"
+        },
+        {
+          "name": "[--options]",
+          "description": "真实双摆 Lagrange 方程，质量/长度/初始角/角速度/积分时间/扰动幅度可调。"
         }
+      ],
+      "examples": [
+        "/lab pendulum --theta1 70 --theta2 -50 --masses 1,2 --lengths 1,1.5"
       ]
     },
     {
       "id": "lab.orbit",
       "path": "lab orbit",
-      "summary": "三体 figure-eight 轨道",
+      "summary": "figure8 预设也使用参数化的 N 体经典引力速度 Verlet 积分，其他系统使用 /lab nbody。",
       "usage": "/lab orbit [figure8]",
       "aliases": [],
       "args": "optional",
@@ -1356,13 +1421,20 @@
         {
           "name": "[figure8]",
           "description": "当前仅支持 figure8；省略时同样使用 figure8。"
+        },
+        {
+          "name": "[--options]",
+          "description": "figure8 预设也使用参数化的 N 体经典引力速度 Verlet 积分，其他系统使用 /lab nbody。"
         }
+      ],
+      "examples": [
+        "/lab nbody --bodies '1,-1,0,0,0.5;1,1,0,0,-0.5' --time 12"
       ]
     },
     {
       "id": "lab.reaction",
       "path": "lab reaction",
-      "summary": "Gray-Scott 反应扩散",
+      "summary": "Gray-Scott 反应扩散的 F、k、Du、Dv、网格、步数和 RNG seed 可调。",
       "usage": "/lab reaction [{spots|worms|mitosis|coral}]",
       "aliases": [
         "lab grayscott"
@@ -1373,13 +1445,20 @@
         {
           "name": "[{spots|worms|mitosis|coral}]",
           "description": "可选 Gray–Scott 预设，默认 spots。"
+        },
+        {
+          "name": "[--options]",
+          "description": "Gray-Scott 反应扩散的 F、k、Du、Dv、网格、步数和 RNG seed 可调。"
         }
+      ],
+      "examples": [
+        "/lab reaction --feed 0.04 --kill 0.06 --du 0.16 --dv 0.08 --steps 2400"
       ]
     },
     {
       "id": "lab.linear",
       "path": "lab linear",
-      "summary": "二维线性映射",
+      "summary": "任意 2..8 行/列实矩阵，非方阵显示 SVD，方阵给出数值谱",
       "usage": "/lab linear <a> <b> <c> <d>",
       "aliases": [],
       "args": "required",
@@ -1400,13 +1479,20 @@
         {
           "name": "<d>",
           "description": "第二行第二列。"
+        },
+        {
+          "name": "[--options]",
+          "description": "任意 2..8 行/列实矩阵，非方阵显示 SVD，方阵给出数值谱；独立精确代数使用 /math matrix。"
         }
+      ],
+      "examples": [
+        "/lab linear --matrix '1,2,3;0,1,4;0,0,1' --vector 1,2,3"
       ]
     },
     {
       "id": "lab.complex",
       "path": "lab complex",
-      "summary": "复函数域着色",
+      "summary": "任意安全数学复表达式，可用 sin/cos/tan/exp/log/sqrt/Abs/arg 等",
       "usage": "/lab complex [{z|z2+1|z3-1|1/z|sin|exp}] [zoom]",
       "aliases": [
         "lab domain"
@@ -1421,13 +1507,21 @@
         {
           "name": "[zoom]",
           "description": "可选放大倍数，默认 1，允许 0.2–20。"
+        },
+        {
+          "name": "[--options]",
+          "description": "任意安全数学复表达式，可用 sin/cos/tan/exp/log/sqrt/Abs/arg 等；非有限值显式标黑。"
         }
+      ],
+      "examples": [
+        "/lab complex 'sin(z)/(z^2+1)' --center 0,0 --zoom 2",
+        "/lab complex 'exp(z)+log(z)'"
       ]
     },
     {
       "id": "lab.newton",
       "path": "lab newton",
-      "summary": "Newton 分形",
+      "summary": "对任意可微安全复表达式由 SymPy 自动求导并进行 Newton 迭代，收敛判据用户可设置。",
       "usage": "/lab newton [degree] [zoom]",
       "aliases": [],
       "args": "optional",
@@ -1440,13 +1534,20 @@
         {
           "name": "[zoom]",
           "description": "可选放大倍数，默认 1。"
+        },
+        {
+          "name": "[--options]",
+          "description": "对任意可微安全复表达式由 SymPy 自动求导并进行 Newton 迭代，收敛判据用户可设置。"
         }
+      ],
+      "examples": [
+        "/lab newton 'z^5-z+1' --iter 60 --tol 1e-7 --zoom 1.5"
       ]
     },
     {
       "id": "lab.ising",
       "path": "lab ising",
-      "summary": "二维 Ising 模型",
+      "summary": "Ising Hamiltonian H=-J Σs_i s_j - hΣs_i 的二维 Metropolis 模",
       "usage": "/lab ising [T] [sweeps]",
       "aliases": [],
       "args": "optional",
@@ -1459,13 +1560,20 @@
         {
           "name": "[sweeps]",
           "description": "可选 Monte Carlo 扫描轮数，默认 180。"
+        },
+        {
+          "name": "[--options]",
+          "description": "Ising Hamiltonian H=-J Σs_i s_j - hΣs_i 的二维 Metropolis 模拟；支持温度、J、h、初态、种子。"
         }
+      ],
+      "examples": [
+        "/lab ising --temperature 2.2 --coupling 1 --field 0.2 --seed 2026"
       ]
     },
     {
       "id": "lab.percolation",
       "path": "lab percolation",
-      "summary": "渗流模型",
+      "summary": "site/bond 渗流 Monte Carlo，指定 p、size、seed，实测顶底连通。",
       "usage": "/lab percolation [p] [size]",
       "aliases": [
         "lab perc"
@@ -1480,13 +1588,20 @@
         {
           "name": "[size]",
           "description": "可选网格边长，默认 180。"
+        },
+        {
+          "name": "[--options]",
+          "description": "site/bond 渗流 Monte Carlo，指定 p、size、seed，实测顶底连通。"
         }
+      ],
+      "examples": [
+        "/lab percolation --p 0.5 --kind bond --size 128 --seed 2026"
       ]
     },
     {
       "id": "lab.randommatrix",
       "path": "lab randommatrix",
-      "summary": "随机矩阵谱",
+      "summary": "Ginibre/real Ginibre/GOE/GUE/Wishart 用 NumPy RNG 真实抽样并计算",
       "usage": "/lab randommatrix [{ginibre|goe}] [N]",
       "aliases": [
         "lab rmt"
@@ -1501,13 +1616,20 @@
         {
           "name": "[N]",
           "description": "可选矩阵阶数，默认 180。"
+        },
+        {
+          "name": "[--options]",
+          "description": "Ginibre/real Ginibre/GOE/GUE/Wishart 用 NumPy RNG 真实抽样并计算特征值。"
         }
+      ],
+      "examples": [
+        "/lab randommatrix --ensemble wishart --n 100 --ratio 1.8 --seed 2026"
       ]
     },
     {
       "id": "lab.voronoi",
       "path": "lab voronoi",
-      "summary": "Voronoi 几何",
+      "summary": "自定义种子点坐标，或用 --count/--seed 随机生成。",
       "usage": "/lab voronoi [points]",
       "aliases": [
         "lab geometry"
@@ -1518,7 +1640,14 @@
         {
           "name": "[points]",
           "description": "可选种子点数量，默认 32。"
+        },
+        {
+          "name": "[--options]",
+          "description": "自定义种子点坐标，或用 --count/--seed 随机生成。"
         }
+      ],
+      "examples": [
+        "/lab voronoi --sites '0,0;1,1;-1,1' --size 560"
       ]
     },
     {
@@ -1562,7 +1691,7 @@
     {
       "id": "lab.spectrum",
       "path": "lab spectrum",
-      "summary": "FFT 频谱",
+      "summary": "自定义时间信号 FFT",
       "usage": "/lab spectrum [{sine|square|saw|chirp}] [frequency]",
       "aliases": [
         "lab fft"
@@ -1577,7 +1706,14 @@
         {
           "name": "[frequency]",
           "description": "可选基频 Hz，默认 5。"
+        },
+        {
+          "name": "[--options]",
+          "description": "自定义时间信号 FFT；方波和锯齿波使用 scipy.signal 的真实采样。"
         }
+      ],
+      "examples": [
+        "/lab spectrum --expr 'sin(2*pi*7*t)+0.4*sin(2*pi*21*t)' --rate 2048"
       ]
     },
     {
@@ -1600,7 +1736,7 @@
     {
       "id": "lab.ant",
       "path": "lab ant",
-      "summary": "Langton 蚂蚁",
+      "summary": "用自定义多状态转向表运行 Langton ant / turmite。",
       "usage": "/lab ant [steps]",
       "aliases": [
         "lab langton"
@@ -1611,7 +1747,14 @@
         {
           "name": "[steps]",
           "description": "可选 Langton 蚂蚁演化步数，默认 18000。"
+        },
+        {
+          "name": "[--options]",
+          "description": "用自定义多状态转向表运行 Langton ant / turmite。"
         }
+      ],
+      "examples": [
+        "/lab ant --turns RLLR --steps 50000 --size 401"
       ]
     },
     {
@@ -1636,7 +1779,7 @@
     {
       "id": "lab.orbital",
       "path": "lab orbital",
-      "summary": "氢样原子轨道切片",
+      "summary": "真实氢原子解析本征态 ψ_nlm 的二维切片，SciPy 球谐函数及径向 Laguerre 多项式。",
       "usage": "/lab orbital [{1s|2px|2py|3dxy|3dz2}]",
       "aliases": [],
       "args": "optional",
@@ -1645,13 +1788,20 @@
         {
           "name": "[{1s|2px|2py|3dxy|3dz2}]",
           "description": "可选氢样轨道切片，默认 2px。"
+        },
+        {
+          "name": "[--options]",
+          "description": "真实氢原子解析本征态 ψ_nlm 的二维切片，SciPy 球谐函数及径向 Laguerre 多项式。"
         }
+      ],
+      "examples": [
+        "/lab orbital 4,2,1 --plane xz --mode density"
       ]
     },
     {
       "id": "lab.lattice",
       "path": "lab lattice",
-      "summary": "晶格实空间投影",
+      "summary": "任意三维 Bravais 晶格基矢及分数原子坐标",
       "usage": "/lab lattice [{sc|bcc|fcc|diamond}] [cells]",
       "aliases": [],
       "args": "optional",
@@ -1664,13 +1814,20 @@
         {
           "name": "[cells]",
           "description": "可选每轴晶胞数量，默认 2。"
+        },
+        {
+          "name": "[--vectors --basis]",
+          "description": "任意三维 Bravais 晶格基矢及分数原子坐标"
         }
+      ],
+      "examples": [
+        "/lab lattice --vectors \"2,0,0;0,3,0;0,0,4\" --basis \"0,0,0;0.5,0.5,0.5\""
       ]
     },
     {
       "id": "lab.xrd",
       "path": "lab xrd",
-      "summary": "理想晶格 XRD 教学模型",
+      "summary": "理想晶体结构因子 XRD：可配置任意晶格矢量与原子散射权重；真实 CIF 用 /mat crystal powder",
       "usage": "/lab xrd [{sc|bcc|fcc|diamond}] [a] [wavelength]",
       "aliases": [
         "lab diffraction-crystal"
@@ -1689,13 +1846,20 @@
         {
           "name": "[wavelength]",
           "description": "可选 X 射线波长 Å，默认 1.5406。"
+        },
+        {
+          "name": "[--vectors --basis]",
+          "description": "理想晶体结构因子 XRD：可配置任意晶格矢量与原子散射权重；真实 CIF 用 /mat crystal powder"
         }
+      ],
+      "examples": [
+        "/lab xrd --vectors \"2,0,0;0,3,0;0,0,4\" --basis \"0,0,0,1;0.5,0.5,0.5,1\""
       ]
     },
     {
       "id": "lab.knot",
       "path": "lab knot",
-      "summary": "数学结可视化",
+      "summary": "通用三维参数闭曲线，预设只是示例。当前仅渲染，不做结不变量认证。",
       "usage": "/lab knot [{trefoil|figure8|torus}] [p] [q]",
       "aliases": [],
       "args": "optional",
@@ -1712,13 +1876,20 @@
         {
           "name": "[q]",
           "description": "torus 模式可选 q，默认 3。"
+        },
+        {
+          "name": "[--options]",
+          "description": "通用三维参数闭曲线，预设只是示例。当前仅渲染，不做结不变量认证。"
         }
+      ],
+      "examples": [
+        "/lab knot --x 'cos(2*t)' --y 'sin(2*t)' --z 'sin(3*t)'"
       ]
     },
     {
       "id": "lab.brownian",
       "path": "lab brownian",
-      "summary": "布朗运动",
+      "summary": "带可变漂移和扩散常数的多轨迹 Wiener 增量模拟，报告 MSD 与理论比较。",
       "usage": "/lab brownian [walkers] [steps]",
       "aliases": [
         "lab walk"
@@ -1733,13 +1904,20 @@
         {
           "name": "[steps]",
           "description": "可选每条步数，默认 700。"
+        },
+        {
+          "name": "[--options]",
+          "description": "带可变漂移和扩散常数的多轨迹 Wiener 增量模拟，报告 MSD 与理论比较。"
         }
+      ],
+      "examples": [
+        "/lab brownian --walkers 50 --steps 1000 --diffusion 0.3 --drift 0.1,0 --seed 2026"
       ]
     },
     {
       "id": "lab.sir",
       "path": "lab sir",
-      "summary": "SIR 传染病模型",
+      "summary": "使用 SciPy integrate.solve_ivp 求解自定义初态和参数的经典 SIR。",
       "usage": "/lab sir [R0] [infectious_days]",
       "aliases": [],
       "args": "optional",
@@ -1752,13 +1930,20 @@
         {
           "name": "[infectious_days]",
           "description": "可选平均感染期（天），默认 7。"
+        },
+        {
+          "name": "[--options]",
+          "description": "使用 SciPy integrate.solve_ivp 求解自定义初态和参数的经典 SIR。"
         }
+      ],
+      "examples": [
+        "/lab sir --r0 3 --infectious 5 --init .98,.02,0 --time 100"
       ]
     },
     {
       "id": "lab.predator",
       "path": "lab predator",
-      "summary": "Lotka–Volterra 捕食者模型",
+      "summary": "Lotka-Volterra 模型 + 可选有限承载量，初态/积分范围/参数可变。",
       "usage": "/lab predator [alpha] [beta] [delta] [gamma]",
       "aliases": [
         "lab lotka"
@@ -1781,7 +1966,14 @@
         {
           "name": "[gamma]",
           "description": "可选捕食者衰减率，默认 0.4。"
+        },
+        {
+          "name": "[--options]",
+          "description": "Lotka-Volterra 模型 + 可选有限承载量，初态/积分范围/参数可变。"
         }
+      ],
+      "examples": [
+        "/lab predator --alpha 1.2 --beta 0.3 --delta 0.2 --gamma 0.5 --capacity 100"
       ]
     },
     {
@@ -1848,7 +2040,7 @@
     {
       "id": "lab.replicator",
       "path": "lab replicator",
-      "summary": "复制子动力学/RPS",
+      "summary": "支持任意 2..6 策略收益矩阵与初始分布，由 SciPy 求解复制子方程。",
       "usage": "/lab replicator [bias]",
       "aliases": [
         "lab rps"
@@ -1859,7 +2051,14 @@
         {
           "name": "[bias]",
           "description": "可选复制子动力学偏置，默认 0。"
+        },
+        {
+          "name": "[--options]",
+          "description": "支持任意 2..6 策略收益矩阵与初始分布，由 SciPy 求解复制子方程。"
         }
+      ],
+      "examples": [
+        "/lab replicator --matrix '0,2,1;1,0,3;3,1,0' --init .2,.3,.5"
       ]
     },
     {
@@ -1892,12 +2091,14 @@
         {
           "name": "[size]",
           "description": "奇数棋盘边长，41..301，默认 121。"
+        },
+        {
+          "name": "[random:<seed>[:density]]",
+          "description": "指定可复现的随机初态密度；B/S 出生规则只作用于死细胞。"
         }
       ],
       "examples": [
-        "/lab life glider 120",
-        "/lab life gun 240 B3/S23 dead 161",
-        "/lab life rle:bo$2bo$3o! 80 B36/S23 wrap 101"
+        "/lab life random:123:0.35 120 B36/S23 wrap 121"
       ],
       "agent_notes": "以当前 registry 为准：支持 RLE/cells 自定义初态、任意合法 B.../S... Life-like 规则、dead/wrap、41..301 棋盘、每次最多 5000 代真实演化；普通运行会保存当前群/会话最终棋盘，可用 /lab life continue 接续。历史聊天里的功能描述可能来自旧版本，不应覆盖当前 registry。"
     },
@@ -1950,7 +2151,7 @@
     {
       "id": "lab.dla",
       "path": "lab dla",
-      "summary": "Diffusion-limited aggregation",
+      "summary": "Diffusion-limited aggregation；自定义随机种子、粒子数、网格、4/8 邻接。",
       "usage": "/lab dla [particles]",
       "aliases": [
         "lab aggregate"
@@ -1962,6 +2163,9 @@
           "name": "[particles]",
           "description": "可选目标粒子数，默认 850。"
         }
+      ],
+      "examples": [
+        "/lab dla 600 --size 321 --neighbors 4 --seed 123"
       ]
     },
     {
@@ -2034,7 +2238,7 @@
     {
       "id": "lab.galton",
       "path": "lab galton",
-      "summary": "Galton 板",
+      "summary": "任意 p 的 Bernoulli/binomial 真实模拟与 SciPy 精确期望对照。",
       "usage": "/lab galton [rows] [balls]",
       "aliases": [
         "lab bean"
@@ -2049,13 +2253,20 @@
         {
           "name": "[balls]",
           "description": "可选模拟球数，默认 6000。"
+        },
+        {
+          "name": "[--options]",
+          "description": "任意 p 的 Bernoulli/binomial 真实模拟与 SciPy 精确期望对照。"
         }
+      ],
+      "examples": [
+        "/lab galton 15 10000 --p 0.42 --seed 2026"
       ]
     },
     {
       "id": "lab.lissajous",
       "path": "lab lissajous",
-      "summary": "Lissajous 曲线",
+      "summary": "真实参数曲线绘制",
       "usage": "/lab lissajous [fx] [fy] [phase_deg]",
       "aliases": [
         "lab xy"
@@ -2074,7 +2285,14 @@
         {
           "name": "[phase_deg]",
           "description": "可选相位差（度），默认 90。"
+        },
+        {
+          "name": "[--options]",
+          "description": "真实参数曲线绘制；更一般任意参数曲线使用 /lab param。"
         }
+      ],
+      "examples": [
+        "/lab lissajous 2.5 1.5 48"
       ]
     },
     {
@@ -4299,6 +4517,81 @@
       ],
       "args": "none",
       "kind": "command"
+    },
+    {
+      "id": "math.matrix",
+      "path": "math matrix",
+      "summary": "精确/数值矩阵代数及线性方程组",
+      "usage": "/math matrix <operation> <matrix> [--b <matrix>] [--vector <vector>]",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "examples": [
+        "/math matrix rref 1,2;3,4",
+        "/math matrix solve 2,1;1,3 --vector 1,2",
+        "/math matrix eig 0,-1;1,0"
+      ]
+    },
+    {
+      "id": "lab.plot",
+      "path": "lab plot",
+      "summary": "任意一元实函数曲线与多曲线对比",
+      "usage": "/lab plot <f(x)> [--range <min,max>]",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "examples": [
+        "/lab plot 'sin(x);cos(2*x)' --range -6.28,6.28"
+      ]
+    },
+    {
+      "id": "lab.parametric",
+      "path": "lab param",
+      "summary": "任意二维/三维参数曲线",
+      "usage": "/lab param --x <x(t)> --y <y(t)> [--z <z(t)>]",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "examples": [
+        "/lab param --x 'cos(3*t)' --y 'sin(2*t)'",
+        "/lab param --x 'cos(t)' --y 'sin(t)' --z 't/3'"
+      ]
+    },
+    {
+      "id": "lab.ode",
+      "path": "lab ode",
+      "summary": "任意 2..4 维常微分方程数值积分",
+      "usage": "/lab ode --eq <dx/dt;dy/dt;...> [--init <x0,y0,...>]",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "examples": [
+        "/lab ode --eq 'y;-x' --init 1,0 --time 20"
+      ]
+    },
+    {
+      "id": "lab.map",
+      "path": "lab map",
+      "summary": "任意二维或三维离散动力系统",
+      "usage": "/lab map --eq <x_next;y_next;...> [--params <k=v,...>]",
+      "aliases": [],
+      "args": "required",
+      "kind": "command",
+      "examples": [
+        "/lab map --eq '1-a*x^2+y;b*x' --params a=1.4,b=0.3 --steps 25000"
+      ]
+    },
+    {
+      "id": "lab.nbody",
+      "path": "lab nbody",
+      "summary": "2..6 天体可变质量/位置/速度的经典引力数值积分",
+      "usage": "/lab nbody [--bodies <m,x,y,vx,vy;...>]",
+      "aliases": [],
+      "args": "optional",
+      "kind": "command",
+      "examples": [
+        "/lab nbody --bodies '1,-1,0,0,.5;1,1,0,0,-.5' --time 12"
+      ]
     }
   ],
   "legacy": {

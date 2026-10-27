@@ -611,7 +611,9 @@ def linear_map(output_dir: Path, a: float, b: float, c: float, d: float) -> tupl
 
 
 def help_text() -> str:
+    from .visual_lab_general import HELP
     return (
+        HELP + "\n\n原有快捷实验入口：\n"
         "Doge Scientific Playground /lab\n"
         "  /lab fractal mandelbrot [cx] [cy] [zoom]\n"
         "  /lab fractal julia [c_re] [c_im] [zoom]\n"
@@ -628,11 +630,15 @@ def help_text() -> str:
         "  /lab orbit [figure8]\n"
         "  /lab reaction [{spots|worms|mitosis|coral}]\n"
         "  /lab linear <a> <b> <c> <d>\n"
-        + __import__("doge_v5.visual_lab_extra", fromlist=["help_text"]).help_text()
+        + __import__(__package__ + ".visual_lab_extra", fromlist=["help_text"]).help_text()
     )
 
 
 def render(output_dir: Path, payload: str) -> tuple[Path, str]:
+    from .visual_lab_general import render_general
+    general = render_general(output_dir, payload)
+    if general is not None:
+        return general
     parts = payload.strip().split()
     if not parts:
         raise LabError(help_text())

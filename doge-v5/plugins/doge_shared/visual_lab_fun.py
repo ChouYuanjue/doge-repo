@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import hashlib
+import uuid
 import math
 import re
 from pathlib import Path
@@ -35,7 +35,7 @@ def _title(img: Image.Image, text: str) -> None:
 def _out(output_dir: Path, stem: str, suffix: str = ".png") -> Path:
     d = Path(output_dir) / "lab"
     d.mkdir(parents=True, exist_ok=True)
-    token = hashlib.sha256(stem.encode()).hexdigest()[:12]
+    token = uuid.uuid4().hex[:12]
     return d / f"{stem}-{token}{suffix}"
 
 
@@ -153,10 +153,21 @@ def _life_seed(kind: str, n: int, rng) -> tuple[np.ndarray, str]:
             (3,35),(4,35),(3,36),(4,36),
         ]
         _life_place(a, points); return a, "gun"
-    if kl in {"random", "r"}:
+    if kl in {"random", "r"} or kl.startswith("random:"):
+        density=.28
+        if kl.startswith("random:"):
+            fields=kl.split(":")
+            if len(fields) not in {2,3}:raise FunLabError("random:<seed>[:density]，例如 random:42:0.35")
+            try:
+                seed=int(fields[1])
+                density=float(fields[2]) if len(fields)==3 else .28
+            except ValueError as exc:raise FunLabError("随机初态种子应为整数、density 应为浮点数") from exc
+            if not 0<=seed<=2**31-1 or not math.isfinite(density) or not 0<=density<=1:
+                raise FunLabError("seed 需在 0..2147483647，density 需在 0..1")
+            rng=np.random.default_rng(seed)
         box = min(56, n - 12); y0=n//2-box//2; x0=n//2-box//2
-        a[y0:y0+box,x0:x0+box] = rng.random((box,box)) < .28
-        return a, "random"
+        a[y0:y0+box,x0:x0+box] = rng.random((box,box)) < density
+        return a, kl
     if kl.startswith("rle:"):
         _life_place(a, _life_rle_points(k)); return a, "custom-rle"
     if kl.startswith("cells:"):
@@ -187,7 +198,8 @@ def _life_step(a: np.ndarray, birth=frozenset({3}), survive=frozenset({2,3}), bo
         raise FunLabError("life boundary 支持 dead / wrap")
     born = np.isin(nb, tuple(birth))
     kept = np.isin(nb, tuple(survive))
-    return born | (a & kept)
+    # Birth rules apply to dead cells only; survival rules apply to live cells.
+    return (~a & born) | (a & kept)
 
 
 def life_stateful(
@@ -298,10 +310,12 @@ def _parse_life_cli(tokens: list[str]) -> tuple[str,int,str,str,int]:
         raise FunLabError("life 参数过多")
     return seed,steps,rule,boundary,size
 
-def dla(output_dir: Path, particles: int=850, size: int=321) -> tuple[Path,str]:
+def dla(output_dir: Path, particles: int=850, size: int=321, *, seed: int=20260831, neighbors: int=8) -> tuple[Path,str]:
     particles=max(80,min(int(particles),2200)); size=max(181,min(int(size)|1,451)); c=size//2
+    if not 0<=seed<=2**31-1 or neighbors not in {4,8}:
+        raise FunLabError("DLA: seed 需在 0..2147483647，neighbors 只能是 4 或 8")
     grid=np.zeros((size,size),dtype=bool); age=np.full((size,size),-1,dtype=np.int32); grid[c,c]=1; age[c,c]=0
-    rng=np.random.default_rng(20260831); radius=2.0; attached=1
+    rng=np.random.default_rng(seed); radius=2.0; attached=1
     dirs=np.array([[1,0],[-1,0],[0,1],[0,-1]],dtype=np.int16)
     max_radius=size/2-8
     for k in range(1,particles):
@@ -312,7 +326,9 @@ def dla(output_dir: Path, particles: int=850, size: int=321) -> tuple[Path,str]:
             rr=(y-c)*(y-c)+(x-c)*(x-c)
             if y<2 or y>=size-2 or x<2 or x>=size-2 or rr>kill*kill:
                 th=rng.random()*2*math.pi; y=int(round(c+launch*math.sin(th))); x=int(round(c+launch*math.cos(th))); continue
-            if grid[y-1:y+2,x-1:x+2].any():
+            near=(grid[y-1:y+2,x-1:x+2].any() if neighbors==8 else
+                  (grid[y-1,x] or grid[y+1,x] or grid[y,x-1] or grid[y,x+1]))
+            if near:
                 # Do not occupy an already-filled site.
                 if not grid[y,x]:
                     grid[y,x]=1; age[y,x]=k; attached+=1
@@ -328,7 +344,7 @@ def dla(output_dir: Path, particles: int=850, size: int=321) -> tuple[Path,str]:
     rgb[...,2][mask]=(165-105*norm[mask]).astype(np.uint8)
     img=Image.fromarray(rgb,"RGB").resize((820,820),Image.Resampling.NEAREST); _title(img,f"Diffusion-limited aggregation · {attached} particles")
     path=_out(output_dir,f"dla-{particles}-{size}"); img.save(path)
-    return path,f"DLA：随机游走粒子一碰到团簇就粘住。颜色从中心到尖端表示生长先后；本次粘附 {attached} 个粒子。"
+    return path,f"DLA：seed={seed}，邻接模式={neighbors}，{particles} 目标粒子；本次真实粘附 {attached} 个。颜色从中心到尖端表示生长先后。"
 
 
 def beats(output_dir: Path, f1: float=9.0, f2: float=10.0, seconds: float=3.0) -> tuple[Path,str]:
@@ -362,7 +378,7 @@ def help_text() -> str:
         "  /lab life status | clear                               # 查看/清除当前群的保存状态\n"
         "  /lab dla [particles]\n"
         "  /lab beats [f1] [f2] [seconds]\n"
-        + __import__("doge_v5.visual_lab_fun2", fromlist=["help_text"]).help_text()
+        + __import__(__package__ + ".visual_lab_fun2", fromlist=["help_text"]).help_text()
     )
 
 

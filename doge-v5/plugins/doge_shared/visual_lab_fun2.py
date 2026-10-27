@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import hashlib
+import uuid
 import math
 from pathlib import Path
 
@@ -34,7 +34,7 @@ def _title(img: Image.Image, text: str) -> None:
 def _out(output_dir: Path, stem: str) -> Path:
     d = Path(output_dir) / "lab"
     d.mkdir(parents=True, exist_ok=True)
-    token = hashlib.sha256(stem.encode()).hexdigest()[:12]
+    token = uuid.uuid4().hex[:12]
     return d / f"{stem}-{token}.png"
 
 

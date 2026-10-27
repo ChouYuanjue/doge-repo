@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import hashlib
+import uuid
 import itertools
 import math
 from pathlib import Path
@@ -24,7 +24,7 @@ def _title(img,text):
 
 
 def _out(output_dir,stem):
-    d=Path(output_dir)/"lab"; d.mkdir(parents=True,exist_ok=True); h=hashlib.sha256(stem.encode()).hexdigest()[:12]; return d/f"{stem}-{h}.png"
+    d=Path(output_dir)/"lab"; d.mkdir(parents=True,exist_ok=True); return d/f"{stem}-{uuid.uuid4().hex[:12]}.png"
 
 
 def moire(output_dir:Path, angle:float=5.0, spacing:float=18.0)->tuple[Path,str]:
@@ -245,7 +245,7 @@ def help_text()->str:
       "  /lab well [n]\n"
       "  /lab diffraction [slit_sep] [slit_width] [wavelength]\n"
       "  /lab replicator [bias]\n"
-      + __import__("doge_v5.visual_lab_fun", fromlist=["help_text"]).help_text()
+      + __import__(__package__ + ".visual_lab_fun", fromlist=["help_text"]).help_text()
     )
 
 
