@@ -1,4 +1,6 @@
-\documentclass[10pt,a4paper,twocolumn]{article}
+\documentclass[11pt,a4paper]{article}
+% Chaoli scholarly dispatch: readable single-column A4 with a journal hierarchy.
+% All untrusted forum/model copy is escaped by daily_report.py before insertion.
 \usepackage{fontspec}
 \usepackage{xeCJK}
 \usepackage{geometry}
@@ -6,66 +8,92 @@
 \usepackage{fancyhdr}
 \usepackage{needspace}
 \usepackage{url}
-\usepackage{flushend}
+\usepackage{amsmath,amssymb}
+\usepackage[hidelinks]{hyperref}
 
 \setCJKmainfont[Path=/usr/share/fonts/google-noto-cjk/,FontIndex=2,BoldFont=NotoSerifCJK-Bold.ttc,BoldFeatures={FontIndex=2}]{NotoSerifCJK-Regular.ttc}
 \setCJKsansfont[Path=/usr/share/fonts/google-noto-cjk/,FontIndex=2,BoldFont=NotoSansCJK-Bold.ttc,BoldFeatures={FontIndex=2}]{NotoSansCJK-Regular.ttc}
 
-\geometry{top=15.5mm,bottom=16.5mm,left=20mm,right=20mm,headheight=10pt,headsep=4.2mm,footskip=8mm}
-\definecolor{Ink}{HTML}{171717}
-\definecolor{Muted}{HTML}{666666}
-\definecolor{Rule}{HTML}{AFAFAF}
-\definecolor{LightRule}{HTML}{D7D7D7}
-
+\geometry{top=22mm,bottom=22mm,left=26mm,right=26mm,headheight=12pt,headsep=6mm,footskip=10mm}
+\definecolor{Ink}{HTML}{1B2734}
+\definecolor{Muted}{HTML}{64717C}
+\definecolor{Accent}{HTML}{923D49}
+\definecolor{Soft}{HTML}{DCE1E5}
+\definecolor{Paper}{HTML}{FFFFFF}
+\color{Ink}
 \frenchspacing
-\setlength{\parindent}{1.8em}
+\setlength{\parindent}{1.75em}
 \setlength{\parskip}{0pt}
-\setlength{\columnsep}{9.5mm}
-\setlength{\columnseprule}{0.28pt}
-\emergencystretch=2em
-\tolerance=1600
-\hbadness=2200
+\setlength{\emergencystretch}{2em}
+\tolerance=1800
+\hbadness=2400
 \clubpenalty=10000
 \widowpenalty=10000
 \displaywidowpenalty=10000
-\brokenpenalty=8000
+\raggedbottom
 \Urlmuskip=0mu plus 1mu
-\flushbottom
+\linespread{1.13}
+\hypersetup{pdftitle={超理日报 @@DATE@@},pdfauthor={超理日报},pdfsubject={论坛讨论的公开研究通讯}}
 
-\fancypagestyle{inside}{%
+\fancypagestyle{interior}{%
   \fancyhf{}%
-  \fancyhead[L]{\sffamily\fontsize{6.8}{8.3}\selectfont\bfseries\color{Muted} 超理日报}%
-  \fancyhead[R]{\sffamily\fontsize{6.8}{8.3}\selectfont\color{Muted} @@DATE@@ \quad NO. @@ISSUE@@}%
-  \fancyfoot[L]{\sffamily\fontsize{6.2}{7.8}\selectfont\color{Muted} chaoli.club}%
-  \fancyfoot[R]{\sffamily\fontsize{6.2}{7.8}\selectfont\color{Muted} \thepage}%
-  \renewcommand{\headrulewidth}{0.28pt}%
+  \fancyhead[L]{{\sffamily\fontsize{8}{11}\selectfont\bfseries 超理日报}}%
+  \fancyhead[R]{{\sffamily\fontsize{7.5}{11}\selectfont\color{Muted} @@DATE@@ \quad · \quad 第 @@ISSUE@@ 期}}%
+  \fancyfoot[L]{{\sffamily\fontsize{7}{10}\selectfont\color{Muted} CHAO LI \quad / \quad chaoli.club}}%
+  \fancyfoot[R]{{\sffamily\fontsize{8}{10}\selectfont\color{Muted} \thepage}}%
+  \renewcommand{\headrulewidth}{0.3pt}%
   \renewcommand{\footrulewidth}{0pt}%
 }
 \fancypagestyle{first}{%
   \fancyhf{}%
-  \fancyfoot[L]{\sffamily\fontsize{6.2}{7.8}\selectfont\color{Muted} chaoli.club}%
-  \fancyfoot[R]{\sffamily\fontsize{6.2}{7.8}\selectfont\color{Muted} \thepage}%
+  \fancyfoot[L]{{\sffamily\fontsize{7}{10}\selectfont\color{Muted} chaoli.club \quad · \quad 仅据公开讨论证据整理}}%
+  \fancyfoot[R]{{\sffamily\fontsize{8}{10}\selectfont\color{Muted} \thepage}}%
   \renewcommand{\headrulewidth}{0pt}%
   \renewcommand{\footrulewidth}{0pt}%
 }
-\pagestyle{inside}
-
-\newcommand{\Masthead}[1]{{\rmfamily\bfseries\fontsize{18.5}{21.5}\selectfont\color{Ink} #1}}
-\newcommand{\LeadTitle}[1]{{\rmfamily\bfseries\fontsize{13.5}{17.0}\selectfont\color{Ink} #1\par}}
-\newcommand{\StoryTitle}[1]{{\rmfamily\bfseries\fontsize{12.0}{15.3}\selectfont\color{Ink} #1\par}}
-\newcommand{\Meta}[1]{{\sffamily\fontsize{6.25}{7.8}\selectfont\color{Muted} #1\par}}
-\newcommand{\Source}[1]{{\sffamily\fontsize{5.9}{7.3}\selectfont\color{Muted} #1\par}}
-\newcommand{\ArticleRule}{\par\vspace{2.7mm plus 0.8mm}{\color{LightRule}\hrule height 0.32pt}\vspace{3.1mm plus 0.8mm}}
+\pagestyle{interior}
+\newcommand{\SmallCaps}[1]{{\sffamily\fontsize{8.1}{11}\selectfont\bfseries #1}}
+\newcommand{\IssueTitle}[1]{{\rmfamily\fontsize{18}{24}\selectfont\bfseries #1\par}}
+\newcommand{\LeadTitle}[1]{{\rmfamily\fontsize{15.3}{21}\selectfont\bfseries #1\par}}
+\newcommand{\StoryTitle}[1]{{\rmfamily\fontsize{13.5}{19}\selectfont\bfseries #1\par}}
+\newcommand{\StoryKicker}[1]{{\sffamily\fontsize{8}{11.5}\selectfont\bfseries\color{Accent} #1\par}}
+\newcommand{\StoryMeta}[1]{{\sffamily\fontsize{8}{12}\selectfont\color{Muted} #1\par}}
+\newcommand{\StoryDeck}[1]{%
+  {\noindent\sffamily\fontsize{9.7}{15.2}\selectfont\color{Muted} #1\par}%
+}
+\newcommand{\StoryBody}[1]{%
+  {\fontsize{10.6}{17.8}\selectfont\selectfont #1\par}%
+}
+\newcommand{\StorySource}[2]{%
+  \par\vspace{2mm}
+  {\noindent\sffamily\fontsize{7.9}{11.5}\selectfont\color{Muted}
+  #1 \quad {\color{Accent}\href{https://chaoli.club/index.php/#2}{阅读原帖 \(\rightarrow\)}}\par}%
+}
+\newcommand{\ArticleRule}{%
+  \par\vspace{5.3mm plus 0.8mm}
+  {\color{Soft}\hrule height 0.45pt}
+  \vspace{4.9mm plus 0.8mm}
+}
 
 \begin{document}
-
-\twocolumn[
-\noindent\Masthead{超理日报}\hfill{\sffamily\fontsize{6.6}{8.2}\selectfont\color{Muted} @@DATE@@ \quad NO. @@ISSUE@@ \quad @@TIME@@}\par
-\vspace{2.0mm}
-{\color{Ink}\hrule height 0.62pt}\vspace{3.0mm}
-]
 \thispagestyle{first}
+\noindent\SmallCaps{\color{Accent} CHAO LI \quad / \quad FORUM DISPATCH}
+\hfill\SmallCaps{\color{Muted} @@ISSUE@@ \quad / \quad @@DATE@@}\par
+\vspace{4mm}
+{\color{Ink}\hrule height 1.35pt}
+\vspace{5mm}
+\noindent{\rmfamily\bfseries\fontsize{28}{34}\selectfont 超理日报}\par
+\vspace{0.7mm}
+\noindent{\sffamily\fontsize{9}{14}\selectfont\color{Muted} 论坛研究讨论 · 每日整理 \quad / \quad @@TOPIC_COUNT@@ 个主题 \quad · \quad 截至 @@TIME@@}\par
+\vspace{7mm}
+\noindent{\color{Accent}\rule{15mm}{1.35pt}}\par
+\vspace{3.8mm}
+@@ISSUE_LEDE@@
+\vspace{4.7mm}
+{\color{Soft}\hrule height 0.45pt}
+\vspace{6.5mm}
 
 @@STORY_FLOW@@
 
+\vspace{5mm}
 \end{document}
