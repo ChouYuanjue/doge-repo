@@ -841,6 +841,15 @@ def _load_frozen_report(out: Path, cards: list[ThreadCard], date: str, source: s
             return None
         if data.get("signature") != sig or data.get("date") != date:
             return None
+        # Older versions wrongly froze "successful" PDFs even though every
+        # article request got HTTP 401. Such issues cannot be reused as genuine
+        # bulletins. Rebuilding is safe: the old PDFs stay in the archive.
+        topics=data.get("topics") or []
+        complete=sum(bool(t.get("article") and t.get("article_evidence_floors") and not t.get("article_error"))
+                     for t in topics if isinstance(t,dict))
+        minimum=max(1,(len(cards)+1)//2) if cards else 0
+        if complete<minimum:
+            return None
         pdf = out / str(data.get("pdf_file") or "")
         pages = tuple(out / str(x) for x in (data.get("page_files") or []))
         tex_path = out / f"chaoli-daily-{date}-{sig}.tex"
@@ -891,8 +900,20 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
     frozen = _load_frozen_report(out, cards, date, source, sig)
     if frozen is not None:
         return frozen
+    if not cards:
+        raise ValueError("今天的 #今日活跃 数据为空，未生成空白日报；请稍后重试")
     evidence = await collect_daily_evidence(cards)
     summaries = await summarize_daily_topics(provider, evidence)
+    # An article must have real floor citations; a rendered PDF with every
+    # article missing is an error, never a completed issue / sent watermark.
+    complete=sum(bool(s.text and s.evidence_floors and not s.error) for s in summaries)
+    minimum=max(1,(len(cards)+1)//2)
+    if complete<minimum:
+        failures="; ".join(dict.fromkeys(str(s.error)[:110] for s in summaries if s.error))
+        if any("401" in str(s.error) or "AuthenticationError" in str(s.error) for s in summaries):
+            raise ValueError("超理日报摘要模型认证失败（HTTP 401），正文未生成；已停止发布并保留发送水位")
+        raise ValueError(f"超理日报有效正文不足（{complete}/{len(cards)}，至少需要 {minimum}），"
+                         f"本次未发布：{failures[:220] or '楼层摘要缺失'}")
     editorial = await editorialize_daily(provider, evidence, summaries)
     markdown = _report_markdown(cards, evidence, summaries, date, source)  # audit trail only
     tex_text = _render_issue_tex(cards, evidence, summaries, editorial, date, source)

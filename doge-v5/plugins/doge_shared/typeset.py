@@ -375,6 +375,7 @@ def tex_help() -> str:
         "  /tex doc <完整文档>         Tectonic 真 LaTeX 文档 → PDF（\\documentclass...）；缺宏包会自动按需下载并缓存\n"
         "  /tex native <片段>          强制 UpMath TeX；适合 align/matrix/TikZ 等片段\n"
         "  /tex local <公式>            仅本机 MathText，不把公式发到外部服务\n"
+        "普通聊天回复中的 $...$、$$...$$、\\(...\\)、\\[...\\] 等数学公式，会在 QQ 端自动通过本机 Typst/MiTeX 渲染成图片。\\n"
         "完整文档不会再误送给公式 API。可直接写多行；兼容别名：/latex /utex。"
     )
 

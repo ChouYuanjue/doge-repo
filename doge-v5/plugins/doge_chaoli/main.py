@@ -55,7 +55,7 @@ HELP = """Doge Chaoli /chaoli
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.38")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.39")
 class DogeChaoli(Star):
     PUSH_LIMIT = 30
     PUSH_INTERVAL = max(60, min(int(os.getenv("DOGE_CHAOLI_PUSH_INTERVAL", "120") or 120), 600))
@@ -162,7 +162,7 @@ class DogeChaoli(Star):
         umo = str(event.unified_msg_origin)
         if sub in {"now", "show", "today"}:
             today = shanghai_date()
-            report = await self._daily_report_for_send(today)
+            report = await self._daily_report_for_send(today, umo=umo)
             delivered = await self._send_daily_report(umo, report)
             if not delivered:
                 raise ValueError("超理日报发送失败")
@@ -175,7 +175,7 @@ class DogeChaoli(Star):
             raise ValueError("只有 Doge 管理员、本群群主或群管理员可以修改、测试或主动推送超理日报")
         if sub in {"push", "send"}:
             today = shanghai_date()
-            report = await self._daily_report_for_send(today)
+            report = await self._daily_report_for_send(today, umo=umo)
             try:
                 delivered = await self._send_daily_report(umo, report)
             except Exception as exc:
@@ -202,7 +202,7 @@ class DogeChaoli(Star):
             return "已关闭本群超理日报；实时 push 不受影响。"
         if sub in {"test", "preview"}:
             today = shanghai_date()
-            report = await self._daily_report_for_send(today)
+            report = await self._daily_report_for_send(today, umo=umo)
             delivered = await self._send_daily_report(umo, report)
             if not delivered:
                 raise ValueError("超理日报测试发送失败")
@@ -231,9 +231,14 @@ class DogeChaoli(Star):
             self.daily_pool.reset(today, [])
             logger.warning(f"doge chaoli daily pool seed failed: {type(exc).__name__}: {exc}")
 
-    async def _daily_report_for_send(self, today: str) -> DailyReportBundle:
+    async def _daily_report_for_send(self, today: str, umo: str | None = None) -> DailyReportBundle:
         cards, source = await self._daily_cards_for_send(today)
-        provider = await self.context.get_using_provider_async()
+        # The global default provider may have an expired API key. Ordinary
+        # chats resolve a session-specific provider; reports must do likewise.
+        provider = await self.context.get_using_provider_async(umo=umo)
+        if provider is None and cards:
+            raise ValueError("本群尚无可用的聊天模型，无法撰写有证据的超理日报正文")
+        logger.info(f"doge chaoli daily selected scoped provider={getattr(getattr(provider, 'meta', lambda: None)(), 'id', 'none') if provider else 'none'}")
         return await build_daily_report(self.data_dir, cards, today, source, provider=provider)
 
     async def _daily_forward_identity(self, umo: str) -> tuple[str, str]:
@@ -332,7 +337,7 @@ class DogeChaoli(Star):
                 due.append(str(umo))
         if not due:
             return
-        report = await self._daily_report_for_send(today)
+        report = await self._daily_report_for_send(today, umo=due[0])
         for umo in due:
             delivered = False
             try:

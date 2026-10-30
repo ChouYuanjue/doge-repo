@@ -16,6 +16,7 @@ from astrbot.core.agent.message import TextPart
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 from data.plugins.doge_shared.agent_bridge import DogeCapabilitySearchTool, DogeCapabilityTool, DogeMessageHistoryTool, DogePresentTool
+from data.plugins.doge_shared.auto_math_reply import AutoMathRenderer
 from data.plugins.doge_shared.agent_tools import DogeWeatherTool, DogeQuotaTool, register_domain_tools
 from data.plugins.doge_shared.affect import TransientAffect
 from data.plugins.doge_shared.capabilities import agent_capability_prompt, capability_display, current_capability_context
@@ -138,6 +139,7 @@ class DogeCore(Star):
         # never wait for remote wallet APIs on its user-visible response path.
         get_quota_ledger(self.data_root).warm_official_balances()
         self.core_data_dir = Path(StarTools.get_data_dir("doge_core"))
+        self.auto_math_renderer = AutoMathRenderer(self.core_data_dir)
         self.counter = UsageCounter(
             self.core_data_dir / "usage.json",
             self.data_root / "logs",
@@ -386,7 +388,9 @@ class DogeCore(Star):
                 "The current QQ transport is OneBot/NapCat and does not render Markdown. "
                 "Write the final user-visible reply as plain text only: no Markdown headings, "
                 "bold/italic markers, backticks or fenced code, Markdown tables, or Markdown links. "
-                "Use ordinary punctuation and plain numbered or bullet-like lines when structure is needed."
+                "Use ordinary punctuation and plain numbered or bullet-like lines when structure is needed. "
+                "When you write mathematical formulas, enclose them in \\( ... \\) or \\[ ... \\]; "
+                "Doge renders math images automatically after generation."
             )
         return "\n\n".join(parts)
 
@@ -508,8 +512,9 @@ class DogeCore(Star):
             if isinstance(budget, ReplyBudget):
                 text = self.persona_runtime.enforce_reply_budget(text, budget)
                 text = self.persona_runtime.normalize_casual_terminal_punctuation(text, budget)
-            if str(event.get_platform_name() or "").lower() == "aiocqhttp":
-                text = markdown_to_plain(text)
+            # Keep LaTeX delimiters intact until the outbound decorator can
+            # replace actual math spans with locally rendered images. Markdown
+            # stripping at this stage would destroy \\( and \\[ delimiters.
             response.completion_text = text
 
     @filter.on_decorating_result(priority=100)
@@ -526,12 +531,27 @@ class DogeCore(Star):
         if result is None:
             return
         platform = str(event.get_platform_name() or "").lower()
+        llm=bool(result.is_model_result())
+        images_added=False
+        if llm and platform in {"aiocqhttp","qq_official"}:
+            renderer=getattr(self,"auto_math_renderer",None)
+            if renderer is not None:
+                try:
+                    result.chain,images_added=await renderer.render_chain(
+                        result.chain,onebot=platform=="aiocqhttp",
+                        markdown=platform=="qq_official",
+                    )
+                except Exception as exc:
+                    logger.warning(f"Doge auto math rendering failed (plain fallback): {type(exc).__name__}")
+            # Compatibility with light test cores or prior runtime instances.
+            elif platform=="aiocqhttp" and result.chain and all(isinstance(c,Comp.Plain) for c in result.chain):
+                result.chain=[Comp.Plain(markdown_to_plain(str(c.text or ""))) for c in result.chain]
         if platform == "aiocqhttp":
             result.use_markdown(False)
-            if result.is_model_result():
+            if llm and not images_added:
                 self._qq_merge_plain_parts(event, result)
         elif platform == "qq_official" and result.is_llm_result():
-            result.use_markdown(True)
+            result.use_markdown(not images_added)
 
     @filter.command("help")
     async def help(self, event: AstrMessageEvent):
