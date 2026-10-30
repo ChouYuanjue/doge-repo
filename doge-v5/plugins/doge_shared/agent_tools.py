@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from pathlib import Path
 from pydantic import Field
 from pydantic.dataclasses import dataclass
@@ -515,6 +516,19 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
             return self._strict_result(await awaitable)
         if a=="search": return await strict(ChaoliService.search(str(kwargs.get("query") or target),str(kwargs.get("channel") or "all"),int(kwargs.get("limit",10))))
         if a in {"daily","daily_push"}:
+            # A native /chaoli daily command already invokes the real plugin
+            # handler on this *same* inbound message. Previously the Agent ran
+            # again after the slash command and delivered the PDF twice.
+            event=getattr(getattr(context,"context",None),"event",None)
+            original=str(getattr(getattr(event,"message_obj",None),"message_str","") or "")
+            if re.match(r"^\s*/?\s*chaoli\s+daily(?:\s|$)",original,re.I):
+                return (
+                    "该 /chaoli daily 指令由原生处理器执行；"
+                    "这次 Agent 工具禁止再次调用或发送任何日报。"
+                )
+            get_extra=getattr(event,"get_extra",None)
+            if callable(get_extra) and get_extra("_doge_chaoli_daily_sent_from_event"):
+                return "同一条用户消息已经触发过日报投递，拒绝重复执行。"
             # Formal handlers convert exceptions to user-facing text. The old
             # bridge silently discarded that text and always returned None:
             # Agent consequently hallucinated "no daily data" even on HTTP 401.
@@ -533,8 +547,8 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
                 )
             return (
                 "超理日报正式指令已完成当前群的直接发送流程。"
-                "日报由 QQ 群文件 PDF 与合并转发预览组成；部分投递失败可能只收到其中一种。"
-                "不应要求重复调用以免重复发送。"
+                "PDF 原件与逐页图片均在同一条 QQ 合并转发聊天记录中；"
+                "没有上传群文件。不得重复调用，以免同一事件产生多份日报。"
             )
         if a=="latest": return await strict(ChaoliService.latest("all",int(kwargs.get("limit",10))))
         if a=="channel": return await strict(ChaoliService.latest(str(kwargs.get("channel") or target or "all"),int(kwargs.get("limit",10))))

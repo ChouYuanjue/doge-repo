@@ -252,14 +252,14 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(chain.chain), 1)
             self.assertIsInstance(chain.chain[0], Nodes)
             nodes = chain.chain[0].nodes
-            self.assertEqual(len(nodes), 2)  # edition note + one page; PDF uses upload_group_file
+            self.assertEqual(len(nodes), 3)  # edition note + forwarded PDF + preview
             self.assertIsInstance(nodes[0], Node)
             self.assertIn("超理日报", nodes[0].content[0].text)
-            self.assertTrue(any(isinstance(x, Image) for x in nodes[1].content))
-            self.assertFalse(any(isinstance(x, File) for node in nodes for x in node.content))
+            self.assertTrue(any(isinstance(x, File) for x in nodes[1].content))
+            self.assertTrue(any(isinstance(x, Image) for x in nodes[2].content))
             self.assertEqual(plugin.push_store.daily_state(umo)["last_sent"], shanghai_date())
 
-    async def test_daily_forward_serializes_page_images_without_file_nodes(self):
+    async def test_daily_forward_serializes_pdf_with_page_images_in_same_card(self):
         with tempfile.TemporaryDirectory() as td:
             plugin = object.__new__(DogeChaoli)
             plugin.context = type("Ctx", (), {})()
@@ -283,15 +283,18 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(chain.chain), 1)
             payload = await chain.chain[0].to_dict()
             messages = payload["messages"]
-            self.assertEqual(len(messages), 2)
-            page_content = messages[1]["data"]["content"]
+            self.assertEqual(len(messages), 3)
+            file_content=messages[1]["data"]["content"]
+            self.assertEqual(file_content[1]["type"],"file")
+            self.assertEqual(file_content[1]["data"]["name"],"Chaoli-Daily-2026-09-07.pdf")
+            page_content = messages[2]["data"]["content"]
             image_segments = [x for x in page_content if x.get("type") == "image"]
             self.assertEqual(len(image_segments), 1)
             self.assertTrue(image_segments[0]["data"]["file"].startswith("base64://"))
-            self.assertFalse(any(
+            self.assertEqual(sum(
                 seg.get("type")=="file"
                 for message in messages for seg in message["data"]["content"]
-            ))
+            ),1)
 
 
 
@@ -356,8 +359,8 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(chain.chain), 1)
                 self.assertIsInstance(chain.chain[0], Nodes)
                 nodes = chain.chain[0].nodes
-                self.assertTrue(any(isinstance(x, Image) for x in nodes[1].content))
-                self.assertFalse(any(isinstance(x, File) for node in nodes for x in node.content))
+                self.assertTrue(any(isinstance(x, File) for x in nodes[1].content))
+                self.assertTrue(any(isinstance(x, Image) for x in nodes[2].content))
             for umo in ("napcat:GroupMessage:1", "napcat:GroupMessage:2"):
                 self.assertEqual(plugin.push_store.daily_state(umo)["last_sent"], shanghai_date())
 
