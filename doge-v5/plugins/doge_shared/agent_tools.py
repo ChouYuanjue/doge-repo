@@ -484,7 +484,7 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_chaoli"
     description: str = (
         "超理论坛工具：读取时所有作者/板块/楼层/用户字段都要求和同一论坛 DOM 实体强绑定；引用与作者本人正文分离，不能据摘要或相邻元素推断。"
-        "支持论坛原生 POST AJAX 搜索、最新/分板主题、帖子/楼层、严格用户名验证、用户公开活动、引用链和链接预览；daily 只查看日报，daily_push 才会真正主动发送日报到当前群。"
+        "支持论坛原生 POST AJAX 搜索、最新/分板主题、帖子/楼层、严格用户名验证、用户公开活动、引用链和链接预览；daily 会将日报发送到当前群但不推进订阅水位，daily_push 需要管理员权限且成功后推进水位。日报失败时必须如实反馈错误原因，不能声称论坛没有内容。"
         "如果用户给出含 /pN#pPOSTID 或 /conversation/post/POSTID 的具体楼层链接，必须把原链接原样传给 read/preview；不要先 outline、不要改写 permalink、不要自己猜楼号。"
     )
     parameters: dict = Field(default_factory=lambda: {
@@ -514,12 +514,28 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
         async def strict(awaitable):
             return self._strict_result(await awaitable)
         if a=="search": return await strict(ChaoliService.search(str(kwargs.get("query") or target),str(kwargs.get("channel") or "all"),int(kwargs.get("limit",10))))
-        if a=="daily":
-            await execute_formal_command(context, "/chaoli daily")
-            return None
-        if a=="daily_push":
-            await execute_formal_command(context, "/chaoli daily push")
-            return None
+        if a in {"daily","daily_push"}:
+            # Formal handlers convert exceptions to user-facing text. The old
+            # bridge silently discarded that text and always returned None:
+            # Agent consequently hallucinated "no daily data" even on HTTP 401.
+            raw = await execute_formal_command(
+                context,"/chaoli daily" + (" push" if a=="daily_push" else "")
+            )
+            try:
+                payload=json.loads(raw)
+            except (TypeError,ValueError):
+                return f"超理日报命令返回了无法解析的结果：{str(raw)[:260]}"
+            message=str(payload.get("text") or "").strip() if isinstance(payload,dict) else ""
+            if message:
+                return (
+                    "超理日报执行失败或被拒绝，以下是正式指令的真实错误，"
+                    "不得推测为没有数据或已发送：\n"+message[:1100]
+                )
+            return (
+                "超理日报正式指令已完成当前群的直接发送流程。"
+                "日报由 QQ 群文件 PDF 与合并转发预览组成；部分投递失败可能只收到其中一种。"
+                "不应要求重复调用以免重复发送。"
+            )
         if a=="latest": return await strict(ChaoliService.latest("all",int(kwargs.get("limit",10))))
         if a=="channel": return await strict(ChaoliService.latest(str(kwargs.get("channel") or target or "all"),int(kwargs.get("limit",10))))
         if a=="read": return await strict(ChaoliService.read(target))

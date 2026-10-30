@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from astrbot.api import logger
 from data.plugins.doge_shared.chaoli import ChaoliError, ChaoliService, Floor, ThreadCard
 from data.plugins.doge_shared.typeset import _render_tex_document
 from .push import reply_count
@@ -1368,7 +1369,7 @@ def _attach_previous_issue(evidence: list[DailyTopicEvidence],
         ))
     return result
 
-async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: str, source: str, *, provider=None) -> DailyReportBundle:
+async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: str, source: str, *, provider=None, fallback_providers: tuple = ()) -> DailyReportBundle:
     out = Path(output_dir) / "reports"
     out.mkdir(parents=True, exist_ok=True)
     sig = _signature(cards, date, source)
@@ -1404,7 +1405,60 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
     cards=[item.card for item in active_evidence]
     previous = _previous_issue_topics(out, date)
     evidence = _attach_previous_issue(active_evidence, previous)
-    summaries = await summarize_daily_topics(provider, evidence)
+    active_provider = provider
+    summaries = await summarize_daily_topics(active_provider, evidence)
+
+    # Report drafting is independent of chat-model fallback. AstrBot's Agent
+    # may switch models for conversation, but it does not retry independent
+    # plugin model calls. If the group's selected provider returns e.g. HTTP
+    # 401, retry only the affected articles via a configured independent
+    # DeepSeek provider, reusing all verified forum evidence.
+    minimum=max(1,(len(cards)+1)//2)
+    def valid(summary: DailyTopicSummary) -> bool:
+        return bool(summary.text and summary.evidence_floors and not summary.error)
+
+    def service_error(summary: DailyTopicSummary) -> bool:
+        message=str(summary.error or "").lower()
+        return any(marker in message for marker in (
+            "401", "403", "429", "authenticationerror", "permissiondenied",
+            "ratelimit", "rate_limit", "apierror", "internalservererror",
+            "connectionerror", "apiconnectionerror", "timeouterror",
+            "502", "503", "504", "timeout", "invalid api key",
+        ))
+
+    seen={id(active_provider)}
+    fallback_attempts=[]
+    for alternate in tuple(fallback_providers)[:2]:
+        if alternate is None or id(alternate) in seen:
+            continue
+        seen.add(id(alternate))
+        if sum(valid(s) for s in summaries)>=minimum:
+            break
+        missing=[
+            (index,item) for index,item in enumerate(evidence)
+            if not valid(summaries[index]) and service_error(summaries[index])
+        ]
+        if not missing:
+            break
+        failed_id=str(getattr(getattr(active_provider,"meta",lambda:None)(),"id","unknown"))
+        next_id=str(getattr(getattr(alternate,"meta",lambda:None)(),"id","unknown"))
+        logger.warning(
+            f"doge chaoli daily article provider failed ({failed_id}); "
+            f"retrying {len(missing)} source-verified topic(s) with {next_id}"
+        )
+        fallback_attempts.append(f"{failed_id} -> {next_id}")
+        revised=await summarize_daily_topics(
+            alternate,[item for _,item in missing],batch_size=2
+        )
+        repaired=0
+        for (index,_),new_summary in zip(missing,revised):
+            if valid(new_summary):
+                summaries[index]=new_summary
+                repaired+=1
+            elif service_error(new_summary):
+                summaries[index]=new_summary
+        if repaired:
+            active_provider=alternate
     # The model may request missing historical floors for ambiguous updates.
     # One optional second pass is permitted, with a six-topic issue budget,
     # at most three floor references per topic, and hard fetch/time limits.
@@ -1427,7 +1481,7 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
                 retry_items.append(new_item)
                 retry_positions.append(i)
         if retry_items:
-            revised=await summarize_daily_topics(provider,retry_items,batch_size=1)
+            revised=await summarize_daily_topics(active_provider,retry_items,batch_size=1)
             for i,new_summary in zip(retry_positions,revised):
                 if new_summary.text and new_summary.evidence_floors and not new_summary.error:
                     summaries[i]=replace(new_summary,context_requests=())
@@ -1441,7 +1495,7 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
             raise ValueError("超理日报摘要模型认证失败（HTTP 401），正文未生成；已停止发布并保留发送水位")
         raise ValueError(f"超理日报有效正文不足（{complete}/{len(cards)}，至少需要 {minimum}），"
                          f"本次未发布：{failures[:220] or '楼层摘要缺失'}")
-    editorial = await editorialize_daily(provider, evidence, summaries)
+    editorial = await editorialize_daily(active_provider, evidence, summaries)
     markdown = _report_markdown(cards, evidence, summaries, date, source)  # audit trail only
     tex_text = _render_issue_tex(cards, evidence, summaries, editorial, date, source)
     source_path = out / f"chaoli-daily-{date}-{sig}.md"
@@ -1464,6 +1518,8 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
         ],
         "signature": sig,
         "renderer": "XeTeX/Tectonic Chaoli journal template",
+        "draft_provider": str(getattr(getattr(active_provider,"meta",lambda:None)(),"id","unknown")),
+        "provider_recovery": fallback_attempts,
         "editorial": {
             "headline": editorial.headline,
             "standfirst": editorial.standfirst,

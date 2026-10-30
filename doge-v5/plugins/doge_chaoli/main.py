@@ -55,7 +55,7 @@ HELP = """Doge Chaoli /chaoli
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.41")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.42")
 class DogeChaoli(Star):
     PUSH_LIMIT = 30
     PUSH_INTERVAL = max(60, min(int(os.getenv("DOGE_CHAOLI_PUSH_INTERVAL", "120") or 120), 600))
@@ -236,10 +236,36 @@ class DogeChaoli(Star):
         # The global default provider may have an expired API key. Ordinary
         # chats resolve a session-specific provider; reports must do likewise.
         provider = await self.context.get_using_provider_async(umo=umo)
+        # Group model selection is the preferred author, but it can lose auth
+        # independently of the Agent (e.g. workbuddy 401). AstrBot's Agent
+        # model fallback does *not* automatically propagate into this plugin.
+        # Use existing configured instances only; never copy or log API keys.
+        backups=[]
+        get_by_id=getattr(self.context,"get_provider_by_id",None)
+        if callable(get_by_id):
+            for provider_id in (
+                "deepseek/deepseek-v4-flash",
+                "openrouter/~deepseek/deepseek-v4-flash-latest",
+            ):
+                try:
+                    alt=get_by_id(provider_id)
+                except Exception:
+                    alt=None
+                if alt is not None and alt is not provider and all(alt is not x for x in backups):
+                    backups.append(alt)
+        if provider is None and backups:
+            provider=backups.pop(0)
         if provider is None and cards:
-            raise ValueError("本群尚无可用的聊天模型，无法撰写有证据的超理日报正文")
-        logger.info(f"doge chaoli daily selected scoped provider={getattr(getattr(provider, 'meta', lambda: None)(), 'id', 'none') if provider else 'none'}")
-        return await build_daily_report(self.data_dir, cards, today, source, provider=provider)
+            raise ValueError("本群尚无可用的日报写稿模型，无法生成有楼层依据的日报")
+        selected=getattr(getattr(provider,"meta",lambda:None)(),"id","none") if provider else "none"
+        logger.info(
+            f"doge chaoli daily selected scoped provider={selected} "
+            f"and configured fallback_count={len(backups)}"
+        )
+        return await build_daily_report(
+            self.data_dir,cards,today,source,
+            provider=provider,fallback_providers=tuple(backups),
+        )
 
     async def _daily_forward_identity(self, umo: str) -> tuple[str, str]:
         """Resolve the active OneBot account without hardcoding Doge's QQ id."""
