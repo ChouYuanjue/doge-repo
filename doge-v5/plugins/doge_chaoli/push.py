@@ -5,7 +5,7 @@ import json
 import os
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -75,6 +75,28 @@ def daily_card_from_snapshot(value: dict) -> ThreadCard:
 
 def shanghai_date() -> str:
     return datetime.now(SHANGHAI).date().isoformat()
+
+
+def daily_issue_window(date: str, time_text: str = DAILY_DEFAULT_TIME) -> tuple[datetime, datetime]:
+    """Closed issue label and preceding 24 hours, in Beijing time.
+
+    The edition dated D at HH:MM covers [D-1 HH:MM, D HH:MM).
+    A post at the exact upper boundary belongs to the next issue.
+    """
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", str(time_text)):
+        raise ValueError("invalid daily issue time HH:MM")
+    end = datetime.strptime(f"{date} {time_text}", "%Y-%m-%d %H:%M").replace(tzinfo=SHANGHAI)
+    return end-timedelta(days=1),end
+
+
+def latest_closed_issue_date(now: datetime, time_text: str = DAILY_DEFAULT_TIME) -> str:
+    """The newest edition that *could* already exist, never today's pre-cutoff."""
+    local = now.astimezone(SHANGHAI)
+    _,end = daily_issue_window(local.date().isoformat(),time_text)
+    if local < end:
+        return (local.date()-timedelta(days=1)).isoformat()
+    return local.date().isoformat()
+
 
 
 def primed_channel_state(cards: list[ThreadCard]) -> dict:
@@ -376,9 +398,17 @@ class ChaoliPushStore:
             daily["time"] = str(time_text)
         else:
             daily.setdefault("time", DAILY_DEFAULT_TIME)
-        # Turning a daily on never emits a retroactive report immediately.
+        # Re-enabling after today's cutoff is not retroactive. Enabling or
+        # changing the schedule before its cutoff *does* permit the upcoming
+        # complete issue, provided it has not already been sent today.
         if enabled:
-            daily["last_sent"] = shanghai_date()
+            now=datetime.now(SHANGHAI)
+            time_value=str(daily.get("time") or DAILY_DEFAULT_TIME)
+            _,cutoff=daily_issue_window(now.date().isoformat(),time_value)
+            if now>=cutoff:
+                daily["last_sent"]=now.date().isoformat()
+            else:
+                daily.setdefault("last_sent","")
         if not enabled and not sub.get("channels"):
             subs.pop(umo, None)
         self.save()

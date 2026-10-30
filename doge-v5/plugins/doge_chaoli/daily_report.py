@@ -14,11 +14,11 @@ from zoneinfo import ZoneInfo
 from astrbot.api import logger
 from data.plugins.doge_shared.chaoli import ChaoliError, ChaoliService, Floor, ThreadCard
 from data.plugins.doge_shared.typeset import _render_tex_document
-from .push import reply_count
+from .push import DAILY_DEFAULT_TIME, daily_issue_window, latest_closed_issue_date, reply_count, daily_card_from_snapshot
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
-REPORT_SCHEMA = 5
-REPORT_TEMPLATE_REV = "scholarly-dispatch-v9-calendar-day"
+REPORT_SCHEMA = 6
+REPORT_TEMPLATE_REV = "scholarly-dispatch-v10-scheduled-window"
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +38,9 @@ class DailyTopicEvidence:
     focused_floors: tuple[int, ...] = ()
     recent_window_truncated: bool = False
     issue_date: str = ""
+    issue_time: str = DAILY_DEFAULT_TIME
+    window_start: str = ""
+    window_end: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,12 +81,15 @@ class DailyReportBundle:
     pdf: Path
     pages: tuple[Path, ...]
     manifest: Path
+    issue_time: str = DAILY_DEFAULT_TIME
+    window_start: str = ""
+    window_end: str = ""
 
     @property
     def caption(self) -> str:
         failures = sum(1 for item in self.evidence if item.error)
         tail = f" · {failures} 个主题正文证据未补全" if failures else ""
-        return f"超理日报 · {self.date} · 当日有更新的主题 {len(self.cards)} 个{tail}"
+        return f"超理日报 · {self.date} {self.issue_time} 截稿 · 本期有更新的主题 {len(self.cards)} 个{tail}"
 
 
 def _one_line(text: str, limit: int) -> str:
@@ -125,12 +131,11 @@ def _floor_excerpt(floor: Floor, limit: int) -> str:
     return body or "〔无可抽取文本，可能只有图片或附件〕"
 
 
-async def _topic_evidence(card: ThreadCard, *, recent: int = 6, issue_date: str | None = None) -> DailyTopicEvidence:
+async def _topic_evidence(card: ThreadCard, *, recent: int = 6, issue_date: str | None = None, issue_time: str = DAILY_DEFAULT_TIME) -> DailyTopicEvidence:
     """Read opening/historical context and updates on the *edition calendar day*.
 
-    #今日活跃 is a rolling-window candidate index and can contain yesterday\'s
-    late replies. Only timestamps in [issue_date 00:00, next midnight) count as
-    today\'s news. Earlier posts remain available as contextual evidence.
+    The edition window ends at the configured daily release time and begins
+    precisely 24 hours before it. Anything outside the window is background.
     """
     try:
         first_html, last_ref = await asyncio.gather(
@@ -177,8 +182,7 @@ async def _topic_evidence(card: ThreadCard, *, recent: int = 6, issue_date: str 
         last_page_no = int(page_match.group(1)) if page_match else 1
         page_floors[last_page_no] = last_floors
         edition_date = issue_date or datetime.now(SHANGHAI).date().isoformat()
-        edition_start = datetime.strptime(edition_date, "%Y-%m-%d").replace(tzinfo=SHANGHAI)
-        edition_end = edition_start + timedelta(days=1)
+        edition_start, edition_end = daily_issue_window(edition_date,issue_time)
         cutoff = edition_start
 
         def floor_dt(floor: Floor) -> datetime | None:
@@ -240,14 +244,18 @@ async def _topic_evidence(card: ThreadCard, *, recent: int = 6, issue_date: str 
             for floor in floors:
                 merged[floor.url] = floor
         chronological = sorted(merged.values(), key=lambda x: x.number)
-        available = [x for x in chronological if not x.deleted]
+        # A delayed scheduled run may observe replies posted AFTER its fixed
+        # deadline. Never let future floors contaminate the archived issue as
+        # background context, citations or latest replies.
+        available = [x for x in chronological if not x.deleted and (floor_dt(x) is None or floor_dt(x) < edition_end)]
         activity = tuple(x for x in available if (floor_dt(x) is not None and cutoff <= floor_dt(x) < edition_end))
         latest = tuple(available[-max(1, min(int(recent), 10)):])
         return DailyTopicEvidence(card, first, activity, latest, "", tuple(available),
                                   context_pages=tuple(sorted(page_floors)),
                                   last_page_number=last_page_no,
                                   recent_window_truncated=recent_window_truncated,
-                                  issue_date=edition_date)
+                                  issue_date=edition_date,issue_time=issue_time,
+                                  window_start=edition_start.isoformat(),window_end=edition_end.isoformat())
     except Exception as exc:
         # Never drop the topic selected by #今日活跃 merely because enrichment
         # failed. The index row remains authoritative and the report records the
@@ -255,12 +263,12 @@ async def _topic_evidence(card: ThreadCard, *, recent: int = 6, issue_date: str 
         return DailyTopicEvidence(card, None, (), (), f"{type(exc).__name__}: {exc}")
 
 
-async def collect_daily_evidence(cards: list[ThreadCard], *, concurrency: int = 3, issue_date: str | None = None) -> list[DailyTopicEvidence]:
+async def collect_daily_evidence(cards: list[ThreadCard], *, concurrency: int = 3, issue_date: str | None = None, issue_time: str = DAILY_DEFAULT_TIME) -> list[DailyTopicEvidence]:
     sem = asyncio.Semaphore(max(1, min(int(concurrency), 5)))
 
     async def one(card: ThreadCard) -> DailyTopicEvidence:
         async with sem:
-            return await _topic_evidence(card, issue_date=issue_date)
+            return await _topic_evidence(card, issue_date=issue_date, issue_time=issue_time)
 
     return list(await asyncio.gather(*(one(card) for card in cards)))
 
@@ -379,6 +387,9 @@ def _summary_evidence_payload(item: DailyTopicEvidence) -> dict:
         "recent_window_truncated":item.recent_window_truncated,
         "provided_floor_count":len(floors),
         "issue_date":item.issue_date or (activity[0].time[:10] if activity else ""),
+        "issue_time":item.issue_time,
+        "window_start":item.window_start,
+        "window_end":item.window_end,
         "today_update_floor_numbers":sorted(active_numbers),
         "today_update_total":len(activity),
         "today_update_shown":sum(n in active_numbers for n in chosen),
@@ -389,9 +400,9 @@ def _summary_evidence_payload(item: DailyTopicEvidence) -> dict:
             for f in skim
         ],
         "coverage_warning":(
-            "部分当日分页未覆盖；不能宣称所有当日更新都已核验"
+            "部分本期分页未覆盖；不能宣称所有更新都已核验"
             if item.recent_window_truncated else
-            "部分当日楼层仅提供摘要预览，关键内容须请求全文楼层"
+            "部分本期楼层仅提供摘要预览，关键内容须请求全文楼层"
             if missing_new else ""
         ),
         "recommended_chars":recommended,
@@ -493,40 +504,24 @@ async def _expand_context_requests(item: DailyTopicEvidence,
 
 
 async def _report_provider_json(provider, system: str, prompt: str, *, max_tokens: int):
-    """One explicit non-agent JSON request for the report pipeline.
+    """Use AstrBot's public chat provider path, not a private paid-model client.
 
-    AstrBot 4.27's public OpenAI-compatible ``text_chat`` currently discards
-    arbitrary kwargs while preparing payloads. For report calls we therefore
-    reuse the configured provider's own query/client path but make the sampling
-    and reasoning controls explicit. This stays local to the report generator.
+    This deliberately shares the same configured model, complete API keys,
+    auth, transport and retry policy as an ordinary chat message. JSON is
+    demanded by the system prompt and checked in the report's parser; no
+    special vendor-only parameters bypass the user's router.
     """
-    query = getattr(provider, "_query", None)
-    get_model = getattr(provider, "get_model", None)
-    if callable(query) and callable(get_model):
-        payload = {
-            "model": get_model(),
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.0,
-            "max_tokens": int(max_tokens),
-            "response_format": {"type": "json_object"},
-            "thinking": {"type": "disabled"},
-        }
-        return await query(payload, None, request_max_retries=1)
-    # Compatibility fallback for tests or non-OpenAI providers. The prompt still
-    # fully specifies JSON-only behavior; providers that honor kwargs get the
-    # same controls, while validation below rejects malformed output.
-    return await provider.text_chat(
+    response = await provider.text_chat(
         prompt=prompt,
         system_prompt=system,
         temperature=0.0,
         max_tokens=int(max_tokens),
         request_max_retries=1,
-        thinking={"type": "disabled"},
-        response_format={"type": "json_object"},
     )
+    if getattr(response,"role",None)=="err":
+        detail=str(getattr(response,"completion_text","") or "模型响应错误")[:170]
+        raise RuntimeError(f"ChatProviderError: {detail}")
+    return response
 
 def _extract_json_object(raw: str) -> dict:
     text = str(raw or "").strip()
@@ -553,7 +548,7 @@ async def summarize_daily_topics(provider, evidence: list[DailyTopicEvidence], *
         return [DailyTopicSummary(x.card.thread_id, "", (), "no_provider") for x in evidence]
 
     system = (
-        "你是学术社区日报记者，职责是准确报道公开讨论在指定刊期（北京时间自然日）内的新内容。论坛今日活跃列表会包含昨天晚间回复，只有标为 today_update 的楼层才属于本期新消息。"
+        "你是学术社区日报记者，职责是准确报道从前一期固定截稿时间至本期固定截稿时间的24小时讨论更新。刊期窗口包含北京时间的起止时刻；只有标为 today_update 的楼层属于本期，窗口外的楼层均为背景。"
         "输入包含 opening_background（开帖背景）、prior_turn_context（本次更新之前的直接对话）、"
         "historical_context（更早讨论）、today_update（本期新回复）、previously_discussed（旧日报曾提及的楼层）和 previous_issue（上一期已经刊发的文稿）。"
         "严格按认知顺序理解：先弄清问题和此前论证、分歧、限制，再检视本次最新回复带来了什么变化。"
@@ -832,7 +827,7 @@ async def editorialize_daily(provider, evidence: list[DailyTopicEvidence], summa
 def _topic_activity_meta(item: DailyTopicEvidence) -> str:
     activity = list(item.activity_floors)
     if not activity:
-        return "本期北京时间自然日内未解析到独立楼层更新"
+        return "本期固定截稿窗口内未解析到独立楼层更新"
     authors = []
     for floor in activity:
         if floor.author and floor.author not in authors:
@@ -861,8 +856,10 @@ def _report_markdown(
     summaries: list[DailyTopicSummary],
     date: str,
     source: str,
+    issue_time: str = DAILY_DEFAULT_TIME,
 ) -> str:
-    generated = datetime.now(SHANGHAI).strftime("%H:%M")
+    start,end=daily_issue_window(date,issue_time)
+    window_label=f"{start.strftime('%m-%d %H:%M')} — {end.strftime('%m-%d %H:%M')}"
     board_counts = Counter((card.channel or "未标注板块") for card in cards)
     activity_count = sum(len(item.activity_floors) for item in evidence)
     failures = sum(1 for item in evidence if item.error)
@@ -874,7 +871,7 @@ def _report_markdown(
     lines: list[str] = [
         f"# 超理日报 · {date}",
         "",
-        f"{len(cards)} 个北京时间 {date} 当日有新回复的主题 · 当日解析到 {activity_count} 个公开楼层更新 · {board_deck} · 截至 {generated}",
+        f"采编窗口（北京时间）{window_label} · {len(cards)} 个有更新的主题 · {activity_count} 个真实楼层更新 · {board_deck}",
         "",
     ]
 
@@ -1143,6 +1140,7 @@ def _render_issue_tex(
     editorial: DailyEditorialIssue,
     date: str,
     source: str,
+    issue_time: str = DAILY_DEFAULT_TIME,
 ) -> str:
     template_path = Path(__file__).resolve().parent / "templates" / "chaoli_daily.tex"
     template = template_path.read_text(encoding="utf-8")
@@ -1158,7 +1156,8 @@ def _render_issue_tex(
         )
         for index, block in enumerate(editorial.blocks, 1)
     )
-    generated = datetime.now(SHANGHAI).strftime("%H:%M")
+    start,end=daily_issue_window(date,issue_time)
+    window_label=f"{start.strftime('%m-%d %H:%M')} — {end.strftime('%m-%d %H:%M')}"
     issue_title=_one_line(editorial.headline,45)
     lead_title=_one_line(editorial.blocks[0].headline,76) if editorial.blocks else ""
     def title_key(src:str)->str:
@@ -1184,7 +1183,8 @@ def _render_issue_tex(
     replacements = {
         "@@DATE@@": _tex_escape(date),
         "@@ISSUE@@": _tex_escape(_issue_number(date)),
-        "@@TIME@@": _tex_escape(generated),
+        "@@TIME@@": _tex_escape(issue_time),
+        "@@WINDOW@@": _tex_escape(window_label),
         "@@ISSUE_LEDE@@": lead_block,
         "@@TOPIC_COUNT@@": str(len(cards)),
         "@@STORY_FLOW@@": story_flow,
@@ -1226,10 +1226,11 @@ def _compile_issue_tex(out: Path, tex_text: str, stem: str) -> tuple[Path, tuple
     pages = _rasterize_pdf_pages(final_pdf, out, stem)
     return final_pdf, pages
 
-def _signature(cards: list[ThreadCard], date: str, source: str) -> str:
+def _signature(cards: list[ThreadCard], date: str, source: str, issue_time: str = DAILY_DEFAULT_TIME) -> str:
     payload = {
         "template_revision": REPORT_TEMPLATE_REV,
         "date": date,
+        "issue_time": issue_time,
         "source": source,
         "cards": [
             {
@@ -1245,7 +1246,7 @@ def _signature(cards: list[ThreadCard], date: str, source: str) -> str:
     return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:16]
 
 
-def _load_frozen_report(out: Path, cards: list[ThreadCard], date: str, source: str, sig: str) -> DailyReportBundle | None:
+def _load_frozen_report(out: Path, cards: list[ThreadCard], date: str, source: str, sig: str, *, issue_time: str = DAILY_DEFAULT_TIME, archive: bool = False) -> DailyReportBundle | None:
     manifest = out / f"chaoli-daily-{date}-{sig}.json"
     if not manifest.exists():
         return None
@@ -1253,14 +1254,16 @@ def _load_frozen_report(out: Path, cards: list[ThreadCard], date: str, source: s
         data = json.loads(manifest.read_text(encoding="utf-8"))
         if data.get("schema") != REPORT_SCHEMA or data.get("template_revision") != REPORT_TEMPLATE_REV:
             return None
-        if data.get("signature") != sig or data.get("date") != date:
+        if data.get("signature") != sig or data.get("date") != date or data.get("issue_time") != issue_time:
             return None
         # Older versions wrongly froze "successful" PDFs even though every
         # article request got HTTP 401. Such issues cannot be reused as genuine
         # bulletins. Rebuilding is safe: the old PDFs stay in the archive.
         topic_rows=data.get("topics") or []
-        if not topic_rows or len(topic_rows)>len(cards) or data.get("index_topic_count")!=len(cards):
+        if not topic_rows or (not archive and (len(topic_rows)>len(cards) or data.get("index_topic_count")!=len(cards))):
             return None
+        if archive:
+            cards = [daily_card_from_snapshot(row) for row in topic_rows]
         topic_ids={int(t["thread_id"]) for t in topic_rows if isinstance(t,dict) and t.get("thread_id") is not None}
         selected_cards=[card for card in cards if card.thread_id in topic_ids]
         if len(selected_cards)!=len(topic_rows) or len(topic_ids)!=len(topic_rows):
@@ -1307,11 +1310,64 @@ def _load_frozen_report(out: Path, cards: list[ThreadCard], date: str, source: s
             date, source, tuple(selected_cards), tuple(evidence), tuple(summaries), editorial,
             md_path.read_text(encoding="utf-8") if md_path.exists() else "",
             tex_path.read_text(encoding="utf-8") if tex_path.exists() else "",
-            pdf, pages, manifest,
+            pdf, pages, manifest,issue_time,
+            str(data.get("window_start") or ""),str(data.get("window_end") or ""),
         )
     except Exception:
         return None
 
+
+
+def load_latest_daily_report(
+    output_dir: Path,
+    *,
+    as_of: datetime | None = None,
+    preferred_time: str = DAILY_DEFAULT_TIME,
+) -> DailyReportBundle | None:
+    """Open an existing, evidence-backed issue without scraping or LLM calls.
+
+    Manual viewing and Agent daily are purely read-only. A report
+    that has not been generated before the scheduled cutoff is never
+    pre-generated here. Invalid 401-era issues remain rejected.
+    """
+    now=(as_of or datetime.now(SHANGHAI)).astimezone(SHANGHAI)
+    closed_date=latest_closed_issue_date(now,preferred_time)
+    out=Path(output_dir)/"reports"
+    if not out.is_dir():
+        return None
+    candidates=[]
+    for path in out.glob("chaoli-daily-*.json"):
+        try:
+            data=json.loads(path.read_text(encoding="utf-8"))
+            if data.get("schema")!=REPORT_SCHEMA or data.get("template_revision")!=REPORT_TEMPLATE_REV:
+                continue
+            date=str(data["date"])
+            issue_time=str(data.get("issue_time") or "")
+            start,end=daily_issue_window(date,issue_time)
+            # The current group must not see another group\'s earlier same-day
+            # edition as its own unreleased issue.
+            if date<(now.date()-timedelta(days=1)).isoformat():
+                continue  # do not serve an ancient issue as today\'s report
+            if date>closed_date or (date==closed_date and issue_time!=preferred_time):
+                continue
+            if end>now or data.get("window_start")!=start.isoformat() or data.get("window_end")!=end.isoformat():
+                continue
+            if not re.fullmatch(r"[0-9a-f]{16}",str(data.get("signature") or "")):
+                continue
+            candidates.append((end,path,data))
+        except (OSError,ValueError,TypeError,KeyError):
+            continue
+    # A group that changed its release time prefers its current time, but may
+    # read a valid previous issue produced under the former schedule.
+    candidates.sort(key=lambda item:(item[0],item[2].get("issue_time")==preferred_time),reverse=True)
+    for _,path,data in candidates:
+        report=_load_frozen_report(
+            out,[],str(data["date"]),str(data["source"]),str(data["signature"]),
+            issue_time=str(data["issue_time"]),archive=True,
+        )
+        if report is not None:
+            return report
+    return None
 
 
 def _previous_issue_topics(out: Path, date: str) -> dict[int, dict]:
@@ -1337,7 +1393,7 @@ def _previous_issue_topics(out: Path, date: str) -> dict[int, dict]:
                 try:
                     tid=int(row["thread_id"])
                     refs=tuple(int(x) for x in row.get("article_evidence_floors",[])[:12])
-                    activity=tuple(int(x) for x in (row.get("activity_floors_on_date") or row.get("activity_floors_24h") or [])[:50])
+                    activity=tuple(int(x) for x in (row.get("activity_floors_in_window") or row.get("activity_floors_on_date") or row.get("activity_floors_24h") or [])[:50])
                 except (ValueError,TypeError,KeyError):
                     continue
                 result[tid]={
@@ -1369,11 +1425,12 @@ def _attach_previous_issue(evidence: list[DailyTopicEvidence],
         ))
     return result
 
-async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: str, source: str, *, provider=None, fallback_providers: tuple = ()) -> DailyReportBundle:
+async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: str, source: str, *, provider=None, fallback_providers: tuple = (), issue_time: str = DAILY_DEFAULT_TIME) -> DailyReportBundle:
     out = Path(output_dir) / "reports"
     out.mkdir(parents=True, exist_ok=True)
-    sig = _signature(cards, date, source)
-    frozen = _load_frozen_report(out, cards, date, source, sig)
+    window_start,window_end=daily_issue_window(date,issue_time)
+    sig = _signature(cards, date, source, issue_time)
+    frozen = _load_frozen_report(out, cards, date, source, sig,issue_time=issue_time)
     if frozen is not None:
         return frozen
     if not cards:
@@ -1382,7 +1439,7 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
     # updated yesterday evening may appear in today's index. Verify every
     # candidate against its actual dated floor before claiming news today.
     index_cards=list(cards)
-    all_evidence=await collect_daily_evidence(index_cards, issue_date=date)
+    all_evidence=await collect_daily_evidence(index_cards, issue_date=date, issue_time=issue_time)
     def eligible(item: DailyTopicEvidence) -> bool:
         if item.activity_floors:
             return True
@@ -1392,14 +1449,21 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
         # silently discard possible new posts: include it as missing evidence,
         # allowing the minimum-article publication gate to reject the issue.
         stamp=str(getattr(item.card,"updated","") or "")
-        return stamp.startswith(date) or not re.match(r"^\d{4}-\d{2}-\d{2}",stamp)
+        try:
+            time_value=datetime.strptime(stamp[:19],"%Y-%m-%d %H:%M:%S").replace(tzinfo=SHANGHAI)
+        except ValueError:
+            try:
+                time_value=datetime.strptime(stamp[:16],"%Y-%m-%d %H:%M").replace(tzinfo=SHANGHAI)
+            except ValueError:
+                return True  # preserve uncertain-but-eligible reports as missing evidence
+        return window_start<=time_value<window_end
 
     active_evidence=[item for item in all_evidence if eligible(item)]
     excluded=[item for item in all_evidence if not eligible(item)]
     if not active_evidence:
         raise ValueError(
-            f"超理日报 {date}：官方活跃索引的 {len(index_cards)} 个候选主题中"
-            "没有核验到当日新增楼层（可能只有昨天夜间的回复）；"
+            f"超理日报 {date}（{issue_time}）：官方活跃索引的 {len(index_cards)} 个候选主题中"
+            "没有核验到本期24小时窗口内的更新楼层；"
             "未生成旧闻日报，也未推进发送水位"
         )
     cards=[item.card for item in active_evidence]
@@ -1420,7 +1484,7 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
     def service_error(summary: DailyTopicSummary) -> bool:
         message=str(summary.error or "").lower()
         return any(marker in message for marker in (
-            "401", "403", "429", "authenticationerror", "permissiondenied",
+            "401", "403", "429", "authenticationerror", "chatprovidererror", "permissiondenied",
             "ratelimit", "rate_limit", "apierror", "internalservererror",
             "connectionerror", "apiconnectionerror", "timeouterror",
             "502", "503", "504", "timeout", "invalid api key",
@@ -1496,8 +1560,8 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
         raise ValueError(f"超理日报有效正文不足（{complete}/{len(cards)}，至少需要 {minimum}），"
                          f"本次未发布：{failures[:220] or '楼层摘要缺失'}")
     editorial = await editorialize_daily(active_provider, evidence, summaries)
-    markdown = _report_markdown(cards, evidence, summaries, date, source)  # audit trail only
-    tex_text = _render_issue_tex(cards, evidence, summaries, editorial, date, source)
+    markdown = _report_markdown(cards, evidence, summaries, date, source,issue_time)  # audit trail only
+    tex_text = _render_issue_tex(cards, evidence, summaries, editorial, date, source,issue_time)
     source_path = out / f"chaoli-daily-{date}-{sig}.md"
     source_path.write_text(markdown, encoding="utf-8")
     tex_path = out / f"chaoli-daily-{date}-{sig}.tex"
@@ -1509,6 +1573,9 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
         "date": date,
         "generated_at": datetime.now(SHANGHAI).isoformat(),
         "source": source,
+        "issue_time": issue_time,
+        "window_start": window_start.isoformat(),
+        "window_end": window_end.isoformat(),
         "topic_count": len(cards),
         "index_topic_count": len(index_cards),
         "excluded_index_topics": [
@@ -1545,8 +1612,11 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
                 "article_evidence_floors": list(next((x.evidence_floors for x in summaries if x.thread_id == item.card.thread_id), ())),
                 "article_error": next((x.error for x in summaries if x.thread_id == item.card.thread_id), ""),
                 "first_floor": item.first_floor.number if item.first_floor else None,
-                "activity_floors_on_date": [floor.number for floor in item.activity_floors],
+                "activity_floors_in_window": [floor.number for floor in item.activity_floors],
                 "issue_date": item.issue_date or date,
+                "issue_time": item.issue_time,
+                "window_start":item.window_start,
+                "window_end":item.window_end,
                 "latest_floors": [floor.number for floor in item.latest_floors],
                 "context_floors": [floor.number for floor in item.context_floors],
                 "visited_pages": list(item.context_pages),
@@ -1568,6 +1638,7 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
     manifest_data["page_files"] = [x.name for x in pages]
     manifest.write_text(json.dumps(manifest_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return DailyReportBundle(
-        date, source, tuple(cards), tuple(evidence), tuple(summaries), editorial, markdown, tex_text, pdf_path, tuple(pages), manifest
+        date, source, tuple(cards), tuple(evidence), tuple(summaries), editorial, markdown, tex_text, pdf_path, tuple(pages), manifest,
+        issue_time,window_start.isoformat(),window_end.isoformat()
     )
 

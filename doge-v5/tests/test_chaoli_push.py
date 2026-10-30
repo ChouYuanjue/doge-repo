@@ -235,8 +235,8 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             pdf = Path(td) / "daily.pdf"
             pdf.write_bytes(b"%PDF-test")
             c = card(100)
-            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "导语句"),)), "# report", "\\documentclass{article}", pdf, (page,), manifest)
-            plugin._daily_report_for_send = AsyncMock(return_value=bundle)
+            bundle = DailyReportBundle(shanghai_date(), "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "导语句"),)), "# report", "\\documentclass{article}", pdf, (page,), manifest)
+            plugin._latest_existing_report = lambda _umo: bundle
 
             event = type("Event", (), {
                 "unified_msg_origin": umo,
@@ -314,8 +314,8 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             pdf = Path(td) / "daily.pdf"
             pdf.write_bytes(b"%PDF-test")
             c = card(100)
-            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "导语句"),)), "# report", "\\documentclass{article}", pdf, (page,), manifest)
-            plugin._daily_report_for_send = AsyncMock(return_value=bundle)
+            bundle = DailyReportBundle(shanghai_date(), "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "导语句"),)), "# report", "\\documentclass{article}", pdf, (page,), manifest)
+            plugin._latest_existing_report = lambda _umo: bundle
             event = type("Event", (), {
                 "unified_msg_origin": umo,
                 "get_group_id": lambda self: "1",
@@ -344,7 +344,7 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             pdf = Path(td) / "daily.pdf"
             pdf.write_bytes(b"%PDF-test")
             c = card(100)
-            bundle = DailyReportBundle("2026-09-07", "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "导语句"),)), "# report", "\\documentclass{article}", pdf, (page,), manifest)
+            bundle = DailyReportBundle(shanghai_date(), "owner-json", (c,), (DailyTopicEvidence(c, None, (), ()),), (DailyTopicSummary(c.thread_id, "摘要", (1,)),), DailyEditorialIssue("标题", "导语", (DailyEditorialBlock("lead", (c.thread_id,), "标题", "导语句"),)), "# report", "\\documentclass{article}", pdf, (page,), manifest)
             build = AsyncMock(return_value=bundle)
             plugin._daily_report_for_send = build
             with patch.object(chaoli_main, "is_plugin_enabled", AsyncMock(return_value=True)):
@@ -436,27 +436,35 @@ class ChaoliEditionFreezeTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ChaoliReportProviderPayloadTests(unittest.IsolatedAsyncioTestCase):
-    async def test_openai_provider_private_query_gets_explicit_report_controls(self):
+    async def test_report_uses_regular_chat_api_never_private_query(self):
         class Provider:
-            def get_model(self):
-                return "deepseek-v4-flash"
+            def __init__(self):
+                self.text_chat=AsyncMock(return_value=type("Resp", (), {
+                    "completion_text": '{"ok":true}'
+                })())
+                self._query=AsyncMock(side_effect=AssertionError("private query forbidden"))
 
-            async def _query(self, payload, tools, *, request_max_retries=None):
-                self.payload = payload
-                self.tools = tools
-                self.retries = request_max_retries
-                return type("Resp", (), {"completion_text": '{"ok":true}'})()
+        provider=Provider()
+        resp=await _report_provider_json(provider,"SYSTEM","PROMPT",max_tokens=3210)
+        self.assertEqual(resp.completion_text,'{"ok":true}')
+        kwargs=provider.text_chat.await_args.kwargs
+        self.assertEqual(kwargs["temperature"],0.0)
+        self.assertEqual(kwargs["max_tokens"],3210)
+        self.assertEqual(kwargs["system_prompt"],"SYSTEM")
+        self.assertEqual(kwargs["prompt"],"PROMPT")
+        self.assertEqual(kwargs["request_max_retries"],1)
+        self.assertNotIn("response_format",kwargs)
+        self.assertNotIn("thinking",kwargs)
+        provider._query.assert_not_awaited()
 
-        provider = Provider()
-        resp = await _report_provider_json(provider, "SYSTEM", "PROMPT", max_tokens=3210)
-        self.assertEqual(resp.completion_text, '{"ok":true}')
-        self.assertEqual(provider.payload["temperature"], 0.0)
-        self.assertEqual(provider.payload["max_tokens"], 3210)
-        self.assertEqual(provider.payload["response_format"], {"type": "json_object"})
-        self.assertEqual(provider.payload["thinking"], {"type": "disabled"})
-        self.assertEqual(provider.payload["messages"][0], {"role": "system", "content": "SYSTEM"})
-        self.assertIsNone(provider.tools)
-        self.assertEqual(provider.retries, 1)
+    async def test_public_chat_provider_error_role_is_visible_for_fallback(self):
+        provider = type("Provider", (), {})()
+        provider.text_chat = AsyncMock(return_value=type("Resp", (), {
+            "role":"err", "completion_text":"rate limit exceeded"
+        })())
+        with self.assertRaisesRegex(RuntimeError,"ChatProviderError"):
+            await _report_provider_json(provider,"SYS","PROMPT",max_tokens=500)
+
 
 class ChaoliDailySummaryTests(unittest.IsolatedAsyncioTestCase):
     async def test_summary_provider_is_direct_and_floor_refs_are_validated(self):
@@ -469,7 +477,8 @@ class ChaoliDailySummaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("得到更新", rows[0].text)
         kwargs = provider.text_chat.await_args.kwargs
         self.assertEqual(kwargs["temperature"], 0.0)
-        self.assertEqual(kwargs["thinking"], {"type": "disabled"})
+        self.assertNotIn("thinking",kwargs)
+        self.assertNotIn("response_format",kwargs)
         self.assertNotIn("contexts", kwargs)
         self.assertNotIn("session_id", kwargs)
 

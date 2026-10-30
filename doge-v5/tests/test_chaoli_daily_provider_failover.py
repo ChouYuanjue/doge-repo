@@ -47,8 +47,9 @@ class BrokenModel:
         raise RuntimeError("AuthenticationError: Error code 401 Unauthorized")
 
 class ReadyModel:
-    def __init__(self,provider_id="deepseek/deepseek-v4-flash"):
+    def __init__(self,provider_id="workbuddy/glm-5.3"):
         self.provider_id=provider_id
+        self.provider_config={"id":provider_id,"model":provider_id.split("/")[-1],"provider_source_id":provider_id.split("/")[0]}
         self.calls=0
     def meta(self):return types.SimpleNamespace(id=self.provider_id)
     async def text_chat(self,**kwargs):
@@ -85,11 +86,11 @@ class ProviderFallbackTests(unittest.IsolatedAsyncioTestCase):
                 provider=workbuddy,fallback_providers=(deepseek,)
             )
             metadata=json.loads(issue.manifest.read_text())
-            self.assertEqual(metadata["draft_provider"],"deepseek/deepseek-v4-flash")
+            self.assertEqual(metadata["draft_provider"],"workbuddy/glm-5.3")
             self.assertEqual(metadata["provider_recovery"],[
-                "workbuddy/deepseek-v4.1-flash -> deepseek/deepseek-v4-flash"
+                "workbuddy/deepseek-v4.1-flash -> workbuddy/glm-5.3"
             ])
-        collector.assert_awaited_once_with([c],issue_date="2026-10-30")
+        collector.assert_awaited_once_with([c],issue_date="2026-10-30",issue_time="23:45")
         self.assertEqual(workbuddy.calls,1)
         self.assertGreaterEqual(deepseek.calls,2)
         self.assertEqual(issue.summaries[0].evidence_floors,(3,))
@@ -112,7 +113,7 @@ class ProviderFallbackTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(list(Path(td).rglob("*.json")))
             compile.assert_not_called()
 
-    async def test_plugin_prepares_official_fallback_without_changing_group_model(self):
+    async def test_plugin_prepares_configured_chat_free_fallback(self):
         chosen=BrokenModel("workbuddy/deepseek-v4.1-flash")
         healthy=ReadyModel()
         plugin=object.__new__(DogeChaoli)
@@ -120,12 +121,14 @@ class ProviderFallbackTests(unittest.IsolatedAsyncioTestCase):
         plugin._daily_cards_for_send=AsyncMock(return_value=([card()],"owner-json"))
         plugin.context=types.SimpleNamespace(
             get_using_provider_async=AsyncMock(return_value=chosen),
-            get_provider_by_id=lambda id: healthy if id=="deepseek/deepseek-v4-flash" else None,
+            get_config=lambda umo=None: {"provider_settings":{"fallback_chat_models":["workbuddy/glm-5.3"]}},
+            get_provider_by_id=lambda id: healthy if id=="workbuddy/glm-5.3" else None,
         )
         with patch.object(chaoli_main,"build_daily_report",AsyncMock(return_value="done")) as build:
             self.assertEqual(await plugin._daily_report_for_send("2026-10-30","umo"),"done")
         self.assertIs(build.await_args.kwargs["provider"],chosen)
         self.assertEqual(build.await_args.kwargs["fallback_providers"],(healthy,))
+        self.assertEqual(build.await_args.kwargs["issue_time"],"23:45")
 
 
 class AgentDailyErrorVisibility(unittest.IsolatedAsyncioTestCase):

@@ -17,7 +17,7 @@ from data.plugins.doge_shared.help_service import format_cli_error
 from data.plugins.doge_shared.module_control import is_group_admin, is_plugin_enabled
 from data.plugins.doge_shared.presentation import long_result, text_result
 from data.plugins.doge_shared.raw_command import command_payload, original_message_text, split_head
-from .daily_report import DailyReportBundle, build_daily_report
+from .daily_report import DailyReportBundle, build_daily_report, load_latest_daily_report
 from .push import (
     DAILY_DEFAULT_TIME,
     ChaoliDailyPool,
@@ -27,6 +27,8 @@ from .push import (
     format_daily_message,
     format_push_message,
     shanghai_date,
+    daily_issue_window,
+    latest_closed_issue_date,
 )
 
 HELP = """Doge Chaoli /chaoli
@@ -45,17 +47,17 @@ HELP = """Doge Chaoli /chaoli
   /chaoli push off [板块]               关闭本群推送；不写板块则全部关闭
   /chaoli push status                   查看本群订阅
   /chaoli push test [板块]              预览实时推送样式，不改变水位（群主/管理员）
-  /chaoli daily                         生成并发送当日正式 TeX 日报；合并转发逐页预览 + 独立群文件 PDF + 可核验楼层证据
-  /chaoli daily push                    立即主动推送同一份 TeX/PDF 日报；成功后推进当天发送水位（管理员）
+  /chaoli daily                         阅读最近一期已生成的正式日报（未到截稿时看上一期），绝不临时生成
+  /chaoli daily push                    管理员重发最近一期已生成日报；仅当刊期为今天才推进今天水位
   /chaoli daily on [HH:MM]              开启本群日报，默认 23:45（Doge 管理员/群主/群管理员）
-  /chaoli daily off|status|test          日报管理/预览；和实时 push 独立
+  /chaoli daily off|status|test          日报管理/已生成刊物预览；每期在本群设置的截稿时间自动生成
   /chaoli status                        检查 Chaoli 专用代理链
-日报主源为坛主推荐的 #今日活跃 JSON，始终走 Chaoli 专用代理；报告独立于群聊人格与会话上下文，摘要逐条绑定真实楼层证据。
+日报以本群每天固定截稿时刻（默认 23:45，北京时间）向前24小时为窗口；候选由论坛 #今日活跃 提供。写稿模型沿用当前普通聊天的已配置候补顺序，但禁止使用私人付费 DeepSeek/OpenRouter 额度。
 搜索使用超理前端自己的 POST AJAX 接口，不经过会被 Cloudflare 拦截的 GET 查询页。
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.42")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、按时滚动24小时日报与实时群推送", "5.10.43")
 class DogeChaoli(Star):
     PUSH_LIMIT = 30
     PUSH_INTERVAL = max(60, min(int(os.getenv("DOGE_CHAOLI_PUSH_INTERVAL", "120") or 120), 600))
@@ -161,21 +163,20 @@ class DogeChaoli(Star):
         sub = parts[0].lower() if parts else "now"
         umo = str(event.unified_msg_origin)
         if sub in {"now", "show", "today"}:
-            today = shanghai_date()
-            report = await self._daily_report_for_send(today, umo=umo)
+            report = self._latest_existing_report(umo)
             delivered = await self._send_daily_report(umo, report)
             if not delivered:
-                raise ValueError("超理日报发送失败")
+                raise ValueError("已有日报重发失败；不会临时生成新刊")
             return None
         if sub == "status":
             async with self._push_lock:
                 state = self.push_store.daily_state(umo)
-            return f"本群超理日报：{'ON' if state['enabled'] else 'OFF'} · 时间 {state['time']} · 最近发送 {state['last_sent'] or '无'}。实时 push 与日报互不影响。"
+            return f"本群超理日报：{'ON' if state['enabled'] else 'OFF'} · 截稿/推送时间 {state['time']}（北京时间，统计此前24小时）· 最近推送 {state['last_sent'] or '无'}。/chaoli daily 仅取已生成的最新一期，不会临时生成。"
         if not await is_group_admin(event):
             raise ValueError("只有 Doge 管理员、本群群主或群管理员可以修改、测试或主动推送超理日报")
         if sub in {"push", "send"}:
+            report = self._latest_existing_report(umo)
             today = shanghai_date()
-            report = await self._daily_report_for_send(today, umo=umo)
             try:
                 delivered = await self._send_daily_report(umo, report)
             except Exception as exc:
@@ -185,9 +186,9 @@ class DogeChaoli(Star):
                 raise ValueError("超理日报主动推送失败；发送水位未推进")
             async with self._push_lock:
                 state = self.push_store.daily_state(umo)
-                if state.get("enabled"):
+                if state.get("enabled") and report.date == today:
                     self.push_store.mark_daily_sent(umo, today)
-            logger.info(f"doge chaoli manual daily push delivered umo={umo} date={today}")
+            logger.info(f"doge chaoli manual archived daily resent umo={umo} issue_date={report.date}")
             # Direct platform send is the command result. Returning None prevents
             # raw commands and Agent formal bridges from duplicating the digest.
             return None
@@ -195,14 +196,13 @@ class DogeChaoli(Star):
             time_text = self._normalize_daily_time(parts[1] if len(parts) > 1 else DAILY_DEFAULT_TIME)
             async with self._push_lock:
                 state = self.push_store.set_daily(umo, True, time_text)
-            return f"已开启本群超理日报，每天 {state['time']}；今天不补发，从下一次日报时点开始。实时 push 保持原设置。"
+            return f"已开启本群超理日报，每天北京时间 {state['time']}，统计该时刻往前24小时；浏览命令仅显示已有日报。实时 push 保持原设置。"
         if sub in {"off", "disable"}:
             async with self._push_lock:
                 self.push_store.set_daily(umo, False)
             return "已关闭本群超理日报；实时 push 不受影响。"
         if sub in {"test", "preview"}:
-            today = shanghai_date()
-            report = await self._daily_report_for_send(today, umo=umo)
+            report = self._latest_existing_report(umo)
             delivered = await self._send_daily_report(umo, report)
             if not delivered:
                 raise ValueError("超理日报测试发送失败")
@@ -231,40 +231,94 @@ class DogeChaoli(Star):
             self.daily_pool.reset(today, [])
             logger.warning(f"doge chaoli daily pool seed failed: {type(exc).__name__}: {exc}")
 
-    async def _daily_report_for_send(self, today: str, umo: str | None = None) -> DailyReportBundle:
+    def _latest_existing_report(self, umo: str) -> DailyReportBundle:
+        state=self.push_store.daily_state(umo)
+        preferred_time=self._normalize_daily_time(state.get("time"))
+        now=datetime.now(ZoneInfo("Asia/Shanghai"))
+        report=load_latest_daily_report(
+            self.data_dir,as_of=now,preferred_time=preferred_time,
+        )
+        if report is None:
+            cutoff=latest_closed_issue_date(now,preferred_time)
+            raise ValueError(
+                f"尚无已生成且有真实楼层证据的超理日报存档。"
+                f"本群固定截稿时间为北京时间 {preferred_time}；"
+                f"当前最多只能查看截止 {cutoff} 的已完成刊期。"
+                "历史空白/401 日报不能充当正式刊物；请等待下一次定时生成。"
+            )
+        return report
+
+    @staticmethod
+    def _free_daily_provider(provider) -> bool:
+        """Report never spends the user's personal API funds.
+
+        Derive routes from ordinary AstrBot chat fallback configuration. Keep
+        only the explicitly free local sources (and :free OpenRouter models),
+        in the same order as chat. Never silently use official paid DeepSeek.
+        """
+        if provider is None:
+            return False
+        config=getattr(provider,"provider_config",None)
+        if not isinstance(config,dict):
+            # Lightweight providers in tests and custom nonstandard adapters.
+            return True
+        name=str(config.get("id") or "")
+        source=str(config.get("provider_source_id") or name.split("/",1)[0]).lower()
+        if source in {"workbuddy","freellmapi"}:
+            return True
+        if source=="openrouter" and str(config.get("model") or "").endswith(":free"):
+            return True
+        return False
+
+    async def _daily_report_for_send(
+        self, today: str, umo: str | None = None,
+        issue_time: str = DAILY_DEFAULT_TIME,
+    ) -> DailyReportBundle:
         cards, source = await self._daily_cards_for_send(today)
-        # The global default provider may have an expired API key. Ordinary
-        # chats resolve a session-specific provider; reports must do likewise.
-        provider = await self.context.get_using_provider_async(umo=umo)
-        # Group model selection is the preferred author, but it can lose auth
-        # independently of the Agent (e.g. workbuddy 401). AstrBot's Agent
-        # model fallback does *not* automatically propagate into this plugin.
-        # Use existing configured instances only; never copy or log API keys.
-        backups=[]
+        selected=await self.context.get_using_provider_async(umo=umo)
+
+        # Exactly the ordinary chat provider chain from this session's config,
+        # minus paid routes explicitly disallowed for daily production.
+        cfg_getter=getattr(self.context,"get_config",None)
+        cfg=cfg_getter(umo=umo) if callable(cfg_getter) else {}
+        provider_settings=cfg.get("provider_settings",{}) if hasattr(cfg,"get") else {}
+        if not isinstance(provider_settings,dict):
+            provider_settings={}
+        fallback_ids=provider_settings.get("fallback_chat_models",[])
+        if not isinstance(fallback_ids,list):
+            fallback_ids=[]
         get_by_id=getattr(self.context,"get_provider_by_id",None)
+        route=[selected] if selected is not None else []
         if callable(get_by_id):
-            for provider_id in (
-                "deepseek/deepseek-v4-flash",
-                "openrouter/~deepseek/deepseek-v4-flash-latest",
-            ):
+            for pid in fallback_ids:
+                if not isinstance(pid,str) or not pid:
+                    continue
                 try:
-                    alt=get_by_id(provider_id)
+                    alternate=get_by_id(pid)
                 except Exception:
-                    alt=None
-                if alt is not None and alt is not provider and all(alt is not x for x in backups):
-                    backups.append(alt)
-        if provider is None and backups:
-            provider=backups.pop(0)
-        if provider is None and cards:
-            raise ValueError("本群尚无可用的日报写稿模型，无法生成有楼层依据的日报")
-        selected=getattr(getattr(provider,"meta",lambda:None)(),"id","none") if provider else "none"
+                    alternate=None
+                if alternate is not None and all(alternate is not x for x in route):
+                    route.append(alternate)
+        free_route=[p for p in route if self._free_daily_provider(p)]
+        if not free_route:
+            raise ValueError(
+                "当前聊天路由中没有可用的免费日报写稿模型；"
+                "已禁止自动使用官方 DeepSeek 或付费 OpenRouter 额度。"
+            )
+        primary, backups=free_route[0],free_route[1:]
+        def provider_id(p):
+            try:return str(p.meta().id)
+            except Exception:return str(getattr(p,"provider_config",{}).get("id","unknown"))
         logger.info(
-            f"doge chaoli daily selected scoped provider={selected} "
-            f"and configured fallback_count={len(backups)}"
+            "doge chaoli daily scheduled cutoff=%s %s, "
+            "chat route selected=%s, allowed_free_route=%s, "
+            "paid_candidates_omitted=%d",
+            today,issue_time,provider_id(selected) if selected else "none",
+            [provider_id(p) for p in free_route],len(route)-len(free_route),
         )
         return await build_daily_report(
             self.data_dir,cards,today,source,
-            provider=provider,fallback_providers=tuple(backups),
+            provider=primary,fallback_providers=tuple(backups),issue_time=issue_time,
         )
 
     async def _daily_forward_identity(self, umo: str) -> tuple[str, str]:
@@ -408,28 +462,46 @@ class DogeChaoli(Star):
         hhmm = now.strftime("%H:%M")
         async with self._push_lock:
             subscriptions = self.push_store.subscriptions()
-        due: list[str] = []
+        due: dict[str,list[str]] = {}
         for umo, sub in subscriptions.items():
-            if not isinstance(sub, dict) or not await is_plugin_enabled(str(umo), "doge_chaoli"):
+            if not isinstance(sub,dict) or not await is_plugin_enabled(str(umo),"doge_chaoli"):
                 continue
-            daily = sub.get("daily")
-            if not isinstance(daily, dict) or not daily.get("enabled"):
+            daily=sub.get("daily")
+            if not isinstance(daily,dict) or not daily.get("enabled"):
                 continue
-            target = str(daily.get("time") or DAILY_DEFAULT_TIME)
-            if hhmm >= target and str(daily.get("last_sent") or "") != today:
-                due.append(str(umo))
-        if not due:
-            return
-        report = await self._daily_report_for_send(today, umo=due[0])
-        for umo in due:
-            delivered = False
+            target=str(daily.get("time") or DAILY_DEFAULT_TIME)
             try:
-                delivered = await self._send_daily_report(umo, report)
+                _,end=daily_issue_window(today,target)
+            except ValueError:
+                logger.warning(f"doge chaoli invalid daily target={target!r}; skipping")
+                continue
+            if now>=end and str(daily.get("last_sent") or "")!=today:
+                due.setdefault(target,[]).append(str(umo))
+        for target,groups in due.items():
+            # Different subscriber times imply genuinely different source
+            # windows, signatures, PDFs and cache entries.
+            try:
+                report=await self._daily_report_for_send(
+                    today,umo=groups[0],issue_time=target
+                )
             except Exception as exc:
-                logger.warning(f"doge chaoli daily send failed umo={umo}: {type(exc).__name__}: {exc}")
-            if delivered:
-                async with self._push_lock:
-                    self.push_store.mark_daily_sent(umo, today)
+                logger.warning(
+                    f"doge chaoli scheduled issue generation failed "
+                    f"date={today} cutoff={target}: {type(exc).__name__}: {str(exc)[:155]}"
+                )
+                continue
+            for umo in groups:
+                try:
+                    delivered=await self._send_daily_report(umo,report)
+                except Exception as exc:
+                    delivered=False
+                    logger.warning(
+                        f"doge chaoli scheduled send failed umo={umo}: "
+                        f"{type(exc).__name__}: {str(exc)[:150]}"
+                    )
+                if delivered:
+                    async with self._push_lock:
+                        self.push_store.mark_daily_sent(umo,today)
 
     async def _push_loop(self) -> None:
         try:

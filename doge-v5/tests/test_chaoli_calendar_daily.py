@@ -96,13 +96,13 @@ class CalendarDateEvidence(unittest.IsolatedAsyncioTestCase):
                          (42,None,"one","https://chaoli.club/index.php/42/p1"))),
             patch.object(ChaoliService,"_parse_thread",return_value=("topic",f))
         ):
-            e=await _topic_evidence(c,issue_date="2026-10-30")
+            e=await _topic_evidence(c,issue_date="2026-10-31",issue_time="00:00")
         self.assertEqual([x.number for x in e.activity_floors],[2,3])
-        self.assertEqual([x.number for x in e.context_floors],[1,2,3,4])
-        self.assertEqual(e.issue_date,"2026-10-30")
+        self.assertEqual([x.number for x in e.context_floors],[1,2,3])  # 严禁截止后楼层混入历史
+        self.assertEqual(e.issue_date,"2026-10-31")
         payload=_summary_evidence_payload(e)
         self.assertEqual(payload["today_update_floor_numbers"],[2,3])
-        self.assertEqual(payload["issue_date"],"2026-10-30")
+        self.assertEqual(payload["issue_date"],"2026-10-31")
         self.assertEqual(next(x for x in payload["floors"] if x["floor"]==1)["role"],
                          "opening_background")
 
@@ -115,7 +115,7 @@ class CalendarDateEvidence(unittest.IsolatedAsyncioTestCase):
                          (43,None,"old","https://chaoli.club/index.php/43/p1"))),
             patch.object(ChaoliService,"_parse_thread",return_value=("topic",f))
         ):
-            e=await _topic_evidence(c,issue_date="2026-10-30")
+            e=await _topic_evidence(c,issue_date="2026-10-31",issue_time="00:00")
         self.assertFalse(e.activity_floors)
         self.assertEqual(e.context_floors[-1].time,"2026-10-29 22:46:00")
 
@@ -134,7 +134,7 @@ class CalendarDateEvidence(unittest.IsolatedAsyncioTestCase):
             patch.object(ChaoliService,"_parse_thread",side_effect=lambda html,tid:
                          ("topic",{"first":page1,"second":page2,"last":page3}[html]))
         ):
-            e=await _topic_evidence(c,issue_date="2026-10-30")
+            e=await _topic_evidence(c,issue_date="2026-10-31",issue_time="00:00")
         self.assertEqual([x.number for x in e.activity_floors],[12,20])
         self.assertEqual(e.context_pages,(1,2,3))
         self.assertFalse(e.recent_window_truncated)
@@ -163,8 +163,8 @@ class PublicationSelection(unittest.IsolatedAsyncioTestCase):
             patch.object(report,"editorialize_daily",AsyncMock(return_value=issue)) as editorial,
             patch.object(report,"_compile_issue_tex",side_effect=fake_compile) as compiler
         ):
-            first=await build_daily_report(Path(td),cards,"2026-10-30","owner-json",provider=object())
-            second=await build_daily_report(Path(td),cards,"2026-10-30","owner-json",provider=object())
+            first=await build_daily_report(Path(td),cards,"2026-10-30","owner-json",provider=object(),issue_time="00:00")
+            second=await build_daily_report(Path(td),cards,"2026-10-30","owner-json",provider=object(),issue_time="00:00")
             manifest=json.loads(first.manifest.read_text())
         self.assertEqual([c.thread_id for c in first.cards],[1])
         self.assertEqual([c.thread_id for c in second.cards],[1])
@@ -172,8 +172,8 @@ class PublicationSelection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(manifest["index_topic_count"],3)
         self.assertEqual(manifest["topic_count"],1)
         self.assertEqual(len(manifest["excluded_index_topics"]),2)
-        self.assertEqual(manifest["topics"][0]["activity_floors_on_date"],[6])
-        collect.assert_awaited_once_with(cards,issue_date="2026-10-30")
+        self.assertEqual(manifest["topics"][0]["activity_floors_in_window"],[6])
+        collect.assert_awaited_once_with(cards,issue_date="2026-10-30",issue_time="00:00")
         summarize.assert_awaited_once()
         editorial.assert_awaited_once()
         compiler.assert_called_once()
@@ -188,8 +188,8 @@ class PublicationSelection(unittest.IsolatedAsyncioTestCase):
             patch.object(report,"summarize_daily_topics",AsyncMock()) as model,
             patch.object(report,"_compile_issue_tex") as compile_pdf
         ):
-            with self.assertRaisesRegex(ValueError,"没有核验到当日新增楼层"):
-                await build_daily_report(Path(td),[c],"2026-10-30","owner-json",provider=object())
+            with self.assertRaisesRegex(ValueError,"没有核验到本期24小时窗口内的更新楼层"):
+                await build_daily_report(Path(td),[c],"2026-10-30","owner-json",provider=object(),issue_time="00:00")
             self.assertFalse(list(Path(td).rglob("*.json")))
             model.assert_not_awaited()
             compile_pdf.assert_not_called()
@@ -222,7 +222,7 @@ class PublicationSelection(unittest.IsolatedAsyncioTestCase):
                 patch.object(report,"editorialize_daily",AsyncMock(return_value=issue)),
                 patch.object(report,"_compile_issue_tex",side_effect=fake_compile)
             ):
-                result=await build_daily_report(Path(td),[c],"2026-10-30","owner-json",provider=object())
+                result=await build_daily_report(Path(td),[c],"2026-10-30","owner-json",provider=object(),issue_time="00:00")
         self.assertEqual(result.evidence[0].previous_date,"2026-10-29")
         self.assertIn("昨天已经介绍",captured[0]["previous_issue"]["published_article"])
         self.assertEqual(captured[0]["previous_issue"]["previously_active_floors"],[50])

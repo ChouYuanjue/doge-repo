@@ -484,7 +484,7 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
     name: str = "doge_chaoli"
     description: str = (
         "超理论坛工具：读取时所有作者/板块/楼层/用户字段都要求和同一论坛 DOM 实体强绑定；引用与作者本人正文分离，不能据摘要或相邻元素推断。"
-        "支持论坛原生 POST AJAX 搜索、最新/分板主题、帖子/楼层、严格用户名验证、用户公开活动、引用链和链接预览；daily 会将日报发送到当前群但不推进订阅水位，daily_push 需要管理员权限且成功后推进水位。日报失败时必须如实反馈错误原因，不能声称论坛没有内容。"
+        "支持论坛原生 POST AJAX 搜索、最新/分板主题、帖子/楼层、严格用户名验证、用户公开活动、引用链和链接预览；daily 只能将已生成的最新一期日报重发到当前群（当天未到固定截稿时间则优先显示上一期），不会临时调用模型生成；daily_push 需要管理员权限，也只会重发已有刊物。日报失败时必须如实反馈原因，不得声称论坛没有内容。"
         "如果用户给出含 /pN#pPOSTID 或 /conversation/post/POSTID 的具体楼层链接，必须把原链接原样传给 read/preview；不要先 outline、不要改写 permalink、不要自己猜楼号。"
     )
     parameters: dict = Field(default_factory=lambda: {
