@@ -17,7 +17,7 @@ plugins.__path__=[str(ROOT/"plugins")]
 data.plugins=plugins
 
 from doge_chaoli.daily_report import (
-    REPORT_SCHEMA,REPORT_TEMPLATE_REV,DailyTopicSummary,
+    REPORT_SCHEMA,REPORT_TEMPLATE_REV,DailyTopicEvidence,DailyTopicSummary,
     _load_frozen_report,build_daily_report,
 )
 from doge_chaoli.main import DogeChaoli
@@ -39,8 +39,8 @@ class ReportRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_zero_articles_401_rejects_instead_of_writing_success_manifest(self):
         with tempfile.TemporaryDirectory() as td:
-            card=types.SimpleNamespace(thread_id=101)
-            evidence=[types.SimpleNamespace(card=card)]
+            card=types.SimpleNamespace(thread_id=101,updated="2026-10-30")
+            evidence=[DailyTopicEvidence(card,None,(),(),"ChaoliError: temporary source unavailable")]
             summarized=[DailyTopicSummary(101,"",(),"AuthenticationError: HTTP 401")]
             with (
                 patch.object(report,"_signature",return_value="noauth"),

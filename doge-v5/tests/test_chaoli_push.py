@@ -252,14 +252,14 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(chain.chain), 1)
             self.assertIsInstance(chain.chain[0], Nodes)
             nodes = chain.chain[0].nodes
-            self.assertEqual(len(nodes), 3)  # edition note + one page + PDF
+            self.assertEqual(len(nodes), 2)  # edition note + one page; PDF uses upload_group_file
             self.assertIsInstance(nodes[0], Node)
             self.assertIn("超理日报", nodes[0].content[0].text)
             self.assertTrue(any(isinstance(x, Image) for x in nodes[1].content))
-            self.assertTrue(any(isinstance(x, File) for x in nodes[-1].content))
+            self.assertFalse(any(isinstance(x, File) for node in nodes for x in node.content))
             self.assertEqual(plugin.push_store.daily_state(umo)["last_sent"], shanghai_date())
 
-    async def test_daily_forward_serializes_page_and_pdf_inside_nodes(self):
+    async def test_daily_forward_serializes_page_images_without_file_nodes(self):
         with tempfile.TemporaryDirectory() as td:
             plugin = object.__new__(DogeChaoli)
             plugin.context = type("Ctx", (), {})()
@@ -283,15 +283,15 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(chain.chain), 1)
             payload = await chain.chain[0].to_dict()
             messages = payload["messages"]
-            self.assertEqual(len(messages), 3)
+            self.assertEqual(len(messages), 2)
             page_content = messages[1]["data"]["content"]
             image_segments = [x for x in page_content if x.get("type") == "image"]
             self.assertEqual(len(image_segments), 1)
             self.assertTrue(image_segments[0]["data"]["file"].startswith("base64://"))
-            pdf_content = messages[2]["data"]["content"]
-            file_segments = [x for x in pdf_content if x.get("type") == "file"]
-            self.assertEqual(len(file_segments), 1)
-            self.assertEqual(file_segments[0]["data"]["name"], "Chaoli-Daily-2026-09-07.pdf")
+            self.assertFalse(any(
+                seg.get("type")=="file"
+                for message in messages for seg in message["data"]["content"]
+            ))
 
 
 
@@ -357,7 +357,7 @@ class ChaoliDailyTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsInstance(chain.chain[0], Nodes)
                 nodes = chain.chain[0].nodes
                 self.assertTrue(any(isinstance(x, Image) for x in nodes[1].content))
-                self.assertTrue(any(isinstance(x, File) for x in nodes[-1].content))
+                self.assertFalse(any(isinstance(x, File) for node in nodes for x in node.content))
             for umo in ("napcat:GroupMessage:1", "napcat:GroupMessage:2"):
                 self.assertEqual(plugin.push_store.daily_state(umo)["last_sent"], shanghai_date())
 
@@ -388,7 +388,7 @@ class ChaoliDailyReportTests(unittest.TestCase):
         first = chaoli_main.ChaoliService._parse_thread("""<html><title>主题 - 超理论坛</title><div class='post' data-id='1' id='p1'><div class='postHeader'><div class='info'><h3><a href='/index.php/member/1'>甲</a></h3><span>1楼</span><a class='time' href='/index.php/conversation/post/1' title='2026-09-01 10:00:00'></a></div></div><div class='postBody'><p>主题背景</p></div></div></html>""", 100)[1][0]
         floor = chaoli_main.ChaoliService._parse_thread("""<html><title>主题 - 超理论坛</title><div class='post' data-id='9' id='p9'><div class='postHeader'><div class='info'><h3><a href='/index.php/member/2'>乙</a></h3><span>3楼</span><a class='time' href='/index.php/conversation/post/9' title='2026-09-07 21:00:00'></a></div></div><div class='postBody'><p>今天的更新</p></div></div></html>""", 100)[1][0]
         md = _report_markdown([c], [DailyTopicEvidence(c, first, (floor,), (floor,))], [DailyTopicSummary(100, "今天有明确推进。", (3,))], "2026-09-07", "owner-json")
-        self.assertIn("过去24小时 1 个公开楼层更新", md)
+        self.assertIn("本期 1 个公开楼层更新", md)
         self.assertIn("https://chaoli.club/index.php/conversation/post/9", md)
         self.assertIn("今天的更新", md)
 
@@ -396,7 +396,8 @@ class ChaoliDailyReportTests(unittest.TestCase):
 class ChaoliEditionFreezeTests(unittest.IsolatedAsyncioTestCase):
     async def test_same_signature_reuses_frozen_pdf_without_recollecting(self):
         c = card(100, replies=8, title="冻结版主题")
-        evidence = [DailyTopicEvidence(c, None, (), ())]
+        entry = chaoli_main.ChaoliService._parse_thread("""<html><title>冻结版主题 - 超理论坛</title><div class=\'post\' data-id=\'1\' id=\'p1\'><div class=\'postHeader\'><div class=\'info\'><h3><a href=\'/index.php/member/1\'>甲</a></h3><span>1楼</span><a class=\'time\' href=\'/index.php/conversation/post/1\' title=\'2026-09-09 10:00:00\'></a></div></div><div class=\'postBody\'><p>今天新增了一条讨论。</p></div></div></html>""", 100)[1][0]
+        evidence = [DailyTopicEvidence(c, entry, (entry,), (entry,), context_floors=(entry,))]
         summaries = [DailyTopicSummary(100, "冻结版正文。", (1,))]
         editorial = DailyEditorialIssue(
             "冻结版主标题",
@@ -504,7 +505,7 @@ class ChaoliEditorialIssueTests(unittest.IsolatedAsyncioTestCase):
         issue = await editorialize_daily(provider, [DailyTopicEvidence(c1, None, (), ()), DailyTopicEvidence(c2, None, (), ())], [DailyTopicSummary(100, "A", (1,)), DailyTopicSummary(101, "B", (1,))])
         self.assertTrue(issue.error)
         self.assertEqual({tid for x in issue.blocks for tid in x.thread_ids}, {100, 101})
-        self.assertEqual(sum(1 for x in issue.blocks if x.level == "lead"), 1)
+        self.assertEqual(sum(1 for x in issue.blocks if x.level == "lead"), 0)  # 没有当天实质进展，不硬设头条
 
     def test_tex_is_formal_academic_bulletin_not_card_html(self):
         c1 = card(100, replies=8, title="主讨论")

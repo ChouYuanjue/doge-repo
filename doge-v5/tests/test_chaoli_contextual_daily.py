@@ -140,6 +140,38 @@ class GuidedContextTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.context_requests,(33,))
         self.assertEqual(result.evidence_floors,(1,56))
 
+    async def test_invalid_model_floor_is_rewritten_not_silently_filled(self):
+        history=[floor(1),floor(56)]
+        item=DailyTopicEvidence(card(),history[0],(history[-1],),(history[-1],),
+                                context_floors=tuple(history))
+        provider=types.SimpleNamespace(text_chat=AsyncMock(side_effect=[
+            types.SimpleNamespace(completion_text=json.dumps({
+                "topics":[{"thread_id":42,"article":"第999楼发现了突破。",
+                           "evidence_floors":[999]}]})),
+            types.SimpleNamespace(completion_text=json.dumps({
+                "topics":[{"thread_id":42,
+                           "article":"目前只有第56楼的一条评论，尚无证明。",
+                           "evidence_floors":[1,56]}]})),
+        ]))
+        result=(await summarize_daily_topics(provider,[item]))[0]
+        self.assertEqual(provider.text_chat.await_count,2)
+        self.assertEqual(result.evidence_floors,(1,56))
+        self.assertEqual(result.error,"")
+        self.assertNotIn("999",result.text)
+
+    async def test_repeated_fake_floor_still_fails_after_single_repair(self):
+        history=[floor(1),floor(56)]
+        item=DailyTopicEvidence(card(),history[0],(history[-1],),(history[-1],),
+                                context_floors=tuple(history))
+        provider=types.SimpleNamespace(text_chat=AsyncMock(return_value=
+            types.SimpleNamespace(completion_text=json.dumps({
+                "topics":[{"thread_id":42,"article":"不存在的来源。",
+                           "evidence_floors":[999]}]}))))
+        result=(await summarize_daily_topics(provider,[item]))[0]
+        self.assertEqual(provider.text_chat.await_count,2)
+        self.assertEqual(result.error,"invalid_evidence_refs")
+        self.assertEqual(result.text,"")
+
     async def test_today_update_required_for_publication(self):
         history=[floor(1),floor(56)]
         item=DailyTopicEvidence(card(),history[0],(history[-1],),(history[-1],),

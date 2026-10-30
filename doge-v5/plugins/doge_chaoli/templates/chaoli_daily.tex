@@ -11,6 +11,12 @@
 \usepackage{amsmath,amssymb}
 \usepackage[hidelinks]{hyperref}
 
+% Greek and mathematical Unicode in technical headings need a real Latin font.
+% Without an explicit Latin font, raw e+π lost π in the rendered PDF.
+% Pin the OpenType files: fontconfig may otherwise select legacy .t1 Type1
+% files, which Tectonic's xdvipdfmx cannot embed inside the sandbox.
+\setmainfont[Path=/usr/share/fonts/urw-base35/,BoldFont=NimbusRoman-Bold.otf,ItalicFont=NimbusRoman-Italic.otf,BoldItalicFont=NimbusRoman-BoldItalic.otf]{NimbusRoman-Regular.otf}
+\setsansfont[Path=/usr/share/fonts/urw-base35/,BoldFont=NimbusSans-Bold.otf,ItalicFont=NimbusSans-Italic.otf,BoldItalicFont=NimbusSans-BoldItalic.otf]{NimbusSans-Regular.otf}
 \setCJKmainfont[Path=/usr/share/fonts/google-noto-cjk/,FontIndex=2,BoldFont=NotoSerifCJK-Bold.ttc,BoldFeatures={FontIndex=2}]{NotoSerifCJK-Regular.ttc}
 \setCJKsansfont[Path=/usr/share/fonts/google-noto-cjk/,FontIndex=2,BoldFont=NotoSansCJK-Bold.ttc,BoldFeatures={FontIndex=2}]{NotoSansCJK-Regular.ttc}
 

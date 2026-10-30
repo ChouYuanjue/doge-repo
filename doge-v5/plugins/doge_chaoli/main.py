@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
-from astrbot.api.message_components import File, Image, Node, Nodes, Plain
+from astrbot.api.message_components import Image, Node, Nodes, Plain
 from astrbot.api.star import Context, Star, StarTools, register
 
 from data.plugins.doge_shared.agent_tools import DogeChaoliTool, register_domain_tools
@@ -45,7 +45,7 @@ HELP = """Doge Chaoli /chaoli
   /chaoli push off [板块]               关闭本群推送；不写板块则全部关闭
   /chaoli push status                   查看本群订阅
   /chaoli push test [板块]              预览实时推送样式，不改变水位（群主/管理员）
-  /chaoli daily                         生成并发送今日正式 TeX 日报；合并转发逐页预览 + PDF 原件 + 可核验楼层证据
+  /chaoli daily                         生成并发送当日正式 TeX 日报；合并转发逐页预览 + 独立群文件 PDF + 可核验楼层证据
   /chaoli daily push                    立即主动推送同一份 TeX/PDF 日报；成功后推进当天发送水位（管理员）
   /chaoli daily on [HH:MM]              开启本群日报，默认 23:45（Doge 管理员/群主/群管理员）
   /chaoli daily off|status|test          日报管理/预览；和实时 push 独立
@@ -55,7 +55,7 @@ HELP = """Doge Chaoli /chaoli
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.40")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、今日活跃日报与实时群推送", "5.10.41")
 class DogeChaoli(Star):
     PUSH_LIMIT = 30
     PUSH_INTERVAL = max(60, min(int(os.getenv("DOGE_CHAOLI_PUSH_INTERVAL", "120") or 120), 600))
@@ -260,16 +260,27 @@ class DogeChaoli(Star):
             logger.debug(f"doge chaoli daily forward identity fallback: {type(exc).__name__}: {exc}")
         return "0", "豆子"
 
-    async def _daily_report_chain(self, umo: str, report: DailyReportBundle) -> MessageChain:
-        """One merged-forward issue: edition note, all page previews, then PDF."""
+    async def _daily_report_chain(
+        self, umo: str, report: DailyReportBundle, *, pdf_uploaded: bool = False
+    ) -> MessageChain:
+        """Send only image pages inside a OneBot merged-forward.
+
+        OneBot group-file upload is a separate action. A File node embedded
+        inside send_group_forward_msg can fail even though the PDF compiled.
+        """
         uin, name = await self._daily_forward_identity(umo)
+        pdf_note = (
+            "PDF 原件已单独上传至群文件。"
+            if pdf_uploaded else
+            "PDF 群文件本次未上传成功；以下完整图片预览仍可阅读。"
+        )
         nodes = [
             Node(
                 uin=uin,
                 name=name,
                 content=[Plain(
                     f"{report.caption}\n"
-                    f"共 {len(report.pages)} 页。以下为逐页预览，末尾附 PDF 原件；整期通过合并转发发送。"
+                    f"共 {len(report.pages)} 页。以下为逐页图片预览；{pdf_note}"
                 )],
             )
         ]
@@ -282,19 +293,65 @@ class DogeChaoli(Star):
                     Image.fromFileSystem(str(path)),
                 ],
             ))
-        nodes.append(Node(
-            uin=uin,
-            name=name,
-            content=[
-                Plain("PDF 原件"),
-                File(name=f"Chaoli-Daily-{report.date}.pdf", file=str(report.pdf)),
-            ],
-        ))
         return MessageChain([Nodes(nodes)])
 
+    async def _upload_daily_pdf(self, umo: str, report: DailyReportBundle) -> bool:
+        """Use NapCat's documented group-file action, never a forward File node."""
+        try:
+            platform_name = str(umo).split(":", 1)[0]
+            get_platform = getattr(self.context, "get_platform_inst", None)
+            platform = get_platform(platform_name) if callable(get_platform) else None
+            call_action = getattr(getattr(platform, "bot", None), "call_action", None)
+            if not callable(call_action):
+                return False
+            session_tail = str(umo).rsplit(":", 1)[-1]
+            group_id = session_tail.split("_")[-1]
+            if not group_id.isdigit():
+                raise ValueError("missing numeric QQ group id")
+            with report.pdf.open("rb") as file:
+                if file.read(4) != b"%PDF":
+                    raise ValueError("missing valid PDF artifact")
+            result = await call_action(
+                "upload_group_file",
+                group_id=int(group_id),
+                file=str(report.pdf.resolve()),
+                name=f"Chaoli-Daily-{report.date}.pdf",
+            )
+            if isinstance(result, dict) and (
+                result.get("status") in {"failed", "error"}
+                or (result.get("retcode") not in (None, 0))
+            ):
+                raise RuntimeError("NapCat returned failed upload response")
+            return True
+        except Exception as exc:
+            logger.warning(
+                f"doge chaoli PDF group upload failed umo={umo}: "
+                f"{type(exc).__name__}: {str(exc)[:130]}"
+            )
+            return False
+
     async def _send_daily_report(self, umo: str, report: DailyReportBundle) -> bool:
-        chain = await self._daily_report_chain(umo, report)
-        return bool(await self.context.send_message(umo, chain))
+        # Upload first and always attempt readable image previews. If only one
+        # channel succeeds, treat the edition as delivered to avoid duplicate
+        # forwards every 120 seconds; log incomplete delivery for inspection.
+        pdf_uploaded = await self._upload_daily_pdf(umo, report)
+        preview_sent = False
+        try:
+            chain = await self._daily_report_chain(
+                umo, report, pdf_uploaded=pdf_uploaded
+            )
+            preview_sent = bool(await self.context.send_message(umo, chain))
+        except Exception as exc:
+            logger.warning(
+                f"doge chaoli PDF preview forward failed umo={umo}: "
+                f"{type(exc).__name__}: {str(exc)[:130]}"
+            )
+        if not (pdf_uploaded and preview_sent):
+            logger.warning(
+                f"doge chaoli daily partial send umo={umo} "
+                f"pdf_uploaded={pdf_uploaded} preview_sent={preview_sent}"
+            )
+        return bool(pdf_uploaded or preview_sent)
 
     async def _daily_cards_for_send(self, today: str) -> tuple[list, str]:
         # Primary path: exactly the forum-owner recommended JSON URL through the

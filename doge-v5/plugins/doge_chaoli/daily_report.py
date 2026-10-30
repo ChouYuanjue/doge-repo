@@ -16,8 +16,8 @@ from data.plugins.doge_shared.typeset import _render_tex_document
 from .push import reply_count
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
-REPORT_SCHEMA = 4
-REPORT_TEMPLATE_REV = "scholarly-dispatch-v8-contextual"
+REPORT_SCHEMA = 5
+REPORT_TEMPLATE_REV = "scholarly-dispatch-v9-calendar-day"
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +36,7 @@ class DailyTopicEvidence:
     last_page_number: int = 1
     focused_floors: tuple[int, ...] = ()
     recent_window_truncated: bool = False
+    issue_date: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +82,7 @@ class DailyReportBundle:
     def caption(self) -> str:
         failures = sum(1 for item in self.evidence if item.error)
         tail = f" · {failures} 个主题正文证据未补全" if failures else ""
-        return f"超理日报 · {self.date} · 今日活跃 {len(self.cards)} 主题{tail}"
+        return f"超理日报 · {self.date} · 当日有更新的主题 {len(self.cards)} 个{tail}"
 
 
 def _one_line(text: str, limit: int) -> str:
@@ -123,20 +124,47 @@ def _floor_excerpt(floor: Floor, limit: int) -> str:
     return body or "〔无可抽取文本，可能只有图片或附件〕"
 
 
-async def _topic_evidence(card: ThreadCard, *, recent: int = 6) -> DailyTopicEvidence:
-    """Fetch broad thread context plus all discoverable activity in the last 24h.
+async def _topic_evidence(card: ThreadCard, *, recent: int = 6, issue_date: str | None = None) -> DailyTopicEvidence:
+    """Read opening/historical context and updates on the *edition calendar day*.
 
-    Short and medium threads are read page-by-page. Very long threads use a
-    deterministic stratified page sample while still walking backwards through
-    every recent page until activity leaves the 24h window. This prevents the
-    daily writer from treating a late reply as if it were the whole discussion.
+    #今日活跃 is a rolling-window candidate index and can contain yesterday\'s
+    late replies. Only timestamps in [issue_date 00:00, next midnight) count as
+    today\'s news. Earlier posts remain available as contextual evidence.
     """
     try:
         first_html, last_ref = await asyncio.gather(
             ChaoliService._get(f"/index.php/{card.thread_id}"),
             ChaoliService._fetch_exact_ref(f"https://chaoli.club/index.php/{card.thread_id}/last"),
+            return_exceptions=True,
         )
+        if isinstance(first_html, BaseException):
+            raise first_html
         _, first_floors = ChaoliService._parse_thread(first_html, card.thread_id)
+        if isinstance(last_ref, BaseException):
+            # The forum's /last redirect is sometimes the only URL to time out.
+            # For genuinely single-page threads we can prove completeness from
+            # all visible floor numbers plus index reply count. This prevents a
+            # transient redirect timeout from erasing all of today's evidence.
+            # Longer threads or a visible p2+ pagination remain hard failures.
+            count=reply_count(card.replies)
+            page_links=re.findall(
+                rf"/index\.php/{int(card.thread_id)}/p(\d+)",
+                first_html,
+            )
+            has_next=any(int(page)>1 for page in page_links)
+            complete=bool(
+                first_floors and count is not None
+                and min(f.number for f in first_floors)==1
+                and len(first_floors)>=count+1
+                and max(f.number for f in first_floors)>=count+1
+                and not has_next
+            )
+            if not complete:
+                raise last_ref
+            last_ref=(
+                card.thread_id,None,first_html,
+                f"https://chaoli.club/index.php/{card.thread_id}/p1",
+            )
         last_tid, _post_id, last_html, resolved_url = last_ref
         if last_tid != card.thread_id:
             raise ChaoliError("末页重定向到了其他主题")
@@ -147,7 +175,10 @@ async def _topic_evidence(card: ThreadCard, *, recent: int = 6) -> DailyTopicEvi
         page_match = re.search(rf"/{card.thread_id}/p(\d+)(?:$|[?#])", resolved_url)
         last_page_no = int(page_match.group(1)) if page_match else 1
         page_floors[last_page_no] = last_floors
-        cutoff = datetime.now(SHANGHAI) - timedelta(hours=24)
+        edition_date = issue_date or datetime.now(SHANGHAI).date().isoformat()
+        edition_start = datetime.strptime(edition_date, "%Y-%m-%d").replace(tzinfo=SHANGHAI)
+        edition_end = edition_start + timedelta(days=1)
+        cutoff = edition_start
 
         def floor_dt(floor: Floor) -> datetime | None:
             raw = str(floor.time or "").strip()
@@ -209,12 +240,13 @@ async def _topic_evidence(card: ThreadCard, *, recent: int = 6) -> DailyTopicEvi
                 merged[floor.url] = floor
         chronological = sorted(merged.values(), key=lambda x: x.number)
         available = [x for x in chronological if not x.deleted]
-        activity = tuple(x for x in available if (floor_dt(x) is not None and floor_dt(x) >= cutoff))
+        activity = tuple(x for x in available if (floor_dt(x) is not None and cutoff <= floor_dt(x) < edition_end))
         latest = tuple(available[-max(1, min(int(recent), 10)):])
         return DailyTopicEvidence(card, first, activity, latest, "", tuple(available),
                                   context_pages=tuple(sorted(page_floors)),
                                   last_page_number=last_page_no,
-                                  recent_window_truncated=recent_window_truncated)
+                                  recent_window_truncated=recent_window_truncated,
+                                  issue_date=edition_date)
     except Exception as exc:
         # Never drop the topic selected by #今日活跃 merely because enrichment
         # failed. The index row remains authoritative and the report records the
@@ -222,12 +254,12 @@ async def _topic_evidence(card: ThreadCard, *, recent: int = 6) -> DailyTopicEvi
         return DailyTopicEvidence(card, None, (), (), f"{type(exc).__name__}: {exc}")
 
 
-async def collect_daily_evidence(cards: list[ThreadCard], *, concurrency: int = 3) -> list[DailyTopicEvidence]:
+async def collect_daily_evidence(cards: list[ThreadCard], *, concurrency: int = 3, issue_date: str | None = None) -> list[DailyTopicEvidence]:
     sem = asyncio.Semaphore(max(1, min(int(concurrency), 5)))
 
     async def one(card: ThreadCard) -> DailyTopicEvidence:
         async with sem:
-            return await _topic_evidence(card)
+            return await _topic_evidence(card, issue_date=issue_date)
 
     return list(await asyncio.gather(*(one(card) for card in cards)))
 
@@ -235,9 +267,11 @@ async def collect_daily_evidence(cards: list[ThreadCard], *, concurrency: int = 
 
 def _spread_floors(floors: list[Floor], limit: int) -> list[Floor]:
     """Select first/last and evenly spaced intermediate replies deterministically."""
+    if limit <= 0:
+        return []
     if len(floors) <= limit:
         return floors
-    if limit <= 1:
+    if limit == 1:
         return [floors[-1]]
     positions = {round(i * (len(floors)-1) / (limit-1)) for i in range(limit)}
     return [floors[i] for i in sorted(positions)]
@@ -287,6 +321,23 @@ def _summary_evidence_payload(item: DailyTopicEvidence) -> dict:
     add(_spread_floors(missing,max(0,52-len(chosen))),max(0,52-len(chosen)))
 
     floors=sorted(chosen.values(),key=lambda f:f.number)
+
+    # The long-thread 52-floor budget does not cover every new reply in a busy
+    # topic. Give the editor a separate bounded index of *all* unshown updates,
+    # with compact excerpts, so it can request full text for an interesting
+    # missing floor instead of unknowingly ignoring part of the day's debate.
+    missing_new=[f for f in activity if f.number not in chosen]
+    if len(missing_new)>80:
+        uniform=_spread_floors(missing_new,45)
+        informative=sorted(missing_new,
+                           key=lambda f:(len(str(f.text or "")),f.number),
+                           reverse=True)[:20]
+        latest=missing_new[-15:]
+        skim=sorted({f.number:f for f in uniform+informative+latest}.values(),
+                    key=lambda f:f.number)[:80]
+    else:
+        skim=missing_new
+
     recent_chars=sum(len(_one_line(f.text,600)) for f in activity)
     substantive=sum(len(_one_line(f.text,450))>=60 for f in activity)
     if len(activity)<=1 and substantive==0:
@@ -326,7 +377,22 @@ def _summary_evidence_payload(item: DailyTopicEvidence) -> dict:
         "context_total_pages":item.last_page_number,
         "recent_window_truncated":item.recent_window_truncated,
         "provided_floor_count":len(floors),
+        "issue_date":item.issue_date or (activity[0].time[:10] if activity else ""),
         "today_update_floor_numbers":sorted(active_numbers),
+        "today_update_total":len(activity),
+        "today_update_shown":sum(n in active_numbers for n in chosen),
+        "today_update_unread_count":len(missing_new),
+        "today_update_skim":[
+            {"floor":f.number,"author":f.author,"time":f.time,
+             "preview":_one_line(f.text,115)}
+            for f in skim
+        ],
+        "coverage_warning":(
+            "部分当日分页未覆盖；不能宣称所有当日更新都已核验"
+            if item.recent_window_truncated else
+            "部分当日楼层仅提供摘要预览，关键内容须请求全文楼层"
+            if missing_new else ""
+        ),
         "recommended_chars":recommended,
         "floors":[{
             "floor":f.number,
@@ -486,16 +552,17 @@ async def summarize_daily_topics(provider, evidence: list[DailyTopicEvidence], *
         return [DailyTopicSummary(x.card.thread_id, "", (), "no_provider") for x in evidence]
 
     system = (
-        "你是学术社区日报记者，职责是准确报道公开讨论在最近24小时的新内容。"
+        "你是学术社区日报记者，职责是准确报道公开讨论在指定刊期（北京时间自然日）内的新内容。论坛今日活跃列表会包含昨天晚间回复，只有标为 today_update 的楼层才属于本期新消息。"
         "输入包含 opening_background（开帖背景）、prior_turn_context（本次更新之前的直接对话）、"
         "historical_context（更早讨论）、today_update（本期新回复）、previously_discussed（旧日报曾提及的楼层）和 previous_issue（上一期已经刊发的文稿）。"
         "严格按认知顺序理解：先弄清问题和此前论证、分歧、限制，再检视本次最新回复带来了什么变化。"
-        "旧帖的原有主张或早已出现的结论属于背景，绝不能仅因帖子今天活跃就写成今天刚发生的研究突破。"
+        "旧帖的原有主张或早已出现的结论属于背景，绝不能仅因帖子今天活跃就写成今天刚发生的研究突破。若提及前夜或更早的回复，必须以它的实际日期注明是背景。"
         "若 previous_issue 存在，必须逐点对照上期已报道内容，重点呈现新论据、新反例、修正或仍未解决之处；"
         "不要把上期正文换一种说法再次整段发表。前一期正文只是对照线索，事实仍需当前论坛楼层支撑。"
         "若没有实质新进展，应简短写明今天只是询问、补充链接、顶帖或延续讨论；允许只有1个短段落。"
-        "如果本次仅1-2条短回复，就无需对十年旧帖写千字前情；正文长短由 recent_24h 的信息量而非历史总量决定。"
+        "如果本次仅1-2条短回复，就无需对十年旧帖写千字前情；正文长短由本期 today_update 楼层的信息量而非历史总量决定。"
         "需要追溯时，可选1到3个当前输入缺失的楼层号写入 context_requests，系统会尝试补读并让你重写，"
+        "若 today_update_skim 提到值得报道的关键楼层，先用 context_requests 索取对应楼层全文再写；仅有预览不能直接作为楼层证据。若 coverage_warning 指示不完整，不得宣称覆盖了全部回复。"
         "不可要求无限抓取；已经充分了解的主题将 context_requests 留空。"
         "始终区分发言者意见、引用和已核实事实，保留具体技术对象、条件、数据、构造，但不虚构证明或公式。"
         "所有事实必须绑定已提供的真实楼层证据；本期确有新楼层时，evidence_floors 中至少引用一条 today_update。"
@@ -580,6 +647,64 @@ async def summarize_daily_topics(provider, evidence: list[DailyTopicEvidence], *
             for item in batch:
                 out.setdefault(item.card.thread_id, DailyTopicSummary(item.card.thread_id, "", (), f"{type(exc).__name__}: {exc}"))
 
+    # Cheap, bounded repair for malformed citations returned by a real LLM.
+    # Never silently replace a fake floor number with an invented plausible
+    # citation; require a *new* complete article citing the actual supplied
+    # evidence, including at least one edition-day floor.
+    recoverable={"invalid_evidence_refs","missing_recent_evidence","summary_missing"}
+    retry_items=[
+        item for item in evidence
+        if out.get(item.card.thread_id,DailyTopicSummary(item.card.thread_id,"",(),"summary_missing")).error
+        in recoverable
+        and item.activity_floors
+    ][:3]
+    for item in retry_items:
+        tid=item.card.thread_id
+        payload=_summary_evidence_payload(item)
+        valid={f["floor"] for f in payload["floors"]}
+        recent={f.number for f in item.activity_floors}
+        if not valid or not (valid & recent):
+            continue
+        correction=(
+            system+
+            "这是对无效楼层引用的最后一次独立纠错。不能沿用之前的错误引用，"
+            "不能只写引用而不写正文；严格从提供的真实楼层重写。"
+            "允许的引用楼层为请求列出的 permitted_evidence_floors；"
+            "其中必须至少包括一条 edition_update_floors。"
+        )
+        repair_input=json.dumps({
+            "topic":payload,
+            "permitted_evidence_floors":sorted(valid),
+            "edition_update_floors":sorted(recent & valid),
+            "previous_validation_error":out.get(tid).error if tid in out else "summary_missing",
+            "instruction":"独立重写并返回 topics 数组，保留正确 thread_id 和有依据的正文及楼层号。",
+        },ensure_ascii=False,separators=(",",":"))
+        try:
+            fixed=await _report_provider_json(
+                provider,correction,repair_input,max_tokens=2100
+            )
+            rows=_extract_json_object(fixed.completion_text or "").get("topics") or []
+            if not isinstance(rows,list):
+                continue
+            for row in rows:
+                if not isinstance(row,dict) or str(row.get("thread_id"))!=str(tid):
+                    continue
+                article=_prose(str(row.get("article") or ""),1800)
+                refs=row.get("evidence_floors")
+                if not article or not isinstance(refs,list) or not refs:
+                    continue
+                try:
+                    nums=tuple(dict.fromkeys(int(x) for x in refs))
+                except (TypeError,ValueError):
+                    continue
+                if set(nums).issubset(valid) and bool(set(nums)&recent):
+                    out[tid]=DailyTopicSummary(tid,article,nums)
+                    break
+        except Exception:
+            # Preserve the original failure so the publication quality gate
+            # can stop the issue; never paper over the error with filler.
+            continue
+
     return [out.get(item.card.thread_id, DailyTopicSummary(item.card.thread_id, "", (), "summary_missing")) for item in evidence]
 
 
@@ -593,17 +718,27 @@ def _fallback_editorial(evidence: list[DailyTopicEvidence], summaries: list[Dail
         return (substantive * 4 + len(item.activity_floors) * 2, replies, item.card.thread_id)
 
     ordered = sorted(evidence, key=score, reverse=True)
+    def has_substantive_update(item: DailyTopicEvidence) -> bool:
+        lengths=[len(_one_line(f.text,650)) for f in item.activity_floors]
+        return any(length>=260 for length in lengths) or sum(length>=80 for length in lengths)>=2
+
+    lead_expected = any(has_substantive_update(item) for item in ordered)
     blocks: list[DailyEditorialBlock] = []
     for idx, item in enumerate(ordered):
         summary = summary_by_id.get(item.card.thread_id)
         text = summary.text if summary and summary.text else item.card.title
+        level = (
+            "lead" if idx==0 and lead_expected else
+            "feature" if has_substantive_update(item) and len(item.activity_floors)>=2 else
+            "brief"
+        )
         blocks.append(DailyEditorialBlock(
-            "lead" if idx == 0 else ("feature" if len(item.activity_floors) >= 2 else "brief"),
+            level,
             (item.card.thread_id,),
             item.card.title,
             _one_line(text, 120),
         ))
-    lead = ordered[0].card.title if ordered else "今日论坛"
+    lead = ordered[0].card.title if ordered and lead_expected else ""
     stand = "；".join(
         _one_line((summary_by_id.get(item.card.thread_id).text if summary_by_id.get(item.card.thread_id) else "") or item.card.title, 120)
         for item in ordered[:2]
@@ -628,7 +763,7 @@ async def editorialize_daily(provider, evidence: list[DailyTopicEvidence], summa
             "channel": item.card.channel,
             "updated": item.card.updated,
             "cumulative_replies": reply_count(item.card.replies),
-            "activity_24h": len(item.activity_floors),
+            "activity_on_issue_date": len(item.activity_floors),
             "continued_from_previous_issue": item.previous_date or None,
             "recent_substantive_replies": sum(len(_one_line(floor.text,400)) >= 60 for floor in item.activity_floors),
             "authors_24h": list(dict.fromkeys(x.author for x in item.activity_floors if x.author))[:8],
@@ -647,7 +782,7 @@ async def editorialize_daily(provider, evidence: list[DailyTopicEvidence], summa
         "不要因某个旧帖在十年前内容丰富、累计回复很多，就把当天无实质推进的回复误评成头条。"
         "续报时只关注相对前一期的新变化，不能重复昨日旧结论。"
         "不要写‘今日看点/精彩回顾/值得关注/社区动态’等空标题，不要为了叙事强行关联无关主题。"
-        "每个 thread_id 必须且只能出现一次，每个 block 只能包含一个 thread_id，整期恰好一个 lead。"
+        "每个 thread_id 必须且只能出现一次，每个 block 只能包含一个 thread_id。仅当本期确有实质论证或结果推进时设置恰好一篇 lead；如果只有感谢、顶帖、问候或随口评论，则可以全部是 brief，不能硬设头条。"
         "返回严格 JSON：{\"headline\":\"...\",\"standfirst\":\"...\",\"blocks\":["
         "{\"level\":\"lead\",\"thread_ids\":[123],\"headline\":\"...\",\"deck\":\"...\"}]}。"
     )
@@ -684,7 +819,7 @@ async def editorialize_daily(provider, evidence: list[DailyTopicEvidence], summa
             if not block_head or not deck:
                 raise ValueError("editorial_empty_block")
             blocks.append(DailyEditorialBlock(level, (tid,), block_head, deck))
-        if set(seen) != known or len(seen) != len(known) or lead_count != 1:
+        if set(seen) != known or len(seen) != len(known) or lead_count > 1:
             raise ValueError("editorial_coverage")
         order = {"lead": 0, "feature": 1, "brief": 2}
         blocks.sort(key=lambda x: order[x.level])
@@ -696,7 +831,7 @@ async def editorialize_daily(provider, evidence: list[DailyTopicEvidence], summa
 def _topic_activity_meta(item: DailyTopicEvidence) -> str:
     activity = list(item.activity_floors)
     if not activity:
-        return "过去24小时未解析到独立楼层更新"
+        return "本期北京时间自然日内未解析到独立楼层更新"
     authors = []
     for floor in activity:
         if floor.author and floor.author not in authors:
@@ -704,7 +839,7 @@ def _topic_activity_meta(item: DailyTopicEvidence) -> str:
     first_time = activity[0].time[11:16] if len(activity[0].time) >= 16 else activity[0].time
     last_time = activity[-1].time[11:16] if len(activity[-1].time) >= 16 else activity[-1].time
     who = "、".join(authors[:4]) + (" 等" if len(authors) > 4 else "")
-    return f"过去24小时 {len(activity)} 个公开楼层更新 · {first_time}–{last_time}" + (f" · {who}" if who else "")
+    return f"本期 {len(activity)} 个公开楼层更新 · {first_time}–{last_time}" + (f" · {who}" if who else "")
 
 
 def _summary_floor_map(item: DailyTopicEvidence) -> dict[int, Floor]:
@@ -738,7 +873,7 @@ def _report_markdown(
     lines: list[str] = [
         f"# 超理日报 · {date}",
         "",
-        f"{len(cards)} 个 `#今日活跃` 主题 · 过去 24h 解析到 {activity_count} 个公开楼层更新 · {board_deck} · 截至 {generated}",
+        f"{len(cards)} 个北京时间 {date} 当日有新回复的主题 · 当日解析到 {activity_count} 个公开楼层更新 · {board_deck} · 截至 {generated}",
         "",
     ]
 
@@ -970,25 +1105,24 @@ def _render_story_tex(
     body = _article_body(item, summary)
     meta = _tex_escape(_story_meta(item))
     headline = _tex_escape(_one_line(block.headline, 76))
-    # The editorial deck was formerly computed but never typeset; make it the
-    # scan-friendly lead, then let genuine prose flow under it.
+    # Substantial features receive a deck; on a tiny factual brief it only
+    # repeats the article and can inadvertently restate old background as news.
     deck = _tex_escape(_one_line(block.deck, 104 if lead else 86))
+    deck_tex = (r"\vspace{1.8mm}\StoryDeck{" + deck + "}\n") if block.level != "brief" else ""
     kind = "焦点" if lead else ("专题" if block.level == "feature" else "简讯")
     previous = getattr(item, "previous_date", "")
     kicker = f"{ordinal:02d}  /  {kind}  ·  {item.card.channel or '论坛'}"
     if previous:
         kicker += f"  ·  续报 {previous[5:]}"
-    floors = "、".join(str(n) for n in summary.evidence_floors[:9]) or "正文待核"
-    evidence_line = _tex_escape(f"讨论证据：{floors} 楼  /  主题 #{tid}")
     title_macro = r"\LeadTitle{" if lead else r"\StoryTitle{"
     return (
-        (r"\Needspace{7\baselineskip}" if lead else r"\Needspace{7\baselineskip}") + "\n"
+        (r"\Needspace{7\baselineskip}" if block.level != "brief" else r"\Needspace{5\baselineskip}") + "\n"
         + r"\StoryKicker{" + _tex_escape(kicker) + "}\n"
         + r"\vspace{2.0mm}" + title_macro + headline + "}\n"
-        + r"\vspace{1.8mm}\StoryDeck{" + deck + "}\n"
+        + deck_tex
         + r"\vspace{1.3mm}\StoryMeta{" + meta + "}\n"
         + r"\vspace{4mm}\StoryBody{" + _tex_prose(body) + "}\n"
-        + r"\StorySource{" + evidence_line + "}{" + str(tid) + "}\n"
+        + r"\StorySource{" + _source_line(item, summary) + "}{" + str(tid) + "}\n"
         + r"\ArticleRule" + "\n"
     )
 
@@ -1123,10 +1257,16 @@ def _load_frozen_report(out: Path, cards: list[ThreadCard], date: str, source: s
         # Older versions wrongly froze "successful" PDFs even though every
         # article request got HTTP 401. Such issues cannot be reused as genuine
         # bulletins. Rebuilding is safe: the old PDFs stay in the archive.
-        topics=data.get("topics") or []
+        topic_rows=data.get("topics") or []
+        if not topic_rows or len(topic_rows)>len(cards) or data.get("index_topic_count")!=len(cards):
+            return None
+        topic_ids={int(t["thread_id"]) for t in topic_rows if isinstance(t,dict) and t.get("thread_id") is not None}
+        selected_cards=[card for card in cards if card.thread_id in topic_ids]
+        if len(selected_cards)!=len(topic_rows) or len(topic_ids)!=len(topic_rows):
+            return None
         complete=sum(bool(t.get("article") and t.get("article_evidence_floors") and not t.get("article_error"))
-                     for t in topics if isinstance(t,dict))
-        minimum=max(1,(len(cards)+1)//2) if cards else 0
+                     for t in topic_rows if isinstance(t,dict))
+        minimum=max(1,(len(selected_cards)+1)//2)
         if complete<minimum:
             return None
         pdf = out / str(data.get("pdf_file") or "")
@@ -1153,7 +1293,7 @@ def _load_frozen_report(out: Path, cards: list[ThreadCard], date: str, source: s
         topics = {int(x.get("thread_id")): x for x in (data.get("topics") or []) if x.get("thread_id") is not None}
         evidence = []
         summaries = []
-        for card in cards:
+        for card in selected_cards:
             row = topics.get(card.thread_id, {})
             evidence.append(DailyTopicEvidence(card, None, (), (), str(row.get("evidence_error") or "")))
             summaries.append(DailyTopicSummary(
@@ -1163,7 +1303,7 @@ def _load_frozen_report(out: Path, cards: list[ThreadCard], date: str, source: s
                 str(row.get("article_error") or ""),
             ))
         return DailyReportBundle(
-            date, source, tuple(cards), tuple(evidence), tuple(summaries), editorial,
+            date, source, tuple(selected_cards), tuple(evidence), tuple(summaries), editorial,
             md_path.read_text(encoding="utf-8") if md_path.exists() else "",
             tex_path.read_text(encoding="utf-8") if tex_path.exists() else "",
             pdf, pages, manifest,
@@ -1196,7 +1336,7 @@ def _previous_issue_topics(out: Path, date: str) -> dict[int, dict]:
                 try:
                     tid=int(row["thread_id"])
                     refs=tuple(int(x) for x in row.get("article_evidence_floors",[])[:12])
-                    activity=tuple(int(x) for x in row.get("activity_floors_24h",[])[:50])
+                    activity=tuple(int(x) for x in (row.get("activity_floors_on_date") or row.get("activity_floors_24h") or [])[:50])
                 except (ValueError,TypeError,KeyError):
                     continue
                 result[tid]={
@@ -1237,8 +1377,33 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
         return frozen
     if not cards:
         raise ValueError("今天的 #今日活跃 数据为空，未生成空白日报；请稍后重试")
+    # The official "#今日活跃" index covers a rolling window, so entries last
+    # updated yesterday evening may appear in today's index. Verify every
+    # candidate against its actual dated floor before claiming news today.
+    index_cards=list(cards)
+    all_evidence=await collect_daily_evidence(index_cards, issue_date=date)
+    def eligible(item: DailyTopicEvidence) -> bool:
+        if item.activity_floors:
+            return True
+        if not item.error:
+            return False
+        # If a day-specific index update is known but pages failed, do not
+        # silently discard possible new posts: include it as missing evidence,
+        # allowing the minimum-article publication gate to reject the issue.
+        stamp=str(getattr(item.card,"updated","") or "")
+        return stamp.startswith(date) or not re.match(r"^\d{4}-\d{2}-\d{2}",stamp)
+
+    active_evidence=[item for item in all_evidence if eligible(item)]
+    excluded=[item for item in all_evidence if not eligible(item)]
+    if not active_evidence:
+        raise ValueError(
+            f"超理日报 {date}：官方活跃索引的 {len(index_cards)} 个候选主题中"
+            "没有核验到当日新增楼层（可能只有昨天夜间的回复）；"
+            "未生成旧闻日报，也未推进发送水位"
+        )
+    cards=[item.card for item in active_evidence]
     previous = _previous_issue_topics(out, date)
-    evidence = _attach_previous_issue(await collect_daily_evidence(cards), previous)
+    evidence = _attach_previous_issue(active_evidence, previous)
     summaries = await summarize_daily_topics(provider, evidence)
     # The model may request missing historical floors for ambiguous updates.
     # One optional second pass is permitted, with a six-topic issue budget,
@@ -1291,6 +1456,12 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
         "generated_at": datetime.now(SHANGHAI).isoformat(),
         "source": source,
         "topic_count": len(cards),
+        "index_topic_count": len(index_cards),
+        "excluded_index_topics": [
+            {"thread_id": item.card.thread_id, "updated": str(getattr(item.card, "updated", "")),
+             "reason": "no_verified_updates_on_issue_date" if not item.error else "source_read_error"}
+            for item in excluded
+        ],
         "signature": sig,
         "renderer": "XeTeX/Tectonic Chaoli journal template",
         "editorial": {
@@ -1318,7 +1489,8 @@ async def build_daily_report(output_dir: Path, cards: list[ThreadCard], date: st
                 "article_evidence_floors": list(next((x.evidence_floors for x in summaries if x.thread_id == item.card.thread_id), ())),
                 "article_error": next((x.error for x in summaries if x.thread_id == item.card.thread_id), ""),
                 "first_floor": item.first_floor.number if item.first_floor else None,
-                "activity_floors_24h": [floor.number for floor in item.activity_floors],
+                "activity_floors_on_date": [floor.number for floor in item.activity_floors],
+                "issue_date": item.issue_date or date,
                 "latest_floors": [floor.number for floor in item.latest_floors],
                 "context_floors": [floor.number for floor in item.context_floors],
                 "visited_pages": list(item.context_pages),
