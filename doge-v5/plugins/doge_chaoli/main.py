@@ -47,7 +47,7 @@ HELP = """Doge Chaoli /chaoli
   /chaoli push off [板块]               关闭本群推送；不写板块则全部关闭
   /chaoli push status                   查看本群订阅
   /chaoli push test [板块]              预览实时推送样式，不改变水位（群主/管理员）
-  /chaoli daily                         单条合并转发最近一期（PDF 原件与逐页图片在同一聊天记录）；不占群文件、不临时生成
+  /chaoli daily                         单条合并转发最近一期（PDF + 逐页图片）；可能占用 QQ 群文件配额，不重复上传
   /chaoli daily push                    管理员重发最近一期已生成日报；仅当刊期为今天才推进今天水位
   /chaoli daily on [HH:MM]              开启本群日报，默认 23:45（Doge 管理员/群主/群管理员）
   /chaoli daily off|status|test          日报管理/已生成刊物预览；每期在本群设置的截稿时间自动生成
@@ -57,7 +57,7 @@ HELP = """Doge Chaoli /chaoli
 严格归属：首帖作者/最后回复者分开，真实楼号/删除楼保留，引用与本层正文分开；用户名只代表论坛账号，不推断现实身份。"""
 
 
-@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、单条转发 PDF 日报与实时群推送", "5.10.44")
+@register("doge_chaoli", "runnel", "超理论坛原生搜索、精确楼层、单条转发 PDF 日报与实时群推送", "5.10.46")
 class DogeChaoli(Star):
     PUSH_LIMIT = 30
     PUSH_INTERVAL = max(60, min(int(os.getenv("DOGE_CHAOLI_PUSH_INTERVAL", "120") or 120), 600))
@@ -352,10 +352,12 @@ class DogeChaoli(Star):
         return "0", "豆子"
 
     async def _daily_report_chain(self, umo: str, report: DailyReportBundle) -> MessageChain:
-        """One QQ merged-forward: archive note, actual PDF attachment, page previews.
+        """One QQ merged-forward with one embedded PDF file and PNG previews.
 
-        NapCat turns File segments within node content into forwarded file
-        elements. No upload_group_file is ever called (no group-file quota).
+        NapCat PacketApi internally handles forwarded FILE through
+        UploadResources(..., group_id) -> uploadGroupFile; this may consume
+        group storage, which the user explicitly accepts. Never invoke the
+        separate OneBot upload_group_file or send a second message.
         """
         uin, name = await self._daily_forward_identity(umo)
         nodes = [
@@ -364,15 +366,15 @@ class DogeChaoli(Star):
                 name=name,
                 content=[Plain(
                     f"{report.caption}\n"
-                    f"正文与引用完整保存在 PDF 中，共 {len(report.pages)} 页；"
-                    "以下依次附 PDF 原件和逐页图片，全部位于本条聊天记录内。"
+                    f"本期共 {len(report.pages)} 页；以下依次是 PDF 原件和逐页图片预览。"
+                    "PDF 与图片均在这一条聊天记录中，文件可能占用群存储空间。"
                 )],
             ),
             Node(
                 uin=uin,
                 name=name,
                 content=[
-                    Plain("超理日报 PDF 原件 · 点击文件下载（不会存入群文件）"),
+                    Plain("超理日报 PDF 原件 · 点击查看完整正文及楼层链接"),
                     File(
                         name=f"Chaoli-Daily-{report.date}.pdf",
                         file=str(report.pdf.resolve()),
@@ -392,10 +394,10 @@ class DogeChaoli(Star):
         return MessageChain([Nodes(nodes)])
 
     async def _send_daily_report(self, umo: str, report: DailyReportBundle) -> bool:
-        """One merged-forward send, never one file upload plus another message.
+        """Send exactly one QQ merged-forward containing PDF and PNG previews.
 
-        A success marks the whole edition delivered; any exception leaves the
-        scheduled watermark unchanged, with no automatic group-file fallback.
+        NapCat may internally allocate group file storage for the forwarded PDF
+        by protocol design. Never send a second separate group-file message.
         """
         try:
             with report.pdf.open("rb") as handle:

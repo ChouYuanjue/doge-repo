@@ -547,8 +547,9 @@ class DogeChaoliTool(FunctionTool[AstrAgentContext]):
                 )
             return (
                 "超理日报正式指令已完成当前群的直接发送流程。"
-                "PDF 原件与逐页图片均在同一条 QQ 合并转发聊天记录中；"
-                "没有上传群文件。不得重复调用，以免同一事件产生多份日报。"
+                "PDF 原件与逐页图片都在同一条 QQ 合并转发聊天记录中。"
+                "当前 NapCat 可能使用群文件配额承载转发文件，但没有额外发送独立的群文件消息。"
+                "不得重复调用，以免同一事件产生多份日报。"
             )
         if a=="latest": return await strict(ChaoliService.latest("all",int(kwargs.get("limit",10))))
         if a=="channel": return await strict(ChaoliService.latest(str(kwargs.get("channel") or target or "all"),int(kwargs.get("limit",10))))
